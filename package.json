@@ -1,0 +1,91 @@
+{
+  "name": "trackwyze",
+  "productName": "Trackwyze",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Trackwyze - Track Smart. Profit Wise.",
+  "author": {
+    "name": "Trackwyze"
+  },
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "start": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "electron:dev": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite\" \"wait-on tcp:5173 && cross-env ELECTRON_RENDERER_URL=http://localhost:5173 electron .\"",
+    "electron:build": "cross-env ELECTRON=true vite build && electron-builder --win --x64",
+    "electron:build:dir": "cross-env ELECTRON=true vite build && electron-builder --win --x64 --dir",
+    "electron:make": "npm run electron:build"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.3",
+    "chart.js": "^4.5.0",
+    "electron-serve": "^2.0.0",
+    "lucide-react": "^0.344.0",
+    "react": "^18.3.1",
+    "react-chartjs-2": "^5.3.0",
+    "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.5.2",
+    "react-router-dom": "^7.6.3",
+    "react-transition-group": "^4.4.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.1",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@types/react-transition-group": "^4.4.12",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.18",
+    "concurrently": "^9.0.1",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "eslint": "^9.9.1",
+    "eslint-plugin-react-hooks": "^5.1.0-rc.0",
+    "eslint-plugin-react-refresh": "^0.4.11",
+    "globals": "^15.9.0",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.3.0",
+    "vite": "^5.4.2",
+    "vite-plugin-pwa": "^0.20.0",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.trackwyze.app",
+    "productName": "Trackwyze",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "electron/icons"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "electron/icons/icon.png",
+      "artifactName": "Trackwyze-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Trackwyze"
+    }
+  }
+}
