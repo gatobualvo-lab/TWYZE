@@ -10,10 +10,10 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
-  v_username citext;
+  v_username extensions.citext;
   v_base_username text;
   v_counter int := 0;
 BEGIN
@@ -25,7 +25,7 @@ BEGIN
 
   WHILE EXISTS (SELECT 1 FROM public.profiles WHERE username = v_username) LOOP
     v_counter := v_counter + 1;
-    v_username := (v_base_username || v_counter::text)::citext;
+    v_username := (v_base_username || v_counter::text)::extensions.citext;
   END LOOP;
 
   INSERT INTO public.profiles (

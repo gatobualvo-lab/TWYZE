@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Typecheck and lint are NOT hard gates yet — this codebase currently
+      # has a real backlog of pre-existing errors/warnings (domain types in
+      # src/types/index.ts drifting from the actual nullable DB schema,
+      # mostly) that predates this workflow. Blocking merges on them right
+      # now would make CI permanently red on day one and get ignored.
+      # continue-on-error surfaces the counts as a visible warning on every
+      # run without blocking anything, so the backlog is trackable — once
+      # it's paid down to zero, remove continue-on-error here to make these
+      # real gates.
+      - name: Typecheck (informational until the pre-existing backlog is cleared)
+        run: npm run typecheck
+        continue-on-error: true
+
+      - name: Lint (informational until the pre-existing backlog is cleared)
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          # Placeholder values so the production build doesn't fail on
+          # missing env vars in CI — this job only verifies the build
+          # succeeds, it never deploys anywhere, so real secrets aren't
+          # needed here.
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder

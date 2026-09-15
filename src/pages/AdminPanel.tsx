@@ -10,29 +10,34 @@ import {
   BarChart3,
   CreditCard,
   TrendingUp,
-  Activity
+  Activity,
+  ScrollText,
+  AlertTriangle,
+  Send
 } from 'lucide-react';
 import UserManagement from '../components/admin/UserManagement';
 import SystemSettings from '../components/admin/SystemSettings';
+import PaymentApprovals from '../components/admin/PaymentApprovals';
+import AuditLogViewer from '../components/admin/AuditLogViewer';
+import BroadcastEmail from '../components/admin/BroadcastEmail';
+import { fetchPlatformStats } from '../services/admin/adminService';
+import type { PlatformStats } from '../services/admin/adminService';
+import { formatCurrency } from '../utils/format';
 import toast from 'react-hot-toast';
 
-type AdminTab = 'overview' | 'users' | 'settings';
-
-interface SystemStats {
-  totalUsers: number;
-  activeUsers: number;
-  trialUsers: number;
-  revenue: number;
-}
+type AdminTab = 'overview' | 'users' | 'payments' | 'audit' | 'settings' | 'broadcast';
 
 export default function AdminPanel() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
-  const [stats, setStats] = useState<SystemStats>({
+  const [stats, setStats] = useState<PlatformStats>({
     totalUsers: 0,
     activeUsers: 0,
     trialUsers: 0,
-    revenue: 0
+    suspendedUsers: 0,
+    expiredUsers: 0,
+    pendingPayments: 0,
+    monthRevenue: 0
   });
   const [loading, setLoading] = useState(true);
 
@@ -42,22 +47,7 @@ export default function AdminPanel() {
 
   const loadStats = async () => {
     try {
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('subscription_status, role');
-
-      if (error) throw error;
-
-      const totalUsers = profiles?.length || 0;
-      const activeUsers = profiles?.filter(p => p.subscription_status === 'active').length || 0;
-      const trialUsers = profiles?.filter(p => p.subscription_status === 'trial').length || 0;
-
-      setStats({
-        totalUsers,
-        activeUsers,
-        trialUsers,
-        revenue: activeUsers * 1000
-      });
+      setStats(await fetchPlatformStats());
     } catch (error: any) {
       console.error('Error loading stats:', error);
       toast.error('Failed to load statistics');
@@ -141,6 +131,37 @@ export default function AdminPanel() {
               </button>
 
               <button
+                onClick={() => setActiveTab('payments')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                  activeTab === 'payments'
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <CreditCard className="w-5 h-5" />
+                <span className="flex-1 text-left">Payment Approvals</span>
+                {stats.pendingPayments > 0 && (
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    activeTab === 'payments' ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'
+                  }`}>
+                    {stats.pendingPayments}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setActiveTab('audit')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                  activeTab === 'audit'
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <ScrollText className="w-5 h-5" />
+                <span>Audit Log</span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('settings')}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
                   activeTab === 'settings'
@@ -150,6 +171,18 @@ export default function AdminPanel() {
               >
                 <Settings className="w-5 h-5" />
                 <span>System Settings</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('broadcast')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                  activeTab === 'broadcast'
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <Send className="w-5 h-5" />
+                <span>Broadcast Email</span>
               </button>
             </div>
           </div>
@@ -162,6 +195,26 @@ export default function AdminPanel() {
                   <h2 className="text-2xl font-bold text-slate-900 mb-2">System Overview</h2>
                   <p className="text-slate-600">Monitor your platform's key metrics and performance</p>
                 </div>
+
+                {stats.pendingPayments > 0 && (
+                  <button
+                    onClick={() => setActiveTab('payments')}
+                    className="w-full flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 hover:bg-amber-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-amber-100">
+                        <AlertTriangle className="w-5 h-5 text-amber-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-slate-900">
+                          {stats.pendingPayments} payment{stats.pendingPayments === 1 ? '' : 's'} awaiting review
+                        </h4>
+                        <p className="text-sm text-slate-600">Approve or reject submitted proof of payment</p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-medium text-amber-700">Review now →</span>
+                  </button>
+                )}
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -206,9 +259,9 @@ export default function AdminPanel() {
                       <TrendingUp className="w-5 h-5 text-green-500" />
                     </div>
                     <h3 className="text-2xl font-bold text-slate-900 mb-1">
-                      KES {stats.revenue.toLocaleString()}
+                      {formatCurrency(stats.monthRevenue)}
                     </h3>
-                    <p className="text-sm text-slate-600">Monthly Revenue</p>
+                    <p className="text-sm text-slate-600">Revenue This Month</p>
                   </div>
                 </div>
 
@@ -226,6 +279,32 @@ export default function AdminPanel() {
                       <div>
                         <h4 className="font-medium text-slate-900">Manage Users</h4>
                         <p className="text-sm text-slate-600">View and manage user accounts</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('payments')}
+                      className="flex items-center gap-3 p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-left"
+                    >
+                      <div className="p-2 rounded-lg bg-yellow-100">
+                        <CreditCard className="w-5 h-5 text-yellow-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-slate-900">Payment Approvals</h4>
+                        <p className="text-sm text-slate-600">Review submitted proof of payment</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('audit')}
+                      className="flex items-center gap-3 p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-left"
+                    >
+                      <div className="p-2 rounded-lg bg-indigo-100">
+                        <ScrollText className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-slate-900">Audit Log</h4>
+                        <p className="text-sm text-slate-600">See who changed what, and when</p>
                       </div>
                     </button>
 
@@ -280,9 +359,27 @@ export default function AdminPanel() {
               </div>
             )}
 
+            {activeTab === 'payments' && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <PaymentApprovals />
+              </div>
+            )}
+
+            {activeTab === 'audit' && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <AuditLogViewer />
+              </div>
+            )}
+
             {activeTab === 'settings' && (
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                 <SystemSettings />
+              </div>
+            )}
+
+            {activeTab === 'broadcast' && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <BroadcastEmail />
               </div>
             )}
           </div>

@@ -4,6 +4,8 @@ import { ArrowLeft, Mail, Lock, User as UserIcon, AlertCircle, CheckCircle, Eye,
 import { supabase } from '../utils/supabase';
 import toast, { Toaster } from 'react-hot-toast';
 import { checkRateLimit, RATE_LIMIT_MESSAGE, checkLeakedPassword, LEAKED_PASSWORD_MESSAGE } from '../utils/security';
+import { sendWelcomeEmail } from '../services/email/emailService';
+import { trackEvent } from '../lib/analytics';
 
 type Mode = 'login' | 'signup';
 
@@ -109,6 +111,8 @@ const EnhancedAuthScreen: React.FC = () => {
 
       // Email confirmation disabled - user is logged in immediately.
       toast.success('Welcome to Trackwyze!');
+      sendWelcomeEmail();
+      trackEvent('user_signed_up');
       navigate('/app', { replace: true });
     } catch (err: any) {
       const msg = err?.message || 'Registration failed. Please try again.';

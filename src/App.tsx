@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase, refreshSession } from './utils/supabase';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Toaster } from 'react-hot-toast';
+import { identifyUser, resetAnalyticsIdentity } from './lib/analytics';
 
 const LandingPage = lazy(() => import('./components/LandingPage'));
 const EnhancedAuthScreen = lazy(() => import('./components/EnhancedAuthScreen'));
@@ -11,6 +12,10 @@ const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const AdminRoute = lazy(() => import('./routes/AdminRoute'));
 const Dashboard = lazy(() => import('./components/Dashboard'));
+const TermsOfService = lazy(() => import('./components/legal/TermsOfService'));
+const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
+const RefundPolicy = lazy(() => import('./components/legal/RefundPolicy'));
+const HelpCenter = lazy(() => import('./components/help/HelpCenter'));
 
 const LazyFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -50,7 +55,12 @@ const App = () => {
           (event, newSession) => {
             setSession(newSession);
 
+            if (newSession?.user) {
+              identifyUser(newSession.user.id);
+            }
+
             if (event === 'SIGNED_OUT') {
+              resetAnalyticsIdentity();
               localStorage.removeItem('sb-trackwyze-auth');
               sessionStorage.removeItem('sb-trackwyze-auth');
             }
@@ -109,6 +119,22 @@ const App = () => {
               element={<ResetPasswordPage />}
             />
             <Route
+              path="/terms"
+              element={<TermsOfService />}
+            />
+            <Route
+              path="/privacy"
+              element={<PrivacyPolicy />}
+            />
+            <Route
+              path="/refund"
+              element={<RefundPolicy />}
+            />
+            <Route
+              path="/help"
+              element={<HelpCenter />}
+            />
+            <Route
               path="/admin"
               element={
                 <AdminRoute>
@@ -123,6 +149,10 @@ const App = () => {
             <Route
               path="/account"
               element={session ? <Dashboard activeTab="account" /> : <Navigate to="/login" replace />}
+            />
+            <Route
+              path="/payment-management"
+              element={session ? <Dashboard activeTab="payment-management" /> : <Navigate to="/login" replace />}
             />
             <Route
               path="/*"

@@ -124,7 +124,12 @@ $fn$;
 
 REVOKE ALL ON FUNCTION private.handle_new_user() FROM PUBLIC, anon, authenticated;
 
+-- This project's live trigger is actually named trg_on_auth_user_created
+-- (created outside the migration history, likely via the dashboard) rather
+-- than on_auth_user_created as every prior migration assumed — drop both
+-- names so the old public.handle_new_user() has no remaining dependents.
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP TRIGGER IF EXISTS trg_on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION private.handle_new_user();

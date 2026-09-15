@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { Sentry } from '../lib/sentry';
 
 interface Props {
   children: ReactNode;
@@ -30,6 +31,7 @@ class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     console.error('Error caught by ErrorBoundary:', error);
     console.error('Component stack:', errorInfo.componentStack);
+    Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
   }
 
   render(): ReactNode {

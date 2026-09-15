@@ -3,12 +3,14 @@ import { Plus, DollarSign, Calendar, Save, Receipt } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import { toNum, parseInput, NumericInput } from '../utils/numberInput';
+import { listProjects, type Project } from '../services/projects/projectService';
 
 interface GeneralExpenseFormData {
   expense_type: string;
   amount: NumericInput;
   date: string;
   notes: string;
+  project_id: string;
 }
 
 const EXPENSE_TYPES = [
@@ -34,14 +36,17 @@ const GeneralExpenseForm: React.FC = () => {
     expense_type: '',
     amount: '',
     date: new Date().toISOString().split('T')[0],
-    notes: ''
+    notes: '',
+    project_id: ''
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userExpenseTypes, setUserExpenseTypes] = useState<string[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   useEffect(() => {
     fetchUserExpenseTypes();
+    listProjects().then(setProjects).catch(() => setProjects([]));
   }, []);
 
   const fetchUserExpenseTypes = async () => {
@@ -109,7 +114,8 @@ const GeneralExpenseForm: React.FC = () => {
         id: crypto.randomUUID(),
         user_id: user.id,
         ...formData,
-        amount: toNum(formData.amount)
+        amount: toNum(formData.amount),
+        project_id: formData.project_id || null
       };
 
       const { error } = await supabase
@@ -121,13 +127,14 @@ const GeneralExpenseForm: React.FC = () => {
       }
 
       toast.success('General expense recorded successfully!');
-      
+
       // Reset form
       setFormData({
         expense_type: '',
         amount: 0,
         date: new Date().toISOString().split('T')[0],
-        notes: ''
+        notes: '',
+        project_id: ''
       });
 
     } catch (error: any) {
@@ -222,6 +229,23 @@ const GeneralExpenseForm: React.FC = () => {
               placeholder="Additional details about this expense..."
             />
           </div>
+
+          {/* Project */}
+          {projects.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Project (Optional)
+              </label>
+              <select
+                value={formData.project_id}
+                onChange={(e) => handleInputChange('project_id', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              >
+                <option value="">No project</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* Submit Button */}
           <div className="flex justify-end">

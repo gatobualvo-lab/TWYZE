@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, DollarSign, AlertTriangle, CheckCircle, Calendar, MapPin, Package } from 'lucide-react';
+import { Truck, AlertTriangle, CheckCircle, CheckCircle2, Calendar, MapPin, Package } from 'lucide-react';
 import { supabase } from '../../utils/supabase';
 import LoadingScreen from '../LoadingScreen';
 import toast from 'react-hot-toast';
@@ -26,6 +26,11 @@ const DeliveryPayments: React.FC = () => {
   const [deliveryPayments, setDeliveryPayments] = useState<DeliveryGuyPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedDeliveryGuy, setExpandedDeliveryGuy] = useState<string | null>(null);
+  // Replaces window.confirm() — confirm()/alert() weren't reliably showing
+  // anything in the packaged Electron shell, so a click would silently
+  // no-op with no dialog and no error. An in-app arm-then-confirm step
+  // needs no native API at all (same fix as VendorTransactions.tsx).
+  const [pendingMarkAllPaidGuy, setPendingMarkAllPaidGuy] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDeliveryData();
@@ -95,8 +100,6 @@ const DeliveryPayments: React.FC = () => {
   };
 
   const markAllDeliveryPaid = async (deliveryGuy: string) => {
-    if (!confirm(`Mark all delivery fees for ${deliveryGuy} as paid?`)) return;
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -115,6 +118,8 @@ const DeliveryPayments: React.FC = () => {
     } catch (error: any) {
       console.error('Error updating delivery payments:', error);
       toast.error('Failed to update delivery payments');
+    } finally {
+      setPendingMarkAllPaidGuy(null);
     }
   };
 
@@ -204,12 +209,31 @@ const DeliveryPayments: React.FC = () => {
                 </div>
 
                 {delivery.balanceDue > 0 && (
-                  <button
-                    onClick={() => markAllDeliveryPaid(delivery.name)}
-                    className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-                  >
-                    Mark All Paid
-                  </button>
+                  pendingMarkAllPaidGuy === delivery.name ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-700 flex-1">Mark all paid?</span>
+                      <button
+                        onClick={() => markAllDeliveryPaid(delivery.name)}
+                        className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                      >
+                        Yes, confirm
+                      </button>
+                      <button
+                        onClick={() => setPendingMarkAllPaidGuy(null)}
+                        className="text-xs text-gray-500 hover:text-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setPendingMarkAllPaidGuy(delivery.name)}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Mark All Paid
+                    </button>
+                  )
                 )}
 
                 {/* Expanded Transaction Details */}

@@ -4,12 +4,16 @@ import { supabase } from '../utils/supabase';
 import EnhancedDropdown from './EnhancedDropdown';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
+import { formatCurrency, formatDate } from '../utils/format';
 import {
   deleteVendorExpense as deleteVendorExpenseAPI,
   updateVendorExpense as updateVendorExpenseAPI,
   setExpenseCleared,
-  markAllPaidForVendor
+  markAllPaidForVendor,
+  EXPENSE_TYPE_OPTIONS,
+  type ExpenseType
 } from '../features/vendor-expenses/api';
+import { listProjects, type Project } from '../services/projects/projectService';
 
 interface AdExpense {
   id: string;
@@ -41,6 +45,7 @@ interface SupplierExpense {
   cleared_at?: string | null;
   cleared_by?: string | null;
   created_at: string;
+  project_id?: string | null;
 }
 
 const ExpenseOverview: React.FC = () => {
@@ -70,8 +75,10 @@ const ExpenseOverview: React.FC = () => {
     expense_type: 'Payment',
     amount: 0,
     date: new Date().toISOString().split('T')[0],
-    notes: ''
+    notes: '',
+    project_id: ''
   });
+  const [projects, setProjects] = useState<Project[]>([]);
 
   const [showClearedExpenses, setShowClearedExpenses] = useState(true);
 
@@ -463,6 +470,7 @@ const ExpenseOverview: React.FC = () => {
   useEffect(() => {
     fetchExpenses();
     fetchVendorBalances();
+    listProjects().then(setProjects).catch(() => setProjects([]));
   }, []);
 
   useEffect(() => {
@@ -570,17 +578,25 @@ const ExpenseOverview: React.FC = () => {
         return;
       }
 
-      // Fetch unpaid sales to calculate amounts owed to vendors
-      const { data: salesData, error: salesError } = await supabase
-        .from('sales')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_deleted', false)
-        .eq('is_archived', false)
-        .gt('amount_owed_to_vendor', 0);
+      // Owed amounts are sourced from sale_items (grouped per vendor,
+      // Unpaid only) rather than sales.seller/amount_owed_to_vendor — a
+      // sale can list several vendors joined into one seller string
+      // ("Acme, Beta"), which produced a bogus combined-vendor balance
+      // instead of crediting each vendor separately. Mirrors the
+      // aggregation in VendorTransactions.tsx so the two screens agree.
+      // The range() cap guards against PostgREST's default 1000-row
+      // limit silently truncating (and thus undercounting) large datasets.
+      const { data: saleItemsData, error: saleItemsError } = await supabase
+        .from('sale_items')
+        .select('vendor, buying_price, quantity, sales!inner(user_id, is_deleted, is_archived)')
+        .eq('sales.user_id', user.id)
+        .eq('sales.is_deleted', false)
+        .eq('sales.is_archived', false)
+        .eq('vendor_payment_status', 'Unpaid')
+        .range(0, 49999);
 
-      if (salesError) {
-        console.error('Error fetching sales for vendor balances:', salesError);
+      if (saleItemsError) {
+        console.error('Error fetching sale items for vendor balances:', saleItemsError);
         return;
       }
 
@@ -588,7 +604,8 @@ const ExpenseOverview: React.FC = () => {
       const { data: vendorExpensesData, error: vendorExpensesError } = await supabase
         .from('vendor_expenses')
         .select('*')
-        .eq('created_by', user.id);
+        .eq('created_by', user.id)
+        .range(0, 49999);
 
       if (vendorExpensesError) {
         console.error('Error fetching vendor expenses:', vendorExpensesError);
@@ -598,13 +615,14 @@ const ExpenseOverview: React.FC = () => {
       // Calculate balances per vendor
       const balances: {[key: string]: {totalOwed: number; totalExpenses: number; balance: number}} = {};
 
-      // Process sales data
-      salesData?.forEach(sale => {
-        const vendor = sale.seller;
+      // Process sale items — each item is credited only to its own vendor
+      saleItemsData?.forEach(item => {
+        const vendor = (item.vendor ?? '').trim();
+        if (!vendor) return;
         if (!balances[vendor]) {
           balances[vendor] = { totalOwed: 0, totalExpenses: 0, balance: 0 };
         }
-        balances[vendor].totalOwed += Number(sale.amount_owed_to_vendor || 0);
+        balances[vendor].totalOwed += (item.buying_price ?? 0) * (item.quantity ?? 0);
       });
 
       // Process vendor expenses
@@ -826,10 +844,11 @@ const ExpenseOverview: React.FC = () => {
       if (editingVendorExpense) {
         // Update existing expense
         await updateVendorExpenseAPI(editingVendorExpense.id, {
-          expenseType: vendorExpenseForm.expense_type,
+          expenseType: vendorExpenseForm.expense_type as ExpenseType,
           amountKES: vendorExpenseForm.amount,
           dateString: vendorExpenseForm.date,
           notes: vendorExpenseForm.notes || undefined,
+          projectId: vendorExpenseForm.project_id || undefined,
         });
 
         // Update local state
@@ -861,6 +880,7 @@ const ExpenseOverview: React.FC = () => {
           amount_kes: vendorExpenseForm.amount,
           occurred_on: vendorExpenseForm.date,
           notes: vendorExpenseForm.notes || null,
+          project_id: vendorExpenseForm.project_id || null,
         };
 
         const { data: insertedData, error } = await supabase
@@ -906,7 +926,8 @@ const ExpenseOverview: React.FC = () => {
         expense_type: 'Payment',
         amount: 0,
         date: new Date().toISOString().split('T')[0],
-        notes: ''
+        notes: '',
+        project_id: ''
       });
       setShowAddVendorExpense(false);
       setEditingVendorExpense(null);
@@ -923,7 +944,8 @@ const ExpenseOverview: React.FC = () => {
       expense_type: expense.expense_type || 'Payment',
       amount: expense.amount,
       date: expense.date,
-      notes: expense.notes || ''
+      notes: expense.notes || '',
+      project_id: expense.project_id || ''
     });
     setEditingVendorExpense(expense);
     setShowAddVendorExpense(true);
@@ -961,7 +983,8 @@ const ExpenseOverview: React.FC = () => {
       expense_type: 'Payment',
       amount: 0,
       date: new Date().toISOString().split('T')[0],
-      notes: ''
+      notes: '',
+      project_id: ''
     });
     setShowAddVendorExpense(false);
     setEditingVendorExpense(null);
@@ -1020,36 +1043,6 @@ const ExpenseOverview: React.FC = () => {
     }
   };
 
-  const filterGeneralExpenses = (searchTerm: string) => {
-    if (!searchTerm.trim()) {
-      setFilteredGeneralExpenses(generalExpenses);
-      return;
-    }
-    
-    const lowercaseSearch = searchTerm.toLowerCase();
-    const filtered = generalExpenses.filter(expense =>
-      (expense.expense_type ?? '').toLowerCase().includes(lowercaseSearch) ||
-      (expense.notes && expense.notes.toLowerCase().includes(lowercaseSearch))
-    );
-    setFilteredGeneralExpenses(filtered);
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 0
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
   // Filter expenses by selected month
   const filteredAdExpenses = adExpenses.filter(expense =>
     expense.occurred_on.startsWith(selectedMonth)
@@ -1093,7 +1086,7 @@ const ExpenseOverview: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Month Selector */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2" style={{ color: '#374151' }}>
             <DollarSign className="w-5 h-5 text-red-600" />
@@ -1113,7 +1106,7 @@ const ExpenseOverview: React.FC = () => {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <div className="flex items-center justify-between">
             <div className="p-3 rounded-full bg-red-100">
               <DollarSign className="w-8 h-8 text-red-600" />
@@ -1126,7 +1119,7 @@ const ExpenseOverview: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <div className="flex items-center justify-between">
             <div className="p-3 rounded-full bg-orange-100">
               <TrendingUp className="w-8 h-8 text-orange-600" />
@@ -1139,7 +1132,7 @@ const ExpenseOverview: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <div className="flex items-center justify-between">
             <div className="p-3 rounded-full bg-purple-100">
               <BarChart3 className="w-8 h-8 text-purple-600" />
@@ -1156,7 +1149,7 @@ const ExpenseOverview: React.FC = () => {
       {/* Expense Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Ad Expenses Breakdown */}
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
             <PieChart className="w-5 h-5 text-orange-600" />
             Ad Expenses by Type
@@ -1188,7 +1181,7 @@ const ExpenseOverview: React.FC = () => {
         </div>
 
         {/* General Expenses Breakdown */}
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
             <BarChart3 className="w-5 h-5 text-purple-600" />
             General Expenses by Type
@@ -1221,7 +1214,7 @@ const ExpenseOverview: React.FC = () => {
       </div>
 
       {/* Supplier Expenses Panel */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div 
           className="flex items-center justify-between p-6 cursor-pointer"
           onClick={() => setIsSupplierExpensesExpanded(!isSupplierExpensesExpanded)}
@@ -1290,11 +1283,9 @@ const ExpenseOverview: React.FC = () => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         required
                       >
-                        <option value="Payment">Payment</option>
-                        <option value="Reimbursement">Reimbursement</option>
-                        <option value="Advance">Advance</option>
-                        <option value="Commission">Commission</option>
-                        <option value="Other">Other</option>
+                        {EXPENSE_TYPE_OPTIONS.map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
                       </select>
                     </div>
 
@@ -1333,6 +1324,20 @@ const ExpenseOverview: React.FC = () => {
                         placeholder="Optional notes"
                       />
                     </div>
+
+                    {projects.length > 0 && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+                        <select
+                          value={vendorExpenseForm.project_id}
+                          onChange={(e) => setVendorExpenseForm(prev => ({ ...prev, project_id: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">No project</option>
+                          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                      </div>
+                    )}
 
                     <div className="md:col-span-2 flex gap-2">
                       <button
@@ -1660,7 +1665,7 @@ const ExpenseOverview: React.FC = () => {
       </div>
 
       {/* Recent Expenses */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-bold text-gray-800" style={{ color: '#374151' }}>

@@ -3,6 +3,9 @@ import { supabase } from '../utils/supabase';
 import { Search, Filter, ChevronDown, ChevronUp, Calendar, User, Truck, Package, Trash2, MapPin, ChevronRight, CreditCard as Edit, Check, DollarSign, Info, CreditCard, TrendingUp, AlertCircle, BarChart3, Undo, AlertTriangle, Archive } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingScreen from './LoadingScreen';
+import { formatCurrency } from '../utils/format';
+import { useBusinessRole } from '../services/team/useBusinessRole';
+import { listTeamMembers } from '../services/team/teamService';
 
 interface EditItem {
   id: string;
@@ -12,6 +15,7 @@ interface EditItem {
   selling_price: number;
   quantity: number;
   vendor_payment_status: 'Paid' | 'Unpaid';
+  item_type: 'goods' | 'service';
 }
 
 interface Sale {
@@ -32,9 +36,14 @@ interface Sale {
   turnover_tax_amount: number | null;
   created_at: string;
   amount_owed_to_vendor?: number;
+  entered_by?: string | null;
 }
 
 const SalesList: React.FC = () => {
+  const { role: businessRole } = useBusinessRole();
+  const canSeeCosts = !businessRole.isStaff || !businessRole.hideFinancialDetails;
+  const canDelete = !businessRole.isStaff;
+  const [memberEmails, setMemberEmails] = useState<Record<string, string>>({});
   const [sales, setSales] = useState<Sale[]>([]);
   const [filteredSales, setFilteredSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +68,7 @@ const SalesList: React.FC = () => {
   const [editItems, setEditItems] = useState<EditItem[]>([]);
   const [loadingEditItems, setLoadingEditItems] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
-  const [deletedSale, setDeletedSale] = useState<{sale: Sale, saleItems: any[], relatedData: any} | null>(null);
+  const [deletedSale, setDeletedSale] = useState<{sale: Sale, saleItems: any[]} | null>(null);
   const [showUndoSnackbar, setShowUndoSnackbar] = useState(false);
   const [undoTimer, setUndoTimer] = useState<NodeJS.Timeout | null>(null);
   const [selectedSaleIds, setSelectedSaleIds] = useState<Set<string>>(new Set());
@@ -102,6 +111,28 @@ const SalesList: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (businessRole.isStaff) return;
+    listTeamMembers()
+      .then(members => {
+        const map: Record<string, string> = {};
+        members.forEach(m => { if (m.memberId) map[m.memberId] = m.invitedEmail; });
+        setMemberEmails(map);
+      })
+      .catch(() => {});
+  }, [businessRole.isStaff]);
+
+  const [ownUserId, setOwnUserId] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setOwnUserId(data.user?.id ?? null));
+  }, []);
+
+  const enteredByLabel = (sale: Sale): string | null => {
+    if (!sale.entered_by) return null;
+    if (sale.entered_by === ownUserId) return 'You';
+    return memberEmails[sale.entered_by] ?? 'A team member';
+  };
+
+  useEffect(() => {
     fetchSales();
     setSelectedSaleIds(new Set());
   }, [showArchived]);
@@ -109,7 +140,7 @@ const SalesList: React.FC = () => {
   useEffect(() => {
     filterAndSortSales();
     calculateOverviewStats();
-  }, [sales, filters]);
+  }, [sales, filters, page]);
 
   const calculateOverviewStats = () => {
     // Get today's date in YYYY-MM-DD format
@@ -164,25 +195,21 @@ const SalesList: React.FC = () => {
     });
   };
 
-  const fetchSales = async (resetPage = true) => {
+  // Fetches the user's full sales history once; "load more" below just
+  // reveals additional already-fetched rows via `page` rather than
+  // re-fetching, which previously re-appended the whole dataset on every
+  // call and duplicated every sale already on screen.
+  const fetchSales = async () => {
     try {
-      if (resetPage) {
-        setLoading(true);
-        setPage(1);
-      } else {
-        setLoadingMore(true);
-      }
-      
+      setLoading(true);
+      setPage(1);
+
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         toast.error('You must be logged in to view sales');
         return;
       }
-
-      const currentPage = resetPage ? 1 : page;
-      const from = (currentPage - 1) * itemsPerPage;
-      const to = from + itemsPerPage - 1;
 
       const { data, error } = await supabase
         .from('sales')
@@ -191,43 +218,25 @@ const SalesList: React.FC = () => {
         .eq('is_deleted', false)
         .eq('is_archived', showArchived)
         .order('date', { ascending: false });
-        //.range(from, to);  // Uncomment this for server-side pagination
 
       if (error) {
         throw error;
       }
 
-      if (resetPage) {
-        setSales(data || []);
-      } else {
-        setSales(prev => [...prev, ...(data || [])]);
-      }
-      
-      // For client-side pagination
-      const allData = data || [];
-      const paginatedData = allData.slice(0, currentPage * itemsPerPage);
-      setFilteredSales(paginatedData);
-      
-      // Check if there are more items to load
-      setHasMore(allData.length > currentPage * itemsPerPage);
-      
-      if (!resetPage) {
-        setPage(currentPage + 1);
-      }
+      setSales(data || []);
     } catch (error: any) {
       console.error('Error fetching sales:', error);
       toast.error(error.message || 'Failed to load sales data');
     } finally {
-      if (resetPage) {
-        setLoading(false);
-      } else {
-        setLoadingMore(false);
-      }
+      setLoading(false);
     }
   };
 
   const loadMoreSales = () => {
-    fetchSales(false);
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    setPage(prev => prev + 1);
+    setLoadingMore(false);
   };
 
   const filterAndSortSales = () => {
@@ -325,9 +334,9 @@ const SalesList: React.FC = () => {
         .insert({
           user_id: (await supabase.auth.getUser()).data.user?.id,
           action: newAmountOwed > 0 ? 'vendor_marked_unpaid' : 'vendor_marked_paid',
-          resource_type: 'sale',
-          resource_id: saleId,
-          details: `Vendor payment status changed to ${newAmountOwed > 0 ? 'unpaid' : 'paid'}`
+          table_name: 'sales',
+          record_id: saleId,
+          new_data: { note: `Vendor payment status changed to ${newAmountOwed > 0 ? 'unpaid' : 'paid'}` }
         });
 
       toast.success(newAmountOwed > 0 ? 'Vendor marked as unpaid' : 'Vendor marked as paid');
@@ -374,9 +383,9 @@ const SalesList: React.FC = () => {
         .insert({
           user_id: (await supabase.auth.getUser()).data.user?.id,
           action: newValue ? 'delivery_marked_paid' : 'delivery_marked_unpaid',
-          resource_type: 'sale',
-          resource_id: saleId,
-          details: `Delivery payment status changed to ${newValue ? 'paid' : 'unpaid'}`
+          table_name: 'sales',
+          record_id: saleId,
+          new_data: { note: `Delivery payment status changed to ${newValue ? 'paid' : 'unpaid'}` }
         });
 
       toast.success(`Delivery ${newValue ? 'marked as paid' : 'marked as unpaid'}`);
@@ -414,9 +423,9 @@ const SalesList: React.FC = () => {
         .insert({
           user_id: (await supabase.auth.getUser()).data.user?.id,
           action: 'payment_status_changed',
-          resource_type: 'sale',
-          resource_id: saleId,
-          details: `Payment status changed to ${status}`
+          table_name: 'sales',
+          record_id: saleId,
+          new_data: { note: `Payment status changed to ${status}` }
         });
 
     } catch (error: any) {
@@ -457,24 +466,13 @@ const SalesList: React.FC = () => {
         console.error('Error fetching sale items:', saleItemsError);
       }
 
-      // Get related vendor expenses (if any)
-      const { data: vendorExpenses, error: vendorExpensesError } = await supabase
-        .from('vendor_expenses')
-        .select('*')
-        .eq('user_id', user.id)
-        .in('vendor', saleItems?.map(item => item.vendor) || []);
-
-      if (vendorExpensesError) {
-        console.error('Error fetching vendor expenses:', vendorExpensesError);
-      }
-
+      // vendor_expenses is a vendor-level ledger, not linked to any
+      // specific sale — there's nothing "related" to fetch here, and
+      // undoDeleteSale() below only ever restores `sale` and `saleItems`.
       // Store data for undo functionality
       const deletedData = {
         sale: saleToDelete,
         saleItems: saleItems || [],
-        relatedData: {
-          vendorExpenses: vendorExpenses || []
-        }
       };
 
       // Perform cascade deletion
@@ -506,9 +504,9 @@ const SalesList: React.FC = () => {
         .insert({
           user_id: user.id,
           action: 'delete_sale',
-          resource_type: 'sale',
-          resource_id: saleId,
-          details: `Sale deleted: ${saleToDelete.product_name} - ${formatCurrency(saleToDelete.selling_price)}`
+          table_name: 'sales',
+          record_id: saleId,
+          old_data: { product_name: saleToDelete.product_name, selling_price: saleToDelete.selling_price }
         });
 
       // Update local state immediately
@@ -574,9 +572,9 @@ const SalesList: React.FC = () => {
         .insert({
           user_id: user.id,
           action: 'restore_sale',
-          resource_type: 'sale',
-          resource_id: deletedSale.sale.id,
-          details: `Sale restored: ${deletedSale.sale.product_name} - ${formatCurrency(deletedSale.sale.selling_price)}`
+          table_name: 'sales',
+          record_id: deletedSale.sale.id,
+          new_data: { product_name: deletedSale.sale.product_name, selling_price: deletedSale.sale.selling_price }
         });
 
       // Update local state
@@ -731,7 +729,7 @@ const SalesList: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('sale_items')
-        .select('id, product_name, vendor_name, vendor, buying_price, selling_price, quantity, vendor_payment_status')
+        .select('id, product_name, vendor_name, vendor, buying_price, selling_price, quantity, vendor_payment_status, item_type')
         .eq('sale_id', sale.id)
         .eq('is_deleted', false);
 
@@ -745,6 +743,7 @@ const SalesList: React.FC = () => {
         selling_price: Number(row.selling_price ?? 0),
         quantity: Number(row.quantity ?? 1),
         vendor_payment_status: (row.vendor_payment_status === 'Paid' ? 'Paid' : 'Unpaid'),
+        item_type: row.item_type === 'service' ? 'service' : 'goods',
       }));
 
       if (items.length === 0) {
@@ -756,6 +755,7 @@ const SalesList: React.FC = () => {
           selling_price: sale.selling_price,
           quantity: 1,
           vendor_payment_status: (sale.amount_owed_to_vendor ?? 0) > 0 ? 'Unpaid' : 'Paid',
+          item_type: 'goods',
         });
       }
 
@@ -793,13 +793,17 @@ const SalesList: React.FC = () => {
           toast.error(`Product ${i + 1}: name is required`);
           return;
         }
-        if (!Number.isFinite(it.quantity) || it.quantity <= 0) {
-          toast.error(`Product ${i + 1}: quantity must be greater than 0`);
-          return;
-        }
-        if (!Number.isFinite(it.buying_price) || it.buying_price < 0) {
-          toast.error(`Product ${i + 1}: buying price is invalid`);
-          return;
+        // Service items have no vendor/inventory unit — quantity/buying
+        // price don't apply and default to 1/0, not a validation failure.
+        if (it.item_type !== 'service') {
+          if (!Number.isFinite(it.quantity) || it.quantity <= 0) {
+            toast.error(`Product ${i + 1}: quantity must be greater than 0`);
+            return;
+          }
+          if (!Number.isFinite(it.buying_price) || it.buying_price < 0) {
+            toast.error(`Product ${i + 1}: buying price is invalid`);
+            return;
+          }
         }
         if (!Number.isFinite(it.selling_price) || it.selling_price < 0) {
           toast.error(`Product ${i + 1}: selling price is invalid`);
@@ -822,7 +826,10 @@ const SalesList: React.FC = () => {
           subtotal: it.selling_price * it.quantity,
           vendor_payment_status: it.vendor_payment_status,
           vendor_payment: it.vendor_payment_status === 'Paid' ? it.buying_price * it.quantity : 0,
-          profit: (it.selling_price - it.buying_price) * it.quantity,
+          // Service revenue has no per-unit cost to subtract — a service's
+          // profit is its full selling price, not (price - cost) * qty.
+          profit: it.item_type === 'service' ? it.selling_price : (it.selling_price - it.buying_price) * it.quantity,
+          item_type: it.item_type,
           updated_at: new Date().toISOString(),
         };
 
@@ -888,9 +895,9 @@ const SalesList: React.FC = () => {
       await supabase.from('audit_log').insert({
         user_id: user.id,
         action: 'update_sale',
-        resource_type: 'sale',
-        resource_id: editingSale.id,
-        details: `Sale edited: ${saleUpdates.product_name}`,
+        table_name: 'sales',
+        record_id: editingSale.id,
+        new_data: { product_name: saleUpdates.product_name },
       });
 
       toast.success('Sale updated');
@@ -907,14 +914,6 @@ const SalesList: React.FC = () => {
 
   const toggleExpandSale = (saleId: string) => {
     setExpandedSaleId(expandedSaleId === saleId ? null : saleId);
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 0
-    }).format(amount);
   };
 
   if (loading) {
@@ -980,18 +979,20 @@ const SalesList: React.FC = () => {
             </div>
           </div>
           
-          {/* Owed to Vendors */}
-          <div className="bg-white rounded-lg p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-orange-100">
-                <DollarSign className="w-5 h-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{formatCurrency(overviewStats.amountOwedToVendors)}</p>
-                <p className="text-sm text-gray-600">Owed to Vendors</p>
+          {/* Owed to Vendors — cost-derived, hidden from cost-restricted staff */}
+          {canSeeCosts && (
+            <div className="bg-white rounded-lg p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-orange-100">
+                  <DollarSign className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{formatCurrency(overviewStats.amountOwedToVendors)}</p>
+                  <p className="text-sm text-gray-600">Owed to Vendors</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -1163,13 +1164,15 @@ const SalesList: React.FC = () => {
                   <Archive className="w-3.5 h-3.5" />
                   Archive ({selectedSaleIds.size})
                 </button>
-                <button
-                  onClick={() => setBulkDeleteConfirm(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete ({selectedSaleIds.size})
-                </button>
+                {canDelete && (
+                  <button
+                    onClick={() => setBulkDeleteConfirm(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete ({selectedSaleIds.size})
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -1366,18 +1369,22 @@ const SalesList: React.FC = () => {
                         </h4>
                         
                         <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-xs text-gray-500">Buying Price</p>
-                            <p className="font-medium">{formatCurrency(sale.buying_price)}</p>
-                          </div>
+                          {canSeeCosts && (
+                            <div>
+                              <p className="text-xs text-gray-500">Buying Price</p>
+                              <p className="font-medium">{formatCurrency(sale.buying_price)}</p>
+                            </div>
+                          )}
                           <div>
                             <p className="text-xs text-gray-500">Selling Price</p>
                             <p className="font-medium">{formatCurrency(sale.selling_price)}</p>
                           </div>
-                         <div>
-                           <p className="text-xs text-gray-500">Profit</p>
-                           <p className="font-medium text-green-600">{formatCurrency(sale.profit)}</p>
-                         </div>
+                          {canSeeCosts && (
+                            <div>
+                              <p className="text-xs text-gray-500">Profit</p>
+                              <p className="font-medium text-green-600">{formatCurrency(sale.profit)}</p>
+                            </div>
+                          )}
                           <div>
                             <p className="text-xs text-gray-500">Delivery Fee</p>
                             <p className="font-medium">{formatCurrency(sale.delivery_fee)}</p>
@@ -1407,6 +1414,9 @@ const SalesList: React.FC = () => {
                         
                         <div className="pt-2 text-xs text-gray-500">
                           <p>Created: {new Date(sale.created_at).toLocaleString()}</p>
+                          {!businessRole.isStaff && enteredByLabel(sale) && (
+                            <p className="mt-0.5">Entered by: <span className="font-medium text-gray-600">{enteredByLabel(sale)}</span></p>
+                          )}
                         </div>
                       </div>
                       
@@ -1499,26 +1509,28 @@ const SalesList: React.FC = () => {
                           Edit
                         </button>
                         
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteSale(sale.id);
-                          }}
-                          disabled={deletingSaleId === sale.id}
-                          className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded flex items-center gap-1"
-                        >
-                          {deletingSaleId === sale.id ? (
-                            <>
-                              <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-                              Deleting...
-                            </>
-                          ) : (
-                            <>
-                              <Trash2 className="w-3 h-3" />
-                              Delete
-                            </>
-                          )}
-                        </button>
+                        {canDelete && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteSale(sale.id);
+                            }}
+                            disabled={deletingSaleId === sale.id}
+                            className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded flex items-center gap-1"
+                          >
+                            {deletingSaleId === sale.id ? (
+                              <>
+                                <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                                Deleting...
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="w-3 h-3" />
+                                Delete
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1605,16 +1617,18 @@ const SalesList: React.FC = () => {
                           />
                         </div>
 
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Buying Price</label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={item.buying_price}
-                            onChange={(e) => updateEditItem(idx, { buying_price: Number(e.target.value) })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
+                        {canSeeCosts && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Buying Price</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={item.buying_price}
+                              onChange={(e) => updateEditItem(idx, { buying_price: Number(e.target.value) })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+                        )}
 
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Selling Price</label>

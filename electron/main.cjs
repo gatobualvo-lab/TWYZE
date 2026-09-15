@@ -42,6 +42,26 @@ async function createWindow() {
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
+    // window.open('', '_blank') (print/PDF preview: a blank window the
+    // renderer fills via document.write()) arrives here with an empty URL —
+    // Electron normalizes it to 'about:blank'. Denying it and shelling out
+    // to the OS browser goes nowhere useful, since there's no URL to open;
+    // it just silently no-ops. Let those become a real Electron child
+    // window instead. Genuine links (WhatsApp share, etc.) keep going to
+    // the OS browser as before.
+    if (url === 'about:blank' || url === '') {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          autoHideMenuBar: true,
+          webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+          },
+        },
+      };
+    }
     shell.openExternal(url);
     return { action: 'deny' };
   });

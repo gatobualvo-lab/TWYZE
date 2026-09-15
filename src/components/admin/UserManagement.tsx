@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Eye, ChevronLeft, ChevronRight, User, Calendar, Phone, Mail, Shield, ShieldOff } from 'lucide-react';
+import { Search, Eye, ChevronLeft, ChevronRight, User, Calendar, Phone, Mail, Shield, ShieldOff, Ban, CheckCircle2, Clock } from 'lucide-react';
 import { supabase } from '../../utils/supabase';
 import toast from 'react-hot-toast';
 import LoadingScreen from '../LoadingScreen';
+import { updateUserSubscription } from '../../services/admin/adminService';
 
 interface UserProfile {
   id: string;
@@ -29,6 +30,7 @@ const UserManagement: React.FC = () => {
   const [showUserDetails, setShowUserDetails] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [subscriptionActionLoading, setSubscriptionActionLoading] = useState(false);
   const usersPerPage = 10;
 
   useEffect(() => {
@@ -118,6 +120,63 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  const applySubscriptionUpdate = async (
+    user: UserProfile,
+    label: string,
+    update: Parameters<typeof updateUserSubscription>[1]
+  ) => {
+    if (!window.confirm(`${label}: ${user.full_name || user.email || user.id}?`)) return;
+
+    setSubscriptionActionLoading(true);
+    try {
+      await updateUserSubscription(user.id, update);
+      const patch: Partial<UserProfile> = {
+        ...(update.subscriptionStatus !== undefined && { subscription_status: update.subscriptionStatus }),
+        ...(update.subscriptionExpiry !== undefined && { subscription_expiry: update.subscriptionExpiry }),
+        ...(update.currentBillingCycle !== undefined && { current_billing_cycle: update.currentBillingCycle }),
+        ...(update.trialEndDate !== undefined && { trial_end_date: update.trialEndDate }),
+      };
+      setUsers(prev => prev.map(u => (u.id === user.id ? { ...u, ...patch } : u)));
+      setSelectedUser(prev => (prev && prev.id === user.id ? { ...prev, ...patch } : prev));
+      toast.success(`${label} applied`);
+    } catch (error: any) {
+      toast.error(error?.message || `Failed to ${label.toLowerCase()}`);
+    } finally {
+      setSubscriptionActionLoading(false);
+    }
+  };
+
+  const extendTrial = (user: UserProfile, days: number) => {
+    const base = user.trial_end_date && new Date(user.trial_end_date) > new Date()
+      ? new Date(user.trial_end_date)
+      : new Date();
+    base.setDate(base.getDate() + days);
+    applySubscriptionUpdate(user, `Extend trial by ${days} days`, { trialEndDate: base.toISOString() });
+  };
+
+  const activateSubscription = (user: UserProfile, days: number, billingCycle: string) => {
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + days);
+    applySubscriptionUpdate(user, `Activate for ${days} days`, {
+      subscriptionStatus: 'active',
+      subscriptionExpiry: expiry.toISOString(),
+      currentBillingCycle: billingCycle,
+    });
+  };
+
+  const suspendUser = (user: UserProfile) => {
+    applySubscriptionUpdate(user, 'Suspend account', { subscriptionStatus: 'suspended' });
+  };
+
+  const reactivateUser = (user: UserProfile) => {
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + 30);
+    applySubscriptionUpdate(user, 'Reactivate account', {
+      subscriptionStatus: 'active',
+      subscriptionExpiry: expiry.toISOString(),
+    });
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -139,12 +198,10 @@ const UserManagement: React.FC = () => {
         return 'bg-blue-100 text-blue-800';
       case 'active':
         return 'bg-green-100 text-green-800';
-      case 'pending_approval':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'inactive':
-        return 'bg-gray-100 text-gray-800';
       case 'expired':
         return 'bg-red-100 text-red-800';
+      case 'suspended':
+        return 'bg-orange-100 text-orange-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -178,9 +235,8 @@ const UserManagement: React.FC = () => {
             <option value="all">All Statuses</option>
             <option value="trial">Trial</option>
             <option value="active">Active</option>
-            <option value="pending_approval">Pending Approval</option>
-            <option value="inactive">Inactive</option>
             <option value="expired">Expired</option>
+            <option value="suspended">Suspended</option>
           </select>
         </div>
       </div>
@@ -413,6 +469,53 @@ const UserManagement: React.FC = () => {
                         <p className="text-sm font-medium text-gray-700">Subscription Expires</p>
                         <p className="text-sm text-gray-900">{formatDate(selectedUser.subscription_expiry)}</p>
                       </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Manual Subscription Controls */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h5 className="font-medium text-gray-900 mb-1">Subscription Actions</h5>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Use these to manually grant or restrict access while billing is handled manually (e.g. after confirming an M-Pesa payment).
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedUser.subscription_status === 'trial' && (
+                      <button
+                        onClick={() => extendTrial(selectedUser, 14)}
+                        disabled={subscriptionActionLoading}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        <Clock className="w-4 h-4" />
+                        Extend trial 14 days
+                      </button>
+                    )}
+                    <button
+                      onClick={() => activateSubscription(selectedUser, 30, 'month2-3')}
+                      disabled={subscriptionActionLoading}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Activate 30 days
+                    </button>
+                    {selectedUser.subscription_status === 'suspended' ? (
+                      <button
+                        onClick={() => reactivateUser(selectedUser)}
+                        disabled={subscriptionActionLoading}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Reactivate
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => suspendUser(selectedUser)}
+                        disabled={subscriptionActionLoading}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-orange-200 text-orange-700 bg-orange-50 hover:bg-orange-100 disabled:opacity-50"
+                      >
+                        <Ban className="w-4 h-4" />
+                        Suspend
+                      </button>
                     )}
                   </div>
                 </div>

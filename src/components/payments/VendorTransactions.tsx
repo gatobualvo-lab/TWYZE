@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, DollarSign, AlertTriangle, CheckCircle, Calendar, MapPin, Package, Filter, ChevronDown, ChevronRight, Search, Plus, Share2, X, Loader2, CreditCard as Edit, Save, Truck, Trash2, CheckCircle2 } from 'lucide-react';
+import { User, DollarSign, CheckCircle, Calendar, Package, Filter, ChevronDown, ChevronRight, Search, Plus, Share2, X, Loader2, CreditCard as Edit, Save, Truck, Trash2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../utils/supabase';
 import LoadingScreen from '../LoadingScreen';
-import ShareVendorReport from './ShareVendorReport';
+import VendorStatement from './VendorStatement';
 import toast from 'react-hot-toast';
+import { EXPENSE_TYPE_OPTIONS, type ExpenseType } from '../../features/vendor-expenses/api';
+import { formatCurrency, formatDate } from '../../utils/format';
 
 interface VendorSaleItem {
   id: string;
@@ -42,15 +44,9 @@ interface FilterState {
     start: string;
     end: string;
   };
-  csvDateRange: {
-    start: string;
-    end: string;
-  };
   paymentStatus: {
     unpaidPurchases: boolean;
     paidPurchases: boolean;
-    unreimbursedExpenses: boolean;
-    reimbursedExpenses: boolean;
   };
   searchTerm: string;
 }
@@ -68,26 +64,21 @@ interface VendorData {
   hasMoreExpenses: boolean;
   loadingPurchases: boolean;
   loadingExpenses: boolean;
+  /** Distinguishes "never fetched" from "fetched, genuinely zero results" — an empty array alone is ambiguous and caused a re-fetch loop for vendors with no purchases or no expenses. */
+  purchasesLoaded: boolean;
+  expensesLoaded: boolean;
 }
 
 interface SaleData {
   id: string;
-  date: string;
-  delivery_guy: string;
+  date: string | null;
+  delivery_guy: string | null;
 }
 
 const VendorTransactions: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [vendors, setVendors] = useState<{[key: string]: VendorData}>({});
   const [expandedVendor, setExpandedVendor] = useState<string | null>(null);
-  const [shareEmail, setShareEmail] = useState('');
-  const [shareLoading, setShareLoading] = useState(false);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [shareDateRange, setShareDateRange] = useState({
-    start: '',
-    end: ''
-  });
   const [allSales, setAllSales] = useState<{[key: string]: SaleData}>({});
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [selectedVendorForExpense, setSelectedVendorForExpense] = useState<string>('');
@@ -109,6 +100,18 @@ const VendorTransactions: React.FC = () => {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
   const [showClearedExpenses, setShowClearedExpenses] = useState(true);
+  const [selectedPurchaseIds, setSelectedPurchaseIds] = useState<Set<string>>(new Set());
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [loadingSelection, setLoadingSelection] = useState(false);
+  // These three replace window.confirm() for the bulk purchase action,
+  // "delete expense", and "mark all paid" — confirm()/alert() weren't
+  // reliably showing anything in the packaged Electron shell (see the same
+  // class of issue with window.open() for print/PDF), so a click would
+  // silently no-op with no dialog and no error. An in-app arm-then-confirm
+  // step needs no native API at all.
+  const [pendingBulkStatus, setPendingBulkStatus] = useState<'Paid' | 'Unpaid' | null>(null);
+  const [pendingDeleteExpenseId, setPendingDeleteExpenseId] = useState<string | null>(null);
+  const [pendingMarkAllPaidVendor, setPendingMarkAllPaidVendor] = useState<string | null>(null);
   const itemsPerPage = 20;
   
   const [filters, setFilters] = useState<FilterState>({
@@ -116,15 +119,9 @@ const VendorTransactions: React.FC = () => {
       start: '',
       end: ''
     },
-    csvDateRange: {
-      start: '',
-      end: ''
-    },
     paymentStatus: {
       unpaidPurchases: true,
-      paidPurchases: true,
-      unreimbursedExpenses: true,
-      reimbursedExpenses: true
+      paidPurchases: true
     },
     searchTerm: ''
   });
@@ -165,6 +162,32 @@ const VendorTransactions: React.FC = () => {
   useEffect(() => {
     fetchVendorData();
   }, []);
+
+  // fetchVendorData() rebuilds every vendor's group from scratch (used by
+  // apply/clear filters, saving an expense edit, mark-all-paid, etc.), which
+  // resets purchasesLoaded/expensesLoaded to false for all vendors. If one
+  // is currently expanded, its detail lists would otherwise sit empty until
+  // the user manually collapses and re-expands it — reload them here instead.
+  useEffect(() => {
+    if (!expandedVendor || !vendors[expandedVendor]) return;
+    if (!vendors[expandedVendor].purchasesLoaded && !vendors[expandedVendor].loadingPurchases) {
+      loadVendorPurchases(expandedVendor);
+    }
+    if (!vendors[expandedVendor].expensesLoaded && !vendors[expandedVendor].loadingExpenses) {
+      loadVendorExpenses(expandedVendor);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendors, expandedVendor]);
+
+  // A selection tied to one vendor's row ids shouldn't survive switching to
+  // (or collapsing) another vendor — stale ids would silently no-op or,
+  // worse, match a different vendor's row that happens to reuse an id slot.
+  useEffect(() => {
+    setSelectedPurchaseIds(new Set());
+    setPendingBulkStatus(null);
+    setPendingDeleteExpenseId(null);
+    setPendingMarkAllPaidVendor(null);
+  }, [expandedVendor]);
 
   const fetchVendorData = async () => {
     try {
@@ -213,13 +236,16 @@ const VendorTransactions: React.FC = () => {
             date,
             delivery_guy,
             user_id,
-            is_deleted
+            is_deleted,
+            is_archived
           )
         `)
         .eq('sales.user_id', user.id)
         .eq('sales.is_deleted', false)
-        .order('created_at', { ascending: false });
-      
+        .eq('sales.is_archived', false)
+        .order('created_at', { ascending: false })
+        .range(0, 49999);
+
       if (saleItemsError) {
         console.error('Error fetching sale items:', saleItemsError);
         toast.error('Failed to load sale items');
@@ -236,7 +262,8 @@ const VendorTransactions: React.FC = () => {
         .from('vendor_expenses')
         .select('*')
         .eq('created_by', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(0, 49999);
 
       if (vendorExpensesError) {
         console.error('Error fetching vendor expenses:', vendorExpensesError);
@@ -249,7 +276,7 @@ const VendorTransactions: React.FC = () => {
       
       // Process sale items - each item is credited only to its specific vendor
       validSaleItems.forEach(item => {
-        const vendorName = item.vendor.trim(); // Exact vendor name from the sale_item
+        const vendorName = (item.vendor ?? '').trim(); // Exact vendor name from the sale_item
         
         if (!vendorGroups[vendorName]) {
           vendorGroups[vendorName] = {
@@ -264,12 +291,14 @@ const VendorTransactions: React.FC = () => {
             hasMorePurchases: false,
             hasMoreExpenses: false,
             loadingPurchases: false,
-            loadingExpenses: false
+            loadingExpenses: false,
+            purchasesLoaded: false,
+            expensesLoaded: false
           };
         }
         
         // Credit this specific item's buying price only to this vendor
-        const itemTotalPrice = item.buying_price * item.quantity;
+        const itemTotalPrice = (item.buying_price ?? 0) * (item.quantity ?? 0);
         
         if (item.vendor_payment_status === 'Unpaid') {
           vendorGroups[vendorName].totalPurchases += itemTotalPrice;
@@ -293,7 +322,9 @@ const VendorTransactions: React.FC = () => {
             hasMorePurchases: false,
             hasMoreExpenses: false,
             loadingPurchases: false,
-            loadingExpenses: false
+            loadingExpenses: false,
+            purchasesLoaded: false,
+            expensesLoaded: false
           };
         }
         
@@ -325,8 +356,11 @@ const VendorTransactions: React.FC = () => {
   };
 
   const passesFilters = (item: any, type: 'purchase' | 'expense'): boolean => {
-    // Date range filter
-    const itemDate = type === 'purchase' ? item.created_at : item.date;
+    // Date range filter — purchases are dated by the underlying sale (not
+    // when the sale_item row happened to be inserted), expenses by
+    // occurred_on (VendorExpense has no `date` field, so reading one
+    // silently matched everything before this fix).
+    const itemDate = type === 'purchase' ? (item.sales?.date || item.created_at) : item.occurred_on;
     if (filters.dateRange.start && itemDate < filters.dateRange.start) return false;
     if (filters.dateRange.end && itemDate > filters.dateRange.end) return false;
     
@@ -335,10 +369,10 @@ const VendorTransactions: React.FC = () => {
       const isPaid = item.vendor_payment_status === 'Paid';
       if (isPaid && !filters.paymentStatus.paidPurchases) return false;
       if (!isPaid && !filters.paymentStatus.unpaidPurchases) return false;
-    } else {
-      // Skip expense filtering (no reimbursement status in new schema)
-      // All expenses pass through
     }
+    // Expenses have no paid/unpaid distinction at the filter-panel level —
+    // "cleared" status is a per-vendor visibility toggle instead (see
+    // showClearedExpenses), not something this top-level filter offers.
     
     // Search filter (only for purchases by product name)
     if (type === 'purchase' && filters.searchTerm) {
@@ -360,15 +394,9 @@ const VendorTransactions: React.FC = () => {
         start: '',
         end: ''
       },
-      csvDateRange: {
-        start: '',
-        end: ''
-      },
       paymentStatus: {
         unpaidPurchases: true,
-        paidPurchases: true,
-        unreimbursedExpenses: true,
-        reimbursedExpenses: true
+        paidPurchases: true
       },
       searchTerm: ''
     });
@@ -378,7 +406,18 @@ const VendorTransactions: React.FC = () => {
 
   const loadVendorPurchases = async (vendorName: string) => {
     if (!vendors[vendorName]) return;
-    
+
+    // Neither status checked means "show nothing" — skip the query rather
+    // than send a filter that can never match.
+    const { unpaidPurchases, paidPurchases } = filters.paymentStatus;
+    if (!unpaidPurchases && !paidPurchases) {
+      setVendors(prev => ({
+        ...prev,
+        [vendorName]: { ...prev[vendorName], purchaseItems: [], hasMorePurchases: false, loadingPurchases: false }
+      }));
+      return;
+    }
+
     try {
       setVendors(prev => ({
         ...prev,
@@ -387,7 +426,7 @@ const VendorTransactions: React.FC = () => {
           loadingPurchases: true
         }
       }));
-      
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -395,8 +434,10 @@ const VendorTransactions: React.FC = () => {
       const from = (page - 1) * itemsPerPage;
       const to = from + itemsPerPage - 1;
 
-      // Join with sales table to exclude deleted sales
-      const { data: saleItemsData, error } = await supabase
+      // Join with sales table to exclude deleted sales. Filters applied here
+      // must mirror passesFilters()/fetchVendorData() exactly, otherwise the
+      // expanded item list disagrees with the vendor's summary totals above it.
+      let query = supabase
         .from('sale_items')
         .select(`
           id,
@@ -411,33 +452,45 @@ const VendorTransactions: React.FC = () => {
             date,
             delivery_guy,
             user_id,
-            is_deleted
+            is_deleted,
+            is_archived
           )
         `)
         .eq('vendor', vendorName)
         .eq('sales.user_id', user.id)
         .eq('sales.is_deleted', false)
+        .eq('sales.is_archived', false);
+
+      if (filters.dateRange.start) query = query.gte('sales.date', filters.dateRange.start);
+      if (filters.dateRange.end) query = query.lte('sales.date', filters.dateRange.end);
+      if (unpaidPurchases && !paidPurchases) query = query.eq('vendor_payment_status', 'Unpaid');
+      if (paidPurchases && !unpaidPurchases) query = query.eq('vendor_payment_status', 'Paid');
+      if (filters.searchTerm) query = query.ilike('product_name', `%${filters.searchTerm}%`);
+
+      const { data: saleItemsData, error } = await query
         .order('created_at', { ascending: false })
-        .range(from, to);
-      
+        .range(from, to)
+        .returns<VendorSaleItem[]>();
+
       if (error) throw error;
-      
+
       const newItems = saleItemsData || [];
-      
+
       setVendors(prev => ({
         ...prev,
         [vendorName]: {
           ...prev[vendorName],
           purchaseItems: page === 1 ? newItems : [...prev[vendorName].purchaseItems, ...newItems],
           hasMorePurchases: newItems.length === itemsPerPage,
-          loadingPurchases: false
+          loadingPurchases: false,
+          purchasesLoaded: true
         }
       }));
-      
+
     } catch (error: any) {
       console.error('Error loading vendor purchases:', error);
       toast.error('Failed to load vendor purchases');
-      
+
       setVendors(prev => ({
         ...prev,
         [vendorName]: {
@@ -467,16 +520,22 @@ const VendorTransactions: React.FC = () => {
       const from = (page - 1) * itemsPerPage;
       const to = from + itemsPerPage - 1;
 
-      const { data: expensesData, error } = await supabase
+      let query = supabase
         .from('vendor_expenses')
         .select('*')
         .eq('created_by', user.id)
-        .eq('vendor_name', vendorName)
+        .eq('vendor_name', vendorName);
+
+      if (filters.dateRange.start) query = query.gte('occurred_on', filters.dateRange.start);
+      if (filters.dateRange.end) query = query.lte('occurred_on', filters.dateRange.end);
+
+      const { data: expensesData, error } = await query
         .order('created_at', { ascending: false })
-        .range(from, to);
-      
+        .range(from, to)
+        .returns<VendorExpense[]>();
+
       if (error) throw error;
-      
+
       const newItems = expensesData || [];
       
       setVendors(prev => ({
@@ -485,7 +544,8 @@ const VendorTransactions: React.FC = () => {
           ...prev[vendorName],
           expenseItems: page === 1 ? newItems : [...prev[vendorName].expenseItems, ...newItems],
           hasMoreExpenses: newItems.length === itemsPerPage,
-          loadingExpenses: false
+          loadingExpenses: false,
+          expensesLoaded: true
         }
       }));
       
@@ -538,12 +598,15 @@ const VendorTransactions: React.FC = () => {
     }
     
     setExpandedVendor(vendorName);
-    
-    // Load initial data if not already loaded
-    if (vendors[vendorName].purchaseItems.length === 0) {
+
+    // Load initial data if not already loaded. Checked via purchasesLoaded/
+    // expensesLoaded rather than an empty-array check — a vendor can
+    // legitimately have zero purchases or zero expenses, and re-deriving
+    // "loaded" from array length would re-fetch that empty list forever.
+    if (!vendors[vendorName].purchasesLoaded) {
       await loadVendorPurchases(vendorName);
     }
-    if (vendors[vendorName].expenseItems.length === 0) {
+    if (!vendors[vendorName].expensesLoaded) {
       await loadVendorExpenses(vendorName);
     }
   };
@@ -606,18 +669,16 @@ const VendorTransactions: React.FC = () => {
     try {
       setSavingExpenseId(editingExpenseId);
 
-      const { error } = await supabase
-        .from('vendor_expenses')
-        .update({
-          date: editExpenseForm.date,
-          expense_type: editExpenseForm.expense_type,
-          amount: editExpenseForm.amount,
-          notes: editExpenseForm.notes,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', editingExpenseId);
-
-      if (error) throw error;
+      // Routed through the shared vendor-expenses API (same one
+      // ExpenseOverview.tsx uses) rather than a hand-rolled update, so the
+      // two screens can't drift onto different column names again.
+      const { updateVendorExpense } = await import('../../features/vendor-expenses/api');
+      await updateVendorExpense(editingExpenseId, {
+        expenseType: editExpenseForm.expense_type as ExpenseType,
+        amountKES: editExpenseForm.amount,
+        dateString: editExpenseForm.date,
+        notes: editExpenseForm.notes || undefined,
+      });
 
       // Update local state
       const vendorName = Object.keys(vendors).find(vendor => 
@@ -629,13 +690,13 @@ const VendorTransactions: React.FC = () => {
           ...prev,
           [vendorName]: {
             ...prev[vendorName],
-            expenseItems: prev[vendorName].expenseItems.map(expense => 
-              expense.id === editingExpenseId 
-                ? { 
-                    ...expense, 
-                    date: editExpenseForm.date,
+            expenseItems: prev[vendorName].expenseItems.map(expense =>
+              expense.id === editingExpenseId
+                ? {
+                    ...expense,
+                    occurred_on: editExpenseForm.date,
                     expense_type: editExpenseForm.expense_type,
-                    amount: editExpenseForm.amount,
+                    amount_kes: editExpenseForm.amount,
                     notes: editExpenseForm.notes
                   }
                 : expense
@@ -671,19 +732,22 @@ const VendorTransactions: React.FC = () => {
 
       const newExpense = await addVendorExpense({
         vendorName: selectedVendorForExpense,
-        expenseType: addExpenseForm.expense_type as 'Payment' | 'Refund' | 'Adjustment' | 'Other',
+        expenseType: addExpenseForm.expense_type as ExpenseType,
         amountKES: addExpenseForm.amount,
         dateString: addExpenseForm.date,
         notes: addExpenseForm.notes || undefined
       });
 
-      const expenseData = {
+      const expenseData: VendorExpense = {
         id: newExpense.id,
         vendor_name: selectedVendorForExpense,
         expense_type: newExpense.expense_type,
         amount_kes: newExpense.amount_kes,
         occurred_on: newExpense.occurred_on,
         notes: newExpense.notes,
+        is_cleared: newExpense.is_cleared,
+        cleared_at: newExpense.cleared_at,
+        cleared_by: newExpense.cleared_by,
         created_at: newExpense.created_at,
         created_by: newExpense.created_by
       };
@@ -755,9 +819,114 @@ const VendorTransactions: React.FC = () => {
     }
   };
 
-  // Reimbursement feature removed - not in new schema
-  const toggleExpenseReimbursement = async (expenseId: string, vendorName: string, currentReimbursed: boolean, amount: number) => {
-    toast.error('Reimbursement tracking is not available in the current version');
+  const togglePurchaseSelection = (itemId: string) => {
+    setSelectedPurchaseIds(prev => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  };
+
+  // Purchases are paginated (itemsPerPage=20) so vendor.purchaseItems only
+  // ever holds however many pages have been scrolled/loaded so far.
+  // "Select all"/"Select unpaid" need every matching row regardless of what
+  // happens to be loaded, so this queries ids directly rather than reading
+  // off the paginated array — a lightweight query (just id +
+  // vendor_payment_status, no product/price columns) mirroring the same
+  // filter conditions loadVendorPurchases() applies.
+  const fetchAllPurchaseIds = async (vendorName: string, options: { onlyUnpaid?: boolean } = {}): Promise<string[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    let query = supabase
+      .from('sale_items')
+      .select('id, vendor_payment_status, sales!inner(date, user_id, is_deleted, is_archived)')
+      .eq('vendor', vendorName)
+      .eq('sales.user_id', user.id)
+      .eq('sales.is_deleted', false)
+      .eq('sales.is_archived', false);
+
+    if (filters.dateRange.start) query = query.gte('sales.date', filters.dateRange.start);
+    if (filters.dateRange.end) query = query.lte('sales.date', filters.dateRange.end);
+    if (filters.searchTerm) query = query.ilike('product_name', `%${filters.searchTerm}%`);
+
+    if (options.onlyUnpaid) {
+      // "Select unpaid" always means unpaid, regardless of the Paid/Unpaid
+      // visibility checkboxes — those control what's *shown*, not what this
+      // explicit action targets.
+      query = query.eq('vendor_payment_status', 'Unpaid');
+    } else {
+      const { unpaidPurchases, paidPurchases } = filters.paymentStatus;
+      if (unpaidPurchases && !paidPurchases) query = query.eq('vendor_payment_status', 'Unpaid');
+      if (paidPurchases && !unpaidPurchases) query = query.eq('vendor_payment_status', 'Paid');
+    }
+
+    const { data, error } = await query.range(0, 49999).returns<{ id: string; vendor_payment_status: string }[]>();
+    if (error) {
+      console.error('Error fetching all purchase ids for selection:', error);
+      toast.error('Failed to load all items for selection');
+      return [];
+    }
+    return (data ?? []).map(row => row.id);
+  };
+
+  const toggleSelectAllPurchases = async (vendorName: string) => {
+    if (selectedPurchaseIds.size > 0) {
+      setSelectedPurchaseIds(new Set());
+      return;
+    }
+    setLoadingSelection(true);
+    const ids = await fetchAllPurchaseIds(vendorName);
+    setSelectedPurchaseIds(new Set(ids));
+    setLoadingSelection(false);
+  };
+
+  const selectUnpaidPurchases = async (vendorName: string) => {
+    setLoadingSelection(true);
+    const ids = await fetchAllPurchaseIds(vendorName, { onlyUnpaid: true });
+    setSelectedPurchaseIds(new Set(ids));
+    setLoadingSelection(false);
+  };
+
+  // Batched into one `.in(...)` update instead of looping
+  // toggleVendorPaymentStatus per id — a vendor can easily have 100+ unpaid
+  // items, and firing that many individual requests (plus individual toasts)
+  // would be both slow and noisy.
+  const bulkUpdateVendorPaymentStatus = async (itemIds: string[], newStatus: 'Paid' | 'Unpaid') => {
+    if (itemIds.length === 0) return;
+    const verb = newStatus === 'Paid' ? 'paid' : 'unpaid';
+
+    try {
+      setBulkUpdating(true);
+
+      const { error } = await supabase
+        .from('sale_items')
+        .update({ vendor_payment_status: newStatus })
+        .in('id', itemIds);
+      if (error) throw error;
+
+      // Selection can now span far more items than are actually paginated
+      // into vendor.purchaseItems (see fetchAllPurchaseIds), so a delta
+      // computed only over currently-loaded items would silently under- or
+      // over-count totalPurchases/netOwed whenever the bulk action touched
+      // an item that isn't loaded. fetchVendorData() recomputes every
+      // vendor's totals from the full, unpaginated data — correct
+      // regardless of how much of the list happens to be loaded — and
+      // resets purchasesLoaded, which the existing auto-reload effect
+      // (keyed on [vendors, expandedVendor]) picks up to refresh the
+      // expanded vendor's visible item list too.
+      await fetchVendorData();
+
+      setSelectedPurchaseIds(new Set());
+      toast.success(`Marked ${itemIds.length} item${itemIds.length !== 1 ? 's' : ''} as ${verb}`);
+    } catch (error: any) {
+      console.error('Error bulk updating vendor payment status:', error);
+      toast.error(error.message || 'Failed to update selected items');
+    } finally {
+      setBulkUpdating(false);
+      setPendingBulkStatus(null);
+    }
   };
 
   const toggleExpenseCleared = async (expense: VendorExpense, vendorName: string) => {
@@ -802,8 +971,7 @@ const VendorTransactions: React.FC = () => {
   };
 
   const deleteExpense = async (expenseId: string, vendorName: string) => {
-    if (!confirm('Delete this expense? This cannot be undone.')) return;
-
+    setPendingDeleteExpenseId(null);
     try {
       const { deleteVendorExpense } = await import('../../features/vendor-expenses/api');
 
@@ -833,8 +1001,7 @@ const VendorTransactions: React.FC = () => {
   };
 
   const markAllPaidForVendor = async (vendorName: string) => {
-    if (!confirm(`Mark all outstanding expenses for ${vendorName} as paid?`)) return;
-
+    setPendingMarkAllPaidVendor(null);
     try {
       const { markAllPaidForVendor: markAllPaidAPI } = await import('../../features/vendor-expenses/api');
 
@@ -853,219 +1020,11 @@ const VendorTransactions: React.FC = () => {
   const openShareModal = (vendorName: string) => {
     setSelectedVendor(vendorName);
     setShareModalOpen(true);
-    // Reset date filters
-    setStartDate('');
-    setEndDate('');
-    // Reset date range when opening modal
-    setShareDateRange({
-      start: '',
-      end: ''
-    });
-  };
-  
-  // Generate vendor transactions for sharing
-  const generateVendorTransactions = (vendorName: string) => {
-    const vendor = vendors[vendorName];
-    if (!vendor) return [];
-
-    const transactions: {
-      id: string;
-      date: string;
-      type: 'Purchase' | 'Expense';
-      product_name?: string;
-      description?: string;
-      amount: number;
-      quantity?: number;
-      unit_price?: number;
-      vendor: string;
-      delivery_person?: string;
-      status: string;
-      notes?: string;
-    }[] = [];
-    
-    let filteredPurchases = vendor.purchaseItems;
-    let filteredExpenses = vendor.expenseItems;
-    
-    if (shareDateRange.start || shareDateRange.end) {
-      if (shareDateRange.start) {
-        filteredPurchases = filteredPurchases.filter(item => {
-          const saleDate = allSales[item.sale_id]?.date || item.created_at;
-          return saleDate >= shareDateRange.start;
-        });
-        filteredExpenses = filteredExpenses.filter(expense =>
-          expense.occurred_on >= shareDateRange.start
-        );
-      }
-      
-      if (shareDateRange.end) {
-        filteredPurchases = filteredPurchases.filter(item => {
-          const saleDate = allSales[item.sale_id]?.date || item.created_at;
-          return saleDate <= shareDateRange.end;
-        });
-        filteredExpenses = filteredExpenses.filter(expense =>
-          expense.occurred_on <= shareDateRange.end
-        );
-      }
-    }
-
-    // Filter transactions by CSV date range
-    const purchaseTransactions = filteredPurchases.filter(item => {
-      const sale = allSales[item.sale_id];
-      const itemDate = sale?.date || item.created_at;
-      if (filters.csvDateRange.start && itemDate < filters.csvDateRange.start) return false;
-      if (filters.csvDateRange.end && itemDate > filters.csvDateRange.end) return false;
-      return true;
-    }).map(item => ({
-      id: item.id,
-      date: allSales[item.sale_id]?.date || item.created_at,
-      type: 'Purchase' as const,
-      product_name: item.product_name,
-      quantity: item.quantity,
-      unit_price: item.buying_price,
-      amount: item.buying_price * item.quantity,
-      vendor: item.vendor,
-      delivery_person: allSales[item.sale_id]?.delivery_guy || '',
-      status: item.vendor_payment_status,
-      notes: ''
-    }));
-
-    const expenseTransactions = vendor.expenseItems.filter(expense => {
-      if (filters.csvDateRange.start && expense.occurred_on < filters.csvDateRange.start) return false;
-      if (filters.csvDateRange.end && expense.occurred_on > filters.csvDateRange.end) return false;
-      return true;
-    }).map(expense => ({
-      id: expense.id,
-      date: expense.occurred_on,
-      type: 'Expense' as const,
-      product_name: expense.expense_type,
-      quantity: 1,
-      unit_price: expense.amount_kes,
-      amount: expense.amount_kes,
-      vendor: expense.vendor_name,
-      delivery_person: '',
-      status: 'Expense',
-      notes: expense.notes || ''
-    }));
-
-    return [...purchaseTransactions, ...expenseTransactions].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
   };
   
   const closeShareModal = () => {
     setShareModalOpen(false);
     setSelectedVendor(null);
-    setShareEmail('');
-    setShareDateRange({
-      start: '',
-      end: ''
-    });
-    setShareLoading(false);
-    setStartDate('');
-    setEndDate('');
-  };
-
-  const generateVendorReport = (vendorName: string) => {
-    const vendor = vendors[vendorName];
-    if (!vendor) return null;
-
-    const transactions: {
-      id: string;
-      date: string;
-      type: 'Purchase' | 'Expense';
-      product_name?: string;
-      description?: string;
-      amount: number;
-      quantity?: number;
-      unit_price?: number;
-      vendor: string;
-      delivery_person?: string;
-      status: string;
-      notes?: string;
-    }[] = [];
-    let filteredPurchases = vendor.purchaseItems;
-    let filteredExpenses = vendor.expenseItems;
-    
-    if (shareDateRange.start || shareDateRange.end) {
-      if (shareDateRange.start) {
-        filteredPurchases = filteredPurchases.filter(item => {
-          const saleDate = allSales[item.sale_id]?.date || item.created_at;
-          return saleDate >= shareDateRange.start;
-        });
-        filteredExpenses = filteredExpenses.filter(expense =>
-          expense.occurred_on >= shareDateRange.start
-        );
-      }
-      
-      if (shareDateRange.end) {
-        filteredPurchases = filteredPurchases.filter(item => {
-          const saleDate = allSales[item.sale_id]?.date || item.created_at;
-          return saleDate <= shareDateRange.end;
-        });
-        filteredExpenses = filteredExpenses.filter(expense =>
-          expense.occurred_on <= shareDateRange.end
-        );
-      }
-    }
-
-    // Filter transactions by CSV date range
-    const purchaseTransactions = filteredPurchases.filter(item => {
-      const sale = allSales[item.sale_id];
-      const itemDate = sale?.date || item.created_at;
-      if (filters.csvDateRange.start && itemDate < filters.csvDateRange.start) return false;
-      if (filters.csvDateRange.end && itemDate > filters.csvDateRange.end) return false;
-      return true;
-    }).map(item => ({
-      id: item.id,
-      date: allSales[item.sale_id]?.date || item.created_at,
-      type: 'Purchase' as const,
-      product_name: item.product_name,
-      quantity: item.quantity,
-      unit_price: item.buying_price,
-      amount: item.buying_price * item.quantity,
-      vendor: item.vendor,
-      delivery_person: allSales[item.sale_id]?.delivery_guy || '',
-      status: item.vendor_payment_status,
-      notes: ''
-    }));
-
-    const expenseTransactions = vendor.expenseItems.filter(expense => {
-      if (filters.csvDateRange.start && expense.occurred_on < filters.csvDateRange.start) return false;
-      if (filters.csvDateRange.end && expense.occurred_on > filters.csvDateRange.end) return false;
-      return true;
-    }).map(expense => ({
-      id: expense.id,
-      date: expense.occurred_on,
-      type: 'Expense' as const,
-      product_name: expense.expense_type,
-      quantity: 1,
-      unit_price: expense.amount_kes,
-      amount: expense.amount_kes,
-      vendor: expense.vendor_name,
-      delivery_person: '',
-      status: 'Expense',
-      notes: expense.notes || ''
-    }));
-
-    return [...purchaseTransactions, ...expenseTransactions].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 0
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
   };
 
   if (loading) {
@@ -1149,62 +1108,32 @@ const VendorTransactions: React.FC = () => {
                   <CheckCircle className="w-4 h-4 text-gray-500" />
                   Payment Status
                 </h4>
-                <div className="space-y-2">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-gray-600">Purchases</p>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={filters.paymentStatus.unpaidPurchases}
-                        onChange={(e) => setFilters(prev => ({
-                          ...prev,
-                          paymentStatus: { ...prev.paymentStatus, unpaidPurchases: e.target.checked }
-                        }))}
-                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                      />
-                      <span className="text-sm text-gray-700">Unpaid Purchases</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={filters.paymentStatus.paidPurchases}
-                        onChange={(e) => setFilters(prev => ({
-                          ...prev,
-                          paymentStatus: { ...prev.paymentStatus, paidPurchases: e.target.checked }
-                        }))}
-                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                      />
-                      <span className="text-sm text-gray-700">Paid Purchases</span>
-                    </label>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-gray-600">Expenses</p>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={filters.paymentStatus.unreimbursedExpenses}
-                        onChange={(e) => setFilters(prev => ({
-                          ...prev,
-                          paymentStatus: { ...prev.paymentStatus, unreimbursedExpenses: e.target.checked }
-                        }))}
-                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                      />
-                      <span className="text-sm text-gray-700">Unreimbursed Expenses</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={filters.paymentStatus.reimbursedExpenses}
-                        onChange={(e) => setFilters(prev => ({
-                          ...prev,
-                          paymentStatus: { ...prev.paymentStatus, reimbursedExpenses: e.target.checked }
-                        }))}
-                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                      />
-                      <span className="text-sm text-gray-700">Reimbursed Expenses</span>
-                    </label>
-                  </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-gray-600">Purchases</p>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.paymentStatus.unpaidPurchases}
+                      onChange={(e) => setFilters(prev => ({
+                        ...prev,
+                        paymentStatus: { ...prev.paymentStatus, unpaidPurchases: e.target.checked }
+                      }))}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-gray-700">Unpaid Purchases</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.paymentStatus.paidPurchases}
+                      onChange={(e) => setFilters(prev => ({
+                        ...prev,
+                        paymentStatus: { ...prev.paymentStatus, paidPurchases: e.target.checked }
+                      }))}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-gray-700">Paid Purchases</span>
+                  </label>
                 </div>
               </div>
               
@@ -1252,73 +1181,12 @@ const VendorTransactions: React.FC = () => {
         )}
       </div>
 
-      {/* Share Modal */}
+      {/* Vendor Statement Modal */}
       {shareModalOpen && selectedVendor && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-full bg-blue-100">
-                    <Share2 className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-800">Share Vendor Report</h3>
-                </div>
-                <button
-                  onClick={closeShareModal}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  Share transaction report for <strong>{selectedVendor}</strong>
-                </p>
-                
-                {/* Date Range Selection for Share */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Date Range for Export (Optional)
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Start Date</label>
-                      <input
-                        type="date"
-                        value={shareDateRange.start}
-                        onChange={(e) => setShareDateRange(prev => ({ ...prev, start: e.target.value }))}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">End Date</label>
-                      <input
-                        type="date"
-                        value={shareDateRange.end}
-                        onChange={(e) => setShareDateRange(prev => ({ ...prev, end: e.target.value }))}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Share Vendor Report Modal */}
-      {shareModalOpen && selectedVendor && (
-        <ShareVendorReport
+        <VendorStatement
           isOpen={shareModalOpen}
           onClose={closeShareModal}
           vendorName={selectedVendor}
-          vendorTransactions={generateVendorTransactions(selectedVendor)}
-          totalPurchases={vendors[selectedVendor]?.totalPurchases || 0}
-          totalExpenses={vendors[selectedVendor]?.totalExpenses || 0}
-          netOwed={vendors[selectedVendor]?.netOwed || 0}
         />
       )}
 
@@ -1407,7 +1275,7 @@ const VendorTransactions: React.FC = () => {
               <div className="p-5 border-t border-gray-200 bg-gray-50">
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <p className="text-xs text-gray-500">Total Purchases</p>
+                    <p className="text-xs text-gray-500">Unpaid Purchases</p>
                     <p className="font-medium">{formatCurrency(vendor.totalPurchases)}</p>
                   </div>
                   <div>
@@ -1429,51 +1297,6 @@ const VendorTransactions: React.FC = () => {
               {/* Expanded Content */}
               {expandedVendor === vendor.name && (
                 <div className="border-t border-gray-200">
-                  {/* CSV Export Date Range */}
-                  <div className="p-6 border-b border-gray-200 bg-gray-50">
-                    <h5 className="font-medium text-gray-700 mb-3 flex items-center gap-1">
-                      <Calendar className="w-4 h-4 text-blue-500" />
-                      CSV Export Date Range
-                    </h5>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm text-gray-600 mb-1">Start Date</label>
-                        <input
-                          type="date"
-                          value={filters.csvDateRange.start}
-                          onChange={(e) => setFilters(prev => ({
-                            ...prev,
-                            csvDateRange: { ...prev.csvDateRange, start: e.target.value }
-                          }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm text-gray-600 mb-1">End Date</label>
-                        <input
-                          type="date"
-                          value={filters.csvDateRange.end}
-                          onChange={(e) => setFilters(prev => ({
-                            ...prev,
-                            csvDateRange: { ...prev.csvDateRange, end: e.target.value }
-                          }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-3 text-sm text-gray-600">
-                      {filters.csvDateRange.start || filters.csvDateRange.end ? (
-                        <span>
-                          Export will include transactions from{' '}
-                          {filters.csvDateRange.start ? formatDate(filters.csvDateRange.start) : 'beginning'} to{' '}
-                          {filters.csvDateRange.end ? formatDate(filters.csvDateRange.end) : 'end'}
-                        </span>
-                      ) : (
-                        <span>Export will include all transactions (no date filter)</span>
-                      )}
-                    </div>
-                  </div>
-
                   <div className="p-6 space-y-6">
                     {/* Purchase Items */}
                     <div>
@@ -1481,6 +1304,86 @@ const VendorTransactions: React.FC = () => {
                         <Package className="w-4 h-4 text-blue-500" />
                         Purchase Items
                       </h5>
+
+                      {vendor.purchaseItems.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-3 mb-3 px-1">
+                          <label className="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={vendor.purchaseItems.every(i => selectedPurchaseIds.has(i.id))}
+                              disabled={loadingSelection}
+                              onChange={() => toggleSelectAllPurchases(vendor.name)}
+                              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
+                            />
+                            Select all{loadingSelection ? '…' : ''}
+                          </label>
+                          <button
+                            type="button"
+                            disabled={loadingSelection}
+                            onClick={() => selectUnpaidPurchases(vendor.name)}
+                            className="text-xs font-medium text-purple-600 hover:text-purple-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Select unpaid
+                          </button>
+
+                          {selectedPurchaseIds.size > 0 && !pendingBulkStatus && (
+                            <>
+                              <span className="h-4 w-px bg-gray-300" />
+                              <span className="text-xs text-gray-500">{selectedPurchaseIds.size} selected</span>
+                              <button
+                                type="button"
+                                onClick={() => setPendingBulkStatus('Paid')}
+                                disabled={bulkUpdating}
+                                className="flex items-center gap-1 px-2.5 py-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-xs font-medium rounded-lg transition-colors"
+                              >
+                                <CheckCircle2 className="w-3 h-3" />
+                                Mark Paid
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPendingBulkStatus('Unpaid')}
+                                disabled={bulkUpdating}
+                                className="px-2.5 py-1 bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-700 text-xs font-medium rounded-lg transition-colors"
+                              >
+                                Mark Unpaid
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPurchaseIds(new Set())}
+                                className="text-xs text-gray-400 hover:text-gray-600"
+                              >
+                                Clear
+                              </button>
+                            </>
+                          )}
+
+                          {selectedPurchaseIds.size > 0 && pendingBulkStatus && (
+                            <>
+                              <span className="h-4 w-px bg-gray-300" />
+                              <span className="text-xs font-medium text-gray-700">
+                                Mark {selectedPurchaseIds.size} item{selectedPurchaseIds.size !== 1 ? 's' : ''} as {pendingBulkStatus.toLowerCase()}?
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => bulkUpdateVendorPaymentStatus(Array.from(selectedPurchaseIds), pendingBulkStatus)}
+                                disabled={bulkUpdating}
+                                className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white text-xs font-medium rounded-lg transition-colors"
+                              >
+                                {bulkUpdating ? 'Saving…' : 'Yes, confirm'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPendingBulkStatus(null)}
+                                disabled={bulkUpdating}
+                                className="text-xs text-gray-500 hover:text-gray-700"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+
                       <div className="space-y-3 max-h-96 overflow-y-auto">
                         {vendor.purchaseItems.length === 0 && !vendor.loadingPurchases ? (
                           <div className="text-center py-8 text-gray-500">
@@ -1499,15 +1402,21 @@ const VendorTransactions: React.FC = () => {
                                   ref={index === vendor.purchaseItems.length - 1 ? (node) => lastPurchaseElementRef(node, vendor.name) : undefined}
                                 >
                                   <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedPurchaseIds.has(item.id)}
+                                        onChange={() => togglePurchaseSelection(item.id)}
+                                        className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                                      />
                                       <Calendar className="w-4 h-4 text-gray-500" />
                                       <span className="text-sm font-medium text-gray-700">{formatDate(sale?.date || item.created_at)}</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm font-medium">{formatCurrency(totalPrice)}</span>
                                       <div className="relative inline-block w-10 align-middle select-none">
-                                        <input 
-                                          type="checkbox" 
+                                        <input
+                                          type="checkbox"
                                           checked={item.vendor_payment_status === 'Paid'}
                                           onChange={() => toggleVendorPaymentStatus(item.id, vendor.name, item.vendor_payment_status, item.buying_price, item.quantity)}
                                           className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
@@ -1591,13 +1500,31 @@ const VendorTransactions: React.FC = () => {
                             Show cleared
                           </label>
                           {vendor.expenseItems.some(e => !e.is_cleared) && (
-                            <button
-                              onClick={() => markAllPaidForVendor(vendor.name)}
-                              className="flex items-center gap-1 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg shadow-sm hover:shadow transition-all"
-                            >
-                              <CheckCircle2 className="w-3 h-3" />
-                              Mark all paid
-                            </button>
+                            pendingMarkAllPaidVendor === vendor.name ? (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-gray-700">Mark all as paid?</span>
+                                <button
+                                  onClick={() => markAllPaidForVendor(vendor.name)}
+                                  className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium rounded-lg transition-colors"
+                                >
+                                  Yes, confirm
+                                </button>
+                                <button
+                                  onClick={() => setPendingMarkAllPaidVendor(null)}
+                                  className="text-xs text-gray-500 hover:text-gray-700"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setPendingMarkAllPaidVendor(vendor.name)}
+                                className="flex items-center gap-1 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg shadow-sm hover:shadow transition-all"
+                              >
+                                <CheckCircle2 className="w-3 h-3" />
+                                Mark all paid
+                              </button>
+                            )
                           )}
                         </div>
                       </div>
@@ -1742,22 +1669,42 @@ const VendorTransactions: React.FC = () => {
                                       <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium">{formatCurrency(expense.amount_kes)}</span>
                                         <div className="flex items-center gap-1">
-                                          <button
-                                            onClick={() => startEditExpense(expense)}
-                                            disabled={editingExpenseId !== null}
-                                            className="text-blue-500 hover:text-blue-700 disabled:text-gray-400 p-1 hover:bg-blue-50 rounded"
-                                            title="Edit expense"
-                                          >
-                                            <Edit className="w-3 h-3" />
-                                          </button>
-                                          <button
-                                            onClick={() => deleteExpense(expense.id, vendor.name)}
-                                            disabled={editingExpenseId !== null}
-                                            className="text-red-500 hover:text-red-700 disabled:text-gray-400 p-1 hover:bg-red-50 rounded"
-                                            title="Delete expense"
-                                          >
-                                            <Trash2 className="w-3 h-3" />
-                                          </button>
+                                          {pendingDeleteExpenseId === expense.id ? (
+                                            <>
+                                              <span className="text-xs text-gray-600">Delete?</span>
+                                              <button
+                                                onClick={() => deleteExpense(expense.id, vendor.name)}
+                                                className="text-xs font-medium text-red-600 hover:text-red-800 px-1"
+                                              >
+                                                Yes
+                                              </button>
+                                              <button
+                                                onClick={() => setPendingDeleteExpenseId(null)}
+                                                className="text-xs font-medium text-gray-500 hover:text-gray-700 px-1"
+                                              >
+                                                No
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <button
+                                                onClick={() => startEditExpense(expense)}
+                                                disabled={editingExpenseId !== null}
+                                                className="text-blue-500 hover:text-blue-700 disabled:text-gray-400 p-1 hover:bg-blue-50 rounded"
+                                                title="Edit expense"
+                                              >
+                                                <Edit className="w-3 h-3" />
+                                              </button>
+                                              <button
+                                                onClick={() => setPendingDeleteExpenseId(expense.id)}
+                                                disabled={editingExpenseId !== null}
+                                                className="text-red-500 hover:text-red-700 disabled:text-gray-400 p-1 hover:bg-red-50 rounded"
+                                                title="Delete expense"
+                                              >
+                                                <Trash2 className="w-3 h-3" />
+                                              </button>
+                                            </>
+                                          )}
                                         </div>
                                       </div>
                                     </div>
@@ -1848,14 +1795,9 @@ const VendorTransactions: React.FC = () => {
                   required
                 >
                   <option value="">Select expense type</option>
-                  <option value="Payment">Payment</option>
-                  <option value="Reimbursement">Reimbursement</option>
-                  <option value="Advance">Advance</option>
-                  <option value="Commission">Commission</option>
-                  <option value="Bonus">Bonus</option>
-                  <option value="Transport">Transport</option>
-                  <option value="Materials">Materials</option>
-                  <option value="Other">Other</option>
+                  {EXPENSE_TYPE_OPTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
                 </select>
               </div>
 

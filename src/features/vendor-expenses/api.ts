@@ -1,7 +1,30 @@
 import { supabase } from '../../utils/supabase';
 import { checkRateLimit, RATE_LIMIT_MESSAGE } from '../../utils/security';
 
-export type ExpenseType = 'Payment' | 'Refund' | 'Adjustment' | 'Other';
+// Kept in sync with the "expense type" dropdown options in ExpenseOverview.tsx
+// and VendorTransactions.tsx — those two previously offered different option
+// sets for the same `vendor_expenses.expense_type` column; this is now the
+// single source of truth both screens render from.
+export type ExpenseType =
+  | 'Payment'
+  | 'Reimbursement'
+  | 'Advance'
+  | 'Commission'
+  | 'Bonus'
+  | 'Transport'
+  | 'Materials'
+  | 'Other';
+
+export const EXPENSE_TYPE_OPTIONS: ExpenseType[] = [
+  'Payment',
+  'Reimbursement',
+  'Advance',
+  'Commission',
+  'Bonus',
+  'Transport',
+  'Materials',
+  'Other',
+];
 
 export type AddVendorExpenseInput = {
   vendorName: string;
@@ -9,6 +32,7 @@ export type AddVendorExpenseInput = {
   amountKES: string | number;
   dateString: string;
   notes?: string;
+  projectId?: string;
 };
 
 export type VendorExpense = {
@@ -75,6 +99,7 @@ export async function addVendorExpense(input: AddVendorExpenseInput): Promise<Ve
       amount_kes: amount,
       occurred_on,
       notes: input.notes ?? null,
+      project_id: input.projectId || null,
     })
     .select()
     .single();
@@ -136,6 +161,10 @@ export async function updateVendorExpense(
 
   if (updates.notes !== undefined) {
     payload.notes = updates.notes || null;
+  }
+
+  if (updates.projectId !== undefined) {
+    payload.project_id = updates.projectId || null;
   }
 
   const { data, error } = await supabase

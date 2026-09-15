@@ -25,6 +25,7 @@ export async function addAdExpense(input: {
   amountKES: string | number;
   dateString: string;
   notes?: string;
+  projectId?: string;
 }): Promise<AdExpense> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Please sign in to record an expense.");
@@ -46,6 +47,7 @@ export async function addAdExpense(input: {
       amount_kes: amount,
       occurred_on: toISO(input.dateString),
       notes: input.notes ?? null,
+      project_id: input.projectId ?? null,
     })
     .select()
     .single();

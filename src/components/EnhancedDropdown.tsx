@@ -7,7 +7,7 @@ interface EnhancedDropdownProps {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  type: 'product' | 'supplier' | 'delivery_guy';
+  type: 'product' | 'supplier' | 'delivery_guy' | 'staff';
   placeholder?: string;
   required?: boolean;
   icon?: React.ReactNode;
@@ -21,13 +21,15 @@ interface ListItem {
 const typeToTable = {
   product: 'user_products',
   supplier: 'user_sellers',
-  delivery_guy: 'user_delivery_guys'
+  delivery_guy: 'user_delivery_guys',
+  staff: 'user_staff'
 };
 
 const typeToLabel = {
   product: 'Product',
   supplier: 'Supplier',
-  delivery_guy: 'Delivery Guy'
+  delivery_guy: 'Delivery Guy',
+  staff: 'Staff/Provider'
 };
 
 const EnhancedDropdown: React.FC<EnhancedDropdownProps> = ({

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, Mail, Phone, CreditCard, LogOut, Save, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import LoadingScreen from './LoadingScreen';
+import { getSubscriptionPlanLabel, getSubscriptionStatusLabel, getBillingCycleLabel } from '../utils/subscription';
 
 interface UserProfile {
   id: string;
@@ -16,6 +18,7 @@ interface UserProfile {
 }
 
 const AccountSettings: React.FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -157,25 +160,6 @@ const AccountSettings: React.FC = () => {
     });
   };
 
-  const getSubscriptionLabel = (status?: string, cycle?: string) => {
-    if (!status) return 'Unknown';
-    
-    switch (status) {
-      case 'trial':
-        return 'Free Trial';
-      case 'active':
-        return cycle === 'month2-3' ? 'Early Bird Plan (KES 500/month)' : 'Regular Plan (KES 1000/month)';
-      case 'pending_approval':
-        return 'Pending Approval';
-      case 'inactive':
-        return 'Inactive';
-      case 'expired':
-        return 'Expired';
-      default:
-        return status;
-    }
-  };
-
   if (loading) {
     return <LoadingScreen />;
   }
@@ -301,7 +285,7 @@ const AccountSettings: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-700">Current Plan</p>
               <p className="text-lg font-semibold text-gray-900">
-                {getSubscriptionLabel(profile?.subscription_status, profile?.current_billing_cycle)}
+                {getSubscriptionPlanLabel(profile?.subscription_status, profile?.current_billing_cycle)}
               </p>
             </div>
             
@@ -316,11 +300,7 @@ const AccountSettings: React.FC = () => {
                   <AlertCircle className="w-4 h-4 text-red-500" />
                 )}
                 <p className="text-lg font-semibold text-gray-900">
-                  {profile?.subscription_status === 'active' ? 'Active' : 
-                   profile?.subscription_status === 'trial' ? 'Trial' : 
-                   profile?.subscription_status === 'pending_approval' ? 'Pending Approval' :
-                   profile?.subscription_status === 'inactive' ? 'Inactive' :
-                   profile?.subscription_status === 'expired' ? 'Expired' : 'Unknown'}
+                  {getSubscriptionStatusLabel(profile?.subscription_status)}
                 </p>
               </div>
             </div>
@@ -337,9 +317,7 @@ const AccountSettings: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-700">Billing Cycle</p>
               <p className="text-lg font-semibold text-gray-900">
-                {profile?.current_billing_cycle === 'trial' ? 'Free Trial' :
-                 profile?.current_billing_cycle === 'month2-3' ? 'Months 2-3 (KES 500/month)' :
-                 profile?.current_billing_cycle === 'month4+' ? 'Month 4+ (KES 1000/month)' : 'Unknown'}
+                {getBillingCycleLabel(profile?.current_billing_cycle)}
               </p>
             </div>
           </div>
@@ -348,7 +326,7 @@ const AccountSettings: React.FC = () => {
             <button
               type="button"
               className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
-              onClick={() => window.location.href = '/payment-management'}
+              onClick={() => navigate('/payment-management')}
             >
               <CreditCard className="w-4 h-4" />
               Manage Subscription

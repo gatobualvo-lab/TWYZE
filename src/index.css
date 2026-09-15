@@ -24,6 +24,35 @@
     background-color: rgb(var(--color-bg));
     color: rgb(var(--color-text));
     transition: background-color 0.2s ease, color 0.2s ease;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* A visible, on-brand focus ring for keyboard users everywhere, without the
+     default browser outline looking inconsistent across form elements. */
+  :focus-visible {
+    outline: 2px solid rgb(37 99 235 / 0.5);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(209 213 219);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(156 163 175);
+    background-clip: content-box;
   }
 
   /* Dark mode overrides for existing Tailwind utility classes */
@@ -109,13 +138,16 @@
 
   /* Shadow adjustments */
   .dark .shadow-md {
-    --tw-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+    --tw-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.25);
   }
   .dark .shadow-sm {
     --tw-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   }
   .dark .shadow-lg {
-    --tw-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+    --tw-shadow: 0 12px 16px -4px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.25);
+  }
+  .dark .shadow-xl {
+    --tw-shadow: 0 20px 24px -4px rgba(0, 0, 0, 0.45), 0 8px 8px -4px rgba(0, 0, 0, 0.25);
   }
   .dark .shadow-2xl {
     --tw-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
@@ -244,6 +276,39 @@
 
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Shimmer skeleton loader — a moving highlight band over a flat base color,
+   used by <Skeleton> to show the shape of content that's still loading
+   instead of blocking the whole page behind a spinner. */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--color-surface)) 25%,
+    rgb(var(--color-border)) 37%,
+    rgb(var(--color-surface)) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes rise {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes loading-bar {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-rise {
+  animation: rise 2s ease-in-out infinite;
+}
+
+.animate-loading-bar {
+  animation: loading-bar 1.5s ease-in-out infinite;
 }
 
 @keyframes slide-in-right {

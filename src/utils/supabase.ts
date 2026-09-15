@@ -5,14 +5,6 @@ import toast from 'react-hot-toast';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-console.log('🔍 Environment check:', {
-  NODE_ENV: import.meta.env.MODE,
-  hasUrl: !!supabaseUrl,
-  hasKey: !!supabaseAnonKey,
-  urlValue: supabaseUrl,
-  keyPrefix: supabaseAnonKey?.slice(0, 20)
-});
-
 // Validate environment variables
 if (!supabaseUrl) {
   console.error('❌ Missing VITE_SUPABASE_URL environment variable');
@@ -56,9 +48,6 @@ const handleAuthError = (error: any) => {
   return false; // Error wasn't handled
 };
 
-console.log('✅ Supabase URL:', supabaseUrl);
-console.log('✅ Supabase Key (first 20 chars):', supabaseAnonKey.slice(0, 20) + '...');
-
 export const supabase = createClient<Database>(
   supabaseUrl,
   supabaseAnonKey,
@@ -74,11 +63,8 @@ export const supabase = createClient<Database>(
 );
 
 // Add auth state change listener to handle token refresh
-supabase.auth.onAuthStateChange((event, session) => {
-  if (event === 'TOKEN_REFRESHED') {
-    console.log('✅ Token refreshed successfully');
-  } else if (event === 'SIGNED_OUT') {
-    console.log('User signed out');
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT') {
     // Clear any stored tokens
     localStorage.removeItem('sb-trackwyze-auth');
     sessionStorage.removeItem('sb-trackwyze-auth');
@@ -88,29 +74,26 @@ supabase.auth.onAuthStateChange((event, session) => {
 // Test Supabase connection
 export const testSupabaseConnection = async () => {
   try {
-    console.log('🔌 Testing Supabase connection...');
-      
     const { data, error } = await supabase.auth.getSession()
       .catch(err => {
         handleAuthError(err);
         return { data: null, error: err };
       });
-    
+
     if (error) {
       const handled = handleAuthError(error);
       if (!handled) {
-        console.error('❌ Supabase connection failed:', error);
-        return { 
-          success: false, 
-          error: error.message 
+        console.error('Supabase connection failed:', error);
+        return {
+          success: false,
+          error: error.message
         };
       }
     }
-    
-    console.log('✅ Supabase connection successful');
+
     return { success: true };
   } catch (error: any) {
-    console.error('❌ Supabase connection test exception:', error);
+    console.error('Supabase connection test exception:', error);
     handleAuthError(error);
     return { 
       success: false, 

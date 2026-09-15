@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /landing
+Allow: /login
+Allow: /terms
+Allow: /privacy
+Allow: /refund
+Allow: /help
+Disallow: /app
+Disallow: /account
+Disallow: /payment-management
+Disallow: /admin
+
+Sitemap: https://trackwyze.com/sitemap.xml

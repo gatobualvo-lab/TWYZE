@@ -3,6 +3,8 @@ import { Mail, Save, Edit, Check, X, AlertCircle, Info } from 'lucide-react';
 import { supabase } from '../../utils/supabase';
 import toast from 'react-hot-toast';
 import LoadingScreen from '../LoadingScreen';
+import { listFeatureFlags, setFeatureFlag } from '../../services/admin/adminService';
+import type { FeatureFlag } from '../../services/admin/adminService';
 
 interface EmailTemplate {
   id: string;
@@ -14,13 +16,6 @@ interface EmailTemplate {
   updated_at: string | null;
 }
 
-interface FeatureFlag {
-  id: string;
-  name: string;
-  description: string;
-  enabled: boolean;
-}
-
 const SystemSettings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
@@ -30,19 +25,28 @@ const SystemSettings: React.FC = () => {
     subject: '',
     body: ''
   });
-  const [featureFlags, setFeatureFlags] = useState<FeatureFlag[]>([
-    { id: '1', name: 'multi_product_sales', description: 'Enable multi-product sales feature', enabled: true },
-    { id: '2', name: 'inventory_management', description: 'Enable inventory management feature', enabled: true },
-    { id: '3', name: 'email_notifications', description: 'Enable email notifications', enabled: false },
-    { id: '4', name: 'sms_notifications', description: 'Enable SMS notifications', enabled: false },
-    { id: '5', name: 'vendor_expenses', description: 'Enable vendor expenses tracking', enabled: true }
-  ]);
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlag[]>([]);
+  const [flagsLoading, setFlagsLoading] = useState(true);
+  const [togglingFlagId, setTogglingFlagId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'email' | 'features' | 'rls'>('email');
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   useEffect(() => {
     fetchEmailTemplates();
+    fetchFeatureFlags();
   }, []);
+
+  const fetchFeatureFlags = async () => {
+    try {
+      setFlagsLoading(true);
+      setFeatureFlags(await listFeatureFlags());
+    } catch (error: any) {
+      console.error('Error fetching feature flags:', error);
+      toast.error('Failed to load feature flags');
+    } finally {
+      setFlagsLoading(false);
+    }
+  };
 
   const fetchEmailTemplates = async () => {
     try {
@@ -117,23 +121,20 @@ const SystemSettings: React.FC = () => {
   };
 
   const toggleFeatureFlag = async (id: string) => {
+    const flag = featureFlags.find(f => f.id === id);
+    if (!flag) return;
+
+    const nextEnabled = !flag.enabled;
+    setTogglingFlagId(id);
     try {
-      // Find the flag
-      const flagIndex = featureFlags.findIndex(flag => flag.id === id);
-      if (flagIndex === -1) return;
-      
-      // Toggle the flag
-      const updatedFlags = [...featureFlags];
-      updatedFlags[flagIndex].enabled = !updatedFlags[flagIndex].enabled;
-      setFeatureFlags(updatedFlags);
-      
-      // In a real implementation, you would save this to a database
-      // For now, we'll just show a toast
-      toast.success(`Feature "${updatedFlags[flagIndex].name}" ${updatedFlags[flagIndex].enabled ? 'enabled' : 'disabled'}`);
-      
+      await setFeatureFlag(id, nextEnabled);
+      setFeatureFlags(prev => prev.map(f => (f.id === id ? { ...f, enabled: nextEnabled } : f)));
+      toast.success(`Feature "${flag.name}" ${nextEnabled ? 'enabled' : 'disabled'}`);
     } catch (error: any) {
       console.error('Error toggling feature flag:', error);
       toast.error('Failed to toggle feature flag');
+    } finally {
+      setTogglingFlagId(null);
     }
   };
 
@@ -302,55 +303,62 @@ const SystemSettings: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Feature</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {featureFlags.map((flag) => (
-                  <tr key={flag.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{flag.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{flag.description}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        flag.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {flag.enabled ? 'Enabled' : 'Disabled'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => toggleFeatureFlag(flag.id)}
-                        className={`inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white ${
-                          flag.enabled 
-                            ? 'bg-red-600 hover:bg-red-700' 
-                            : 'bg-green-600 hover:bg-green-700'
-                        }`}
-                      >
-                        {flag.enabled ? (
-                          <>
-                            <X className="w-4 h-4 mr-1" />
-                            Disable
-                          </>
-                        ) : (
-                          <>
-                            <Check className="w-4 h-4 mr-1" />
-                            Enable
-                          </>
-                        )}
-                      </button>
-                    </td>
+          {flagsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Feature</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {featureFlags.map((flag) => (
+                    <tr key={flag.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{flag.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{flag.description}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          flag.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {flag.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => toggleFeatureFlag(flag.id)}
+                          disabled={togglingFlagId === flag.id}
+                          className={`inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white disabled:opacity-50 ${
+                            flag.enabled
+                              ? 'bg-red-600 hover:bg-red-700'
+                              : 'bg-green-600 hover:bg-green-700'
+                          }`}
+                        >
+                          {flag.enabled ? (
+                            <>
+                              <X className="w-4 h-4 mr-1" />
+                              Disable
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-4 h-4 mr-1" />
+                              Enable
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

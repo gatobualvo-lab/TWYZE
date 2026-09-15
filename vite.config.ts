@@ -4,6 +4,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   base: process.env.ELECTRON === 'true' ? './' : '/',
+  server: {
+    port: Number(process.env.PORT) || 5173,
+  },
   plugins: [
     react(),
     VitePWA({

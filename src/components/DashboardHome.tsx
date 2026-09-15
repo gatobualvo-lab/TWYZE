@@ -1,24 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, TrendingUp, DollarSign, Users, Receipt, ChevronDown, Check, Trash2, AlertCircle, ArrowRight, Settings, ShoppingCart, Truck } from 'lucide-react';
+import { Plus, TrendingUp, DollarSign, Users, Receipt, ChevronDown, Check, Trash2, ArrowRight, Settings, ShoppingCart, Truck } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import { useTheme } from '../contexts/ThemeContext';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import toast from 'react-hot-toast';
+import { formatCurrency as formatKES, formatDate } from '../utils/format';
+import BusinessHealthScore from './analytics/BusinessHealthScore';
+import { listTasks, createTask, toggleTaskCompleted, deleteTask as deleteTaskRecord } from '../services/tasks/taskService';
+import type { BusinessTask } from '../services/tasks/taskService';
+import { Skeleton, SkeletonStatGrid, SkeletonList } from './ui';
+import OnboardingChecklist from './onboarding/OnboardingChecklist';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 interface DashboardHomeProps {
   userName: string;
   onNavigate: (tab: string) => void;
-}
-
-interface Task {
-  id: string;
-  title: string;
-  task_type: string;
-  completed: boolean;
-  due_date: string | null;
 }
 
 interface DashboardPrefs {
@@ -31,10 +29,10 @@ interface DashboardPrefs {
 
 interface RecentSale {
   id: string;
-  date: string;
-  client_name: string;
-  selling_price: number;
-  product_name: string;
+  date: string | null;
+  client_name: string | null;
+  selling_price: number | null;
+  product_name: string | null;
 }
 
 const DEFAULT_PREFS: DashboardPrefs = {
@@ -49,9 +47,6 @@ const safeNum = (v: unknown): number => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
-
-const formatKES = (amount: number) =>
-  `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) => {
   const { theme } = useTheme();
@@ -78,9 +73,10 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
   const [outstandingCustomers, setOutstandingCustomers] = useState(0);
 
   // Tasks
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<BusinessTask[]>([]);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskType, setNewTaskType] = useState('general');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('');
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -137,20 +133,22 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
       setOutstandingBalances((unpaidSales || []).reduce((sum, s) => sum + safeNum(s.selling_price), 0));
 
       // Today's expenses (vendor + ad expenses)
-      const { data: vendorExpData } = await supabase
+      const { data: vendorExpData, error: vendorExpError } = await supabase
         .from('vendor_expenses')
-        .select('amount')
-        .eq('user_id', user.id)
+        .select('amount_kes')
+        .eq('created_by', user.id)
         .eq('is_deleted', false)
-        .eq('date', today);
-      const { data: adExpData } = await supabase
+        .eq('occurred_on', today);
+      if (vendorExpError) console.error('Today vendor expenses error:', vendorExpError);
+      const { data: adExpData, error: adExpError } = await supabase
         .from('ad_expenses')
-        .select('amount')
-        .eq('user_id', user.id)
+        .select('amount_kes')
+        .eq('created_by', user.id)
         .eq('is_deleted', false)
-        .eq('date', today);
-      const vendorTotal = (vendorExpData || []).reduce((sum, e) => sum + safeNum(e.amount), 0);
-      const adTotal = (adExpData || []).reduce((sum, e) => sum + safeNum(e.amount), 0);
+        .eq('occurred_on', today);
+      if (adExpError) console.error('Today ad expenses error:', adExpError);
+      const vendorTotal = (vendorExpData || []).reduce((sum, e) => sum + safeNum(e.amount_kes), 0);
+      const adTotal = (adExpData || []).reduce((sum, e) => sum + safeNum(e.amount_kes), 0);
       setTodayExpenses(vendorTotal + adTotal);
 
       // Chart: last 30 days sales & profit
@@ -212,14 +210,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
       setOutstandingCustomers(uniqueCustomers.size);
 
       // Tasks
-      const { data: tasksData } = await supabase
-        .from('business_tasks')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('completed', { ascending: true })
-        .order('created_at', { ascending: false })
-        .limit(10);
-      setTasks(tasksData || []);
+      const tasksData = await listTasks();
+      setTasks(tasksData);
 
     } catch (err) {
       console.error('Dashboard data error:', err);
@@ -285,26 +277,24 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
 
   const addTask = async () => {
     if (!newTaskTitle.trim()) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data, error } = await supabase
-      .from('business_tasks')
-      .insert({ title: newTaskTitle.trim(), task_type: newTaskType, user_id: user.id })
-      .select()
-      .maybeSingle();
-    if (!error && data) {
-      setTasks(prev => [data, ...prev]);
+    try {
+      const created = await createTask({ title: newTaskTitle.trim(), taskType: newTaskType, dueDate: newTaskDueDate || null });
+      setTasks(prev => [created, ...prev]);
       setNewTaskTitle('');
+      setNewTaskDueDate('');
+      toast.success('Task added');
+    } catch {
+      toast.error('Failed to add task');
     }
   };
 
   const toggleTask = async (id: string, completed: boolean) => {
-    await supabase.from('business_tasks').update({ completed: !completed }).eq('id', id);
+    await toggleTaskCompleted(id, completed);
     setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !completed } : t));
   };
 
   const deleteTask = async (id: string) => {
-    await supabase.from('business_tasks').delete().eq('id', id);
+    await deleteTaskRecord(id);
     setTasks(prev => prev.filter(t => t.id !== id));
   };
 
@@ -327,14 +317,31 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-6 animate-fadeIn">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-7 w-56" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <Skeleton className="h-10 w-32 rounded-lg" />
+        </div>
+        <SkeletonStatGrid />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-5">
+            <Skeleton className="h-56 w-full" />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 p-5">
+            <SkeletonList rows={3} />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      <OnboardingChecklist onNavigate={onNavigate} />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -356,7 +363,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showQuickAdd ? 'rotate-180' : ''}`} />
             </button>
             {showQuickAdd && (
-              <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg border z-20 py-1 ${
+              <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg border z-20 py-1 origin-top-right animate-scale-in ${
                 isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
               }`}>
                 {[
@@ -391,9 +398,11 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
         </div>
       </div>
 
+      <BusinessHealthScore />
+
       {/* Customize Panel */}
       {showCustomize && (
-        <div className={`rounded-xl border p-4 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
+        <div className={`rounded-xl border p-4 animate-slide-up ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
           <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>Show on Dashboard</h3>
           <div className="flex flex-wrap gap-3">
             {[
@@ -430,53 +439,29 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
       {/* KPI Cards */}
       {prefs.show_kpi_cards && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className={cardClass} onClick={() => onNavigate('view-sales')}>
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-blue-500/10">
-                <TrendingUp className="w-5 h-5 text-blue-600" />
-              </div>
-              <div className="min-w-0">
-                <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Today's Sales</p>
-                <p className={`text-xl font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatKES(todaySales)}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className={cardClass} onClick={() => onNavigate('monthly-dashboard')}>
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-emerald-500/10">
-                <DollarSign className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div className="min-w-0">
-                <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Today's Profit</p>
-                <p className={`text-xl font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatKES(todayProfit)}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className={cardClass} onClick={() => onNavigate('clients')}>
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-amber-500/10">
-                <Users className="w-5 h-5 text-amber-600" />
-              </div>
-              <div className="min-w-0">
-                <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Outstanding</p>
-                <p className={`text-xl font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatKES(outstandingBalances)}</p>
+          {[
+            { tab: 'view-sales', bg: 'bg-blue-500/10', icon: TrendingUp, iconColor: 'text-blue-600', label: "Today's Sales", value: todaySales },
+            { tab: 'monthly-dashboard', bg: 'bg-emerald-500/10', icon: DollarSign, iconColor: 'text-emerald-600', label: "Today's Profit", value: todayProfit },
+            { tab: 'clients', bg: 'bg-amber-500/10', icon: Users, iconColor: 'text-amber-600', label: 'Outstanding', value: outstandingBalances },
+            { tab: 'general-expenses', bg: 'bg-rose-500/10', icon: Receipt, iconColor: 'text-rose-600', label: "Today's Expenses", value: todayExpenses },
+          ].map((kpi, i) => (
+            <div
+              key={kpi.tab}
+              className={`${cardClass} animate-slide-up group`}
+              style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'backwards' }}
+              onClick={() => onNavigate(kpi.tab)}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-lg ${kpi.bg} transition-transform duration-200 group-hover:scale-110`}>
+                  <kpi.icon className={`w-5 h-5 ${kpi.iconColor}`} />
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{kpi.label}</p>
+                  <p className={`text-xl font-bold truncate tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatKES(kpi.value)}</p>
+                </div>
               </div>
             </div>
-          </div>
-
-          <div className={cardClass} onClick={() => onNavigate('general-expenses')}>
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-rose-500/10">
-                <Receipt className="w-5 h-5 text-rose-600" />
-              </div>
-              <div className="min-w-0">
-                <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Today's Expenses</p>
-                <p className={`text-xl font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatKES(todayExpenses)}</p>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
       )}
 
@@ -543,13 +528,13 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
             ) : (
               <div className="space-y-3">
                 {recentSales.map(sale => (
-                  <div key={sale.id} className={`flex items-center justify-between py-2 border-b last:border-0 ${isDark ? 'border-slate-700' : 'border-gray-50'}`}>
+                  <div key={sale.id} className={`flex items-center justify-between py-2 px-2 -mx-2 rounded-lg border-b last:border-0 transition-colors ${isDark ? 'border-slate-700 hover:bg-slate-700/50' : 'border-gray-50 hover:bg-gray-50'}`}>
                     <div className="min-w-0 flex-1">
                       <p className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                         {sale.client_name || sale.product_name || 'Sale'}
                       </p>
                       <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        {new Date(sale.date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}
+                        {formatDate(sale.date, { day: 'numeric', month: 'short' })}
                       </p>
                     </div>
                     <p className={`text-sm font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
@@ -561,9 +546,9 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
             )}
             <button
               onClick={() => onNavigate('view-sales')}
-              className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium mt-4 w-full justify-center"
+              className="group flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium mt-4 w-full justify-center"
             >
-              View all sales <ArrowRight className="w-3.5 h-3.5" />
+              View all sales <ArrowRight className="w-3.5 h-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
             </button>
           </div>
         )}
@@ -577,36 +562,38 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
             <h2 className={sectionTitle}>Attention Needed</h2>
             {pendingDeliveries === 0 && lowStockItems === 0 && outstandingCustomers === 0 ? (
               <div className={`flex items-center gap-3 mt-4 py-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                <Check className="w-5 h-5 text-green-500" />
+                <span className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 animate-pop-check">
+                  <Check className="w-4 h-4 text-green-600" />
+                </span>
                 <p className="text-sm">Everything looks good today.</p>
               </div>
             ) : (
               <div className="mt-3 space-y-2">
                 {pendingDeliveries > 0 && (
-                  <button onClick={() => onNavigate('delivery-payments')} className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
+                  <button onClick={() => onNavigate('delivery-payments')} className={`group w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-orange-500" />
                       <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pendingDeliveries} pending {pendingDeliveries === 1 ? 'delivery' : 'deliveries'}</span>
                     </div>
-                    <ArrowRight className="w-4 h-4 text-gray-400" />
+                    <ArrowRight className="w-4 h-4 text-gray-400 transition-transform duration-150 group-hover:translate-x-0.5" />
                   </button>
                 )}
                 {lowStockItems > 0 && (
-                  <button onClick={() => onNavigate('inventory')} className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
+                  <button onClick={() => onNavigate('inventory')} className={`group w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-red-500" />
                       <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{lowStockItems} low stock {lowStockItems === 1 ? 'item' : 'items'}</span>
                     </div>
-                    <ArrowRight className="w-4 h-4 text-gray-400" />
+                    <ArrowRight className="w-4 h-4 text-gray-400 transition-transform duration-150 group-hover:translate-x-0.5" />
                   </button>
                 )}
                 {outstandingCustomers > 0 && (
-                  <button onClick={() => onNavigate('clients')} className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
+                  <button onClick={() => onNavigate('clients')} className={`group w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-amber-500" />
                       <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{outstandingCustomers} {outstandingCustomers === 1 ? 'customer' : 'customers'} with outstanding balance</span>
                     </div>
-                    <ArrowRight className="w-4 h-4 text-gray-400" />
+                    <ArrowRight className="w-4 h-4 text-gray-400 transition-transform duration-150 group-hover:translate-x-0.5" />
                   </button>
                 )}
               </div>
@@ -629,6 +616,11 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
                   isDark ? 'bg-slate-700 border-slate-600 text-gray-200 placeholder:text-gray-500' : 'border-gray-200 placeholder:text-gray-400'
                 }`}
               />
+              <button onClick={addTask} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium flex-shrink-0">
+                Add
+              </button>
+            </div>
+            <div className="flex gap-2 mt-2">
               <select
                 value={newTaskType}
                 onChange={(e) => setNewTaskType(e.target.value)}
@@ -642,26 +634,37 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
                 <option value="restock">Restock</option>
                 <option value="deliver">Deliver</option>
               </select>
-              <button onClick={addTask} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium">
-                Add
-              </button>
+              <input
+                type="date"
+                value={newTaskDueDate}
+                onChange={(e) => setNewTaskDueDate(e.target.value)}
+                title="Due date (optional) — shows this task on the Business Calendar"
+                className={`text-xs px-2 py-2 rounded-lg border ${
+                  isDark ? 'bg-slate-700 border-slate-600 text-gray-300' : 'border-gray-200 text-gray-600'
+                }`}
+              />
             </div>
             <div className="mt-3 space-y-1 max-h-48 overflow-y-auto">
               {tasks.length === 0 ? (
                 <p className={`text-sm py-4 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No tasks yet.</p>
               ) : (
                 tasks.map(task => (
-                  <div key={task.id} className={`flex items-center gap-2 px-2 py-2 rounded-lg group ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
-                    <button onClick={() => toggleTask(task.id, task.completed)} className={`w-5 h-5 rounded border flex-shrink-0 flex items-center justify-center ${
-                      task.completed ? 'bg-blue-600 border-blue-600' : isDark ? 'border-slate-500' : 'border-gray-300'
+                  <div key={task.id} className={`flex items-center gap-2 px-2 py-2 rounded-lg group animate-scale-in transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
+                    <button onClick={() => toggleTask(task.id, task.completed)} className={`w-5 h-5 rounded border flex-shrink-0 flex items-center justify-center transition-all duration-150 active:scale-90 ${
+                      task.completed ? 'bg-blue-600 border-blue-600' : isDark ? 'border-slate-500 hover:border-blue-400' : 'border-gray-300 hover:border-blue-400'
                     }`}>
-                      {task.completed && <Check className="w-3 h-3 text-white" />}
+                      {task.completed && <Check className="w-3 h-3 text-white animate-pop-check" />}
                     </button>
                     <span className={`flex-1 text-sm ${task.completed ? 'line-through opacity-50' : ''} ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                       {task.title}
                     </span>
+                    {task.dueDate && (
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${isDark ? 'bg-slate-600 text-gray-400' : 'bg-gray-100 text-gray-400'}`}>
+                        {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
                     <span className={`text-xs px-1.5 py-0.5 rounded ${isDark ? 'bg-slate-600 text-gray-400' : 'bg-gray-100 text-gray-400'}`}>
-                      {task.task_type.replace('_', ' ')}
+                      {task.taskType.replace('_', ' ')}
                     </span>
                     <button onClick={() => deleteTask(task.id)} className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 transition-opacity">
                       <Trash2 className="w-3.5 h-3.5" />

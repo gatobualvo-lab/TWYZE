@@ -173,7 +173,7 @@ const MonthlyDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Year Selector */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2" style={{ color: '#374151' }}>
             <TrendingUp className="w-5 h-5 text-purple-600" />
@@ -196,7 +196,7 @@ const MonthlyDashboard: React.FC = () => {
 
       {/* Year Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <div className="flex items-center justify-between">
             <div className="p-3 rounded-full bg-blue-100">
               <BarChart3 className="w-8 h-8 text-blue-600" />
@@ -210,7 +210,7 @@ const MonthlyDashboard: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <div className="flex items-center justify-between">
             <div className="p-3 rounded-full bg-green-100">
               <BarChart3 className="w-8 h-8 text-green-600" />
@@ -224,7 +224,7 @@ const MonthlyDashboard: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <div className="flex items-center justify-between">
             <div className="p-3 rounded-full bg-red-100">
               <BarChart3 className="w-8 h-8 text-red-600" />
@@ -238,7 +238,7 @@ const MonthlyDashboard: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <div className="flex items-center justify-between">
             <div className="p-3 rounded-full bg-purple-100">
               <BarChart3 className="w-8 h-8 text-purple-600" />
@@ -254,7 +254,7 @@ const MonthlyDashboard: React.FC = () => {
       </div>
 
       {/* Monthly Breakdown */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-800" style={{ color: '#374151' }}>Monthly Breakdown</h3>
           <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-200">
@@ -310,7 +310,7 @@ const MonthlyDashboard: React.FC = () => {
 
       {/* Visual Charts Placeholder */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
             <BarChart3 className="w-5 h-5 text-blue-600" />
             Revenue Trend
@@ -320,7 +320,7 @@ const MonthlyDashboard: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
             <PieChart className="w-5 h-5 text-green-600" />
             Expense Breakdown

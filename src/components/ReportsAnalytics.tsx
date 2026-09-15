@@ -3,6 +3,7 @@ import { Calendar, Download, FileText, Filter, Eye, BarChart3, TrendingUp, Dolla
 import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
+import { formatCurrency, formatDate } from '../utils/format';
 
 interface DateRange {
   start: string;
@@ -326,12 +327,15 @@ const ReportsAnalytics: React.FC = () => {
         newReportData.saleItems = sortedSaleItems.map((item: any) => ({
           sale_date: item.sales?.date || '',
           product_name: item.product_name,
-          quantity: item.quantity,
-          buying_price: item.buying_price,
-          selling_price: item.selling_price,
+          // Service line items leave quantity/buying_price/profit null (no
+          // vendor/inventory involved) — guard here, once, since every
+          // downstream total is a running sum over this array.
+          quantity: item.quantity ?? 0,
+          buying_price: item.buying_price ?? 0,
+          selling_price: item.selling_price ?? 0,
           vat_amount: item.vat_amount || 0,
           turnover_tax_amount: item.turnover_tax_amount || 0,
-          profit: item.profit,
+          profit: item.profit ?? 0,
           vendor: item.vendor || '',
           delivery_person: item.sales?.delivery_guy || '',
           location: item.sales?.location || ''
@@ -755,22 +759,6 @@ const ReportsAnalytics: React.FC = () => {
     });
   };
 
-  const formatCurrency = (amount: unknown) => {
-    const n = typeof amount === 'number' ? amount : Number(amount);
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 0
-    }).format(Number.isFinite(n) ? n : 0);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
 
   const getSelectedCount = () => {
     return Object.values(entitySelection).filter(Boolean).length;
@@ -788,7 +776,7 @@ const ReportsAnalytics: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-full bg-indigo-100">
             <BarChart3 className="w-8 h-8 text-indigo-600" />
@@ -803,7 +791,7 @@ const ReportsAnalytics: React.FC = () => {
       </div>
 
       {/* Filters & Controls */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Date Range Picker */}
           <div>
@@ -893,7 +881,7 @@ const ReportsAnalytics: React.FC = () => {
 
       {/* Report Summary */}
       {getTotalRecords() > 0 && (
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
             <TrendingUp className="w-5 h-5 text-green-600" />
             Report Summary
@@ -964,7 +952,7 @@ const ReportsAnalytics: React.FC = () => {
         if (!entitySelection[entityType as keyof EntitySelection] || data.length === 0) return null;
 
         return (
-          <div key={entityType} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+          <div key={entityType} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-800" style={{ color: '#374151' }}>
                 {entityType.replace(/([A-Z])/g, ' $1').trim()} ({data.length} records)

@@ -4,6 +4,7 @@ import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
 import { toNum, parseInput, NumericInput } from '../utils/numberInput';
+import { formatCurrency } from '../utils/format';
 
 interface InventoryItem {
   id: string;
@@ -345,14 +346,6 @@ const InventoryManagement: React.FC = () => {
     setSalesRows([]);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 0
-    }).format(amount);
-  };
-
   const categories = [...new Set(items.map(item => item.category).filter(Boolean))];
   const lowStockItems = items.filter(item => item.current_stock <= item.reorder_level);
   const totalValue = items.reduce((sum, item) => sum + (item.current_stock * item.cost_price), 0);
@@ -365,7 +358,7 @@ const InventoryManagement: React.FC = () => {
     <div className="space-y-6">
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <div className="flex items-center justify-between">
             <div className="p-3 rounded-full bg-indigo-100">
               <Package className="w-8 h-8 text-indigo-600" />
@@ -377,7 +370,7 @@ const InventoryManagement: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <div className="flex items-center justify-between">
             <div className="p-3 rounded-full bg-green-100">
               <TrendingDown className="w-8 h-8 text-green-600" />
@@ -389,7 +382,7 @@ const InventoryManagement: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
           <div className="flex items-center justify-between">
             <div className="p-3 rounded-full bg-red-100">
               <AlertTriangle className="w-8 h-8 text-red-600" />
@@ -403,7 +396,7 @@ const InventoryManagement: React.FC = () => {
       </div>
 
       {/* Controls */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
           <h2 className="text-xl font-bold text-gray-800" style={{ color: '#374151' }}>Inventory Items</h2>
           <button

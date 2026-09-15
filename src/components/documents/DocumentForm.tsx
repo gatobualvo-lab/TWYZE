@@ -5,6 +5,7 @@ import { supabase } from '../../utils/supabase';
 import { useTheme } from '../../contexts/ThemeContext';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, Send, Save } from 'lucide-react';
+import { listProjects, type Project } from '../../services/projects/projectService';
 
 interface DocumentItem {
   product_name: string;
@@ -41,6 +42,7 @@ interface DocumentData {
   template?: string;
   related_document_id?: string;
   related_sale_id?: string;
+  project_id?: string | null;
 }
 
 interface DocumentFormProps {
@@ -87,6 +89,12 @@ export default function DocumentForm({
   const [paymentMethod, setPaymentMethod] = useState(existingDocument?.payment_method || '');
   const [notes, setNotes] = useState(existingDocument?.notes || '');
   const [terms, setTerms] = useState(existingDocument?.terms || '');
+  const [projectId, setProjectId] = useState(existingDocument?.project_id || '');
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  useEffect(() => {
+    listProjects().then(setProjects).catch(() => setProjects([]));
+  }, []);
 
   useEffect(() => {
     if (existingDocumentId && !existingDocument) {
@@ -112,6 +120,7 @@ export default function DocumentForm({
           setPaymentMethod(doc.payment_method || '');
           setNotes(doc.notes || '');
           setTerms(doc.terms || '');
+          setProjectId(doc.project_id || '');
         }
         const { data: docItems } = await supabase
           .from('document_items')
@@ -263,6 +272,7 @@ export default function DocumentForm({
         payment_method: paymentMethod,
         notes,
         terms,
+        project_id: projectId || null,
       };
 
       if (documentType === 'invoice' || documentType === 'quotation') {
@@ -676,6 +686,24 @@ export default function DocumentForm({
                     <option value="other">Other</option>
                   </select>
                 </div>
+
+                {projects.length > 0 && (
+                  <div>
+                    <label className={`block text-sm font-medium ${labelClass} mb-2`}>
+                      Project
+                    </label>
+                    <select
+                      value={projectId}
+                      onChange={(e) => setProjectId(e.target.value)}
+                      className={`w-full px-4 py-2 border rounded-lg ${inputClass} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                    >
+                      <option value="">No project</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Plus, Edit, Trash2, Save, X, Package, Users, Truck, Palette, ChevronDown, ChevronUp } from 'lucide-react';
+import { Settings, Plus, Edit, Trash2, Save, X, Package, Users, Truck, Palette, ChevronDown, ChevronUp, UserCog } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
@@ -18,10 +18,11 @@ interface DropdownItem {
 }
 
 const DropdownManagement: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'products' | 'suppliers' | 'delivery_guys'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'suppliers' | 'delivery_guys' | 'staff'>('products');
   const [products, setProducts] = useState<DropdownItem[]>([]);
   const [suppliers, setSuppliers] = useState<DropdownItem[]>([]);
   const [deliveryGuys, setDeliveryGuys] = useState<DropdownItem[]>([]);
+  const [staff, setStaff] = useState<DropdownItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState('');
@@ -46,7 +47,7 @@ const DropdownManagement: React.FC = () => {
       }
 
       // Fetch all dropdown data
-      const [productsData, suppliersData, deliveryGuysData, colorsData] = await Promise.all([
+      const [productsData, suppliersData, deliveryGuysData, staffData, colorsData] = await Promise.all([
         supabase
           .from('user_products')
           .select('*')
@@ -61,6 +62,12 @@ const DropdownManagement: React.FC = () => {
 
         supabase
           .from('user_delivery_guys')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('name'),
+
+        supabase
+          .from('user_staff')
           .select('*')
           .eq('user_id', user.id)
           .order('name'),
@@ -81,6 +88,7 @@ const DropdownManagement: React.FC = () => {
       setProducts(productsWithColors);
       setSuppliers(suppliersData.data || []);
       setDeliveryGuys(deliveryGuysData.data || []);
+      setStaff(staffData.data || []);
 
     } catch (error: any) {
       console.error('Error fetching dropdown data:', error);
@@ -90,7 +98,19 @@ const DropdownManagement: React.FC = () => {
     }
   };
 
-  const addItem = async (type: 'products' | 'suppliers' | 'delivery_guys', name: string) => {
+  // 'staff' doesn't pluralize with a trailing 's' like the others, so the
+  // old `type.slice(0, -1)` singularizing trick breaks for it — spell out
+  // the singular label per type instead.
+  const singularLabel = (type: 'products' | 'suppliers' | 'delivery_guys' | 'staff'): string => {
+    switch (type) {
+      case 'products': return 'Product';
+      case 'suppliers': return 'Supplier';
+      case 'delivery_guys': return 'Delivery guy';
+      case 'staff': return 'Staff member';
+    }
+  };
+
+  const addItem = async (type: 'products' | 'suppliers' | 'delivery_guys' | 'staff', name: string) => {
     if (!name.trim()) {
       toast.error('Please enter a name');
       return;
@@ -100,15 +120,16 @@ const DropdownManagement: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const tableName = type === 'products' ? 'user_products' : 
-                       type === 'suppliers' ? 'user_sellers' : 'user_delivery_guys';
+      const tableName = type === 'products' ? 'user_products' :
+                       type === 'suppliers' ? 'user_sellers' :
+                       type === 'delivery_guys' ? 'user_delivery_guys' : 'user_staff';
 
       const { data, error } = await supabase
         .from(tableName)
-        .insert({ 
+        .insert({
           id: crypto.randomUUID(),
-          user_id: user.id, 
-          name: name.trim() 
+          user_id: user.id,
+          name: name.trim()
         })
         .select()
         .single();
@@ -126,20 +147,22 @@ const DropdownManagement: React.FC = () => {
         setProducts(prev => [...prev, data]);
       } else if (type === 'suppliers') {
         setSuppliers(prev => [...prev, data]);
-      } else {
+      } else if (type === 'delivery_guys') {
         setDeliveryGuys(prev => [...prev, data]);
+      } else {
+        setStaff(prev => [...prev, data]);
       }
 
       setNewItemName('');
-      toast.success(`${type.slice(0, -1).charAt(0).toUpperCase() + type.slice(1, -1)} added successfully`);
+      toast.success(`${singularLabel(type)} added successfully`);
 
     } catch (error: any) {
       console.error(`Error adding ${type}:`, error);
-      toast.error(error.message || `Failed to add ${type.slice(0, -1)}`);
+      toast.error(error.message || `Failed to add ${singularLabel(type).toLowerCase()}`);
     }
   };
 
-  const editItem = async (type: 'products' | 'suppliers' | 'delivery_guys', id: string, newName: string) => {
+  const editItem = async (type: 'products' | 'suppliers' | 'delivery_guys' | 'staff', id: string, newName: string) => {
     if (!newName.trim()) {
       toast.error('Please enter a name');
       return;
@@ -149,8 +172,9 @@ const DropdownManagement: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const tableName = type === 'products' ? 'user_products' : 
-                       type === 'suppliers' ? 'user_sellers' : 'user_delivery_guys';
+      const tableName = type === 'products' ? 'user_products' :
+                       type === 'suppliers' ? 'user_sellers' :
+                       type === 'delivery_guys' ? 'user_delivery_guys' : 'user_staff';
 
       const { error } = await supabase
         .from(tableName)
@@ -171,21 +195,23 @@ const DropdownManagement: React.FC = () => {
         setProducts(prev => prev.map(p => p.id === id ? { ...p, name: newName.trim() } : p));
       } else if (type === 'suppliers') {
         setSuppliers(prev => prev.map(s => s.id === id ? { ...s, name: newName.trim() } : s));
-      } else {
+      } else if (type === 'delivery_guys') {
         setDeliveryGuys(prev => prev.map(d => d.id === id ? { ...d, name: newName.trim() } : d));
+      } else {
+        setStaff(prev => prev.map(s => s.id === id ? { ...s, name: newName.trim() } : s));
       }
 
       setEditingItem(null);
       setEditItemName('');
-      toast.success(`${type.slice(0, -1).charAt(0).toUpperCase() + type.slice(1, -1)} updated successfully`);
+      toast.success(`${singularLabel(type)} updated successfully`);
 
     } catch (error: any) {
       console.error(`Error editing ${type}:`, error);
-      toast.error(error.message || `Failed to edit ${type.slice(0, -1)}`);
+      toast.error(error.message || `Failed to edit ${singularLabel(type).toLowerCase()}`);
     }
   };
 
-  const deleteItem = async (type: 'products' | 'suppliers' | 'delivery_guys', id: string, name: string) => {
+  const deleteItem = async (type: 'products' | 'suppliers' | 'delivery_guys' | 'staff', id: string, name: string) => {
     if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) return;
 
     try {
@@ -193,7 +219,8 @@ const DropdownManagement: React.FC = () => {
       if (!user) return;
 
       const tableName = type === 'products' ? 'user_products' :
-                       type === 'suppliers' ? 'user_sellers' : 'user_delivery_guys';
+                       type === 'suppliers' ? 'user_sellers' :
+                       type === 'delivery_guys' ? 'user_delivery_guys' : 'user_staff';
 
       const { error } = await supabase
         .from(tableName)
@@ -207,15 +234,17 @@ const DropdownManagement: React.FC = () => {
         setProducts(prev => prev.filter(p => p.id !== id));
       } else if (type === 'suppliers') {
         setSuppliers(prev => prev.filter(s => s.id !== id));
-      } else {
+      } else if (type === 'delivery_guys') {
         setDeliveryGuys(prev => prev.filter(d => d.id !== id));
+      } else {
+        setStaff(prev => prev.filter(s => s.id !== id));
       }
 
-      toast.success(`${type.slice(0, -1).charAt(0).toUpperCase() + type.slice(1, -1)} deleted successfully`);
+      toast.success(`${singularLabel(type)} deleted successfully`);
 
     } catch (error: any) {
       console.error(`Error deleting ${type}:`, error);
-      toast.error(error.message || `Failed to delete ${type.slice(0, -1)}`);
+      toast.error(error.message || `Failed to delete ${singularLabel(type).toLowerCase()}`);
     }
   };
 
@@ -330,32 +359,40 @@ const DropdownManagement: React.FC = () => {
       case 'products': return products;
       case 'suppliers': return suppliers;
       case 'delivery_guys': return deliveryGuys;
+      case 'staff': return staff;
       default: return [];
     }
   };
 
-  const getTabInfo = (tab: 'products' | 'suppliers' | 'delivery_guys') => {
+  const getTabInfo = (tab: 'products' | 'suppliers' | 'delivery_guys' | 'staff') => {
     switch (tab) {
       case 'products':
-        return { 
-          label: 'Products', 
-          icon: <Package className="w-5 h-5" />, 
+        return {
+          label: 'Products',
+          icon: <Package className="w-5 h-5" />,
           color: 'bg-blue-600',
           description: 'Manage your product catalog'
         };
       case 'suppliers':
-        return { 
-          label: 'Suppliers', 
-          icon: <Users className="w-5 h-5" />, 
+        return {
+          label: 'Suppliers',
+          icon: <Users className="w-5 h-5" />,
           color: 'bg-green-600',
           description: 'Manage your supplier list'
         };
       case 'delivery_guys':
-        return { 
-          label: 'Delivery Guys', 
-          icon: <Truck className="w-5 h-5" />, 
+        return {
+          label: 'Delivery Guys',
+          icon: <Truck className="w-5 h-5" />,
           color: 'bg-orange-600',
           description: 'Manage delivery personnel'
+        };
+      case 'staff':
+        return {
+          label: 'Staff/Providers',
+          icon: <UserCog className="w-5 h-5" />,
+          color: 'bg-purple-600',
+          description: 'People who perform services for your customers'
         };
     }
   };
@@ -384,7 +421,7 @@ const DropdownManagement: React.FC = () => {
       {/* Tab Navigation */}
       <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="flex flex-wrap gap-2 mb-6">
-          {(['products', 'suppliers', 'delivery_guys'] as const).map((tab) => {
+          {(['products', 'suppliers', 'delivery_guys', 'staff'] as const).map((tab) => {
             const tabInfo = getTabInfo(tab);
             return (
               <button

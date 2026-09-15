@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { addAdExpense, listRecentAdExpenses, type AdExpense } from "../features/ad-expenses/api";
+import { listProjects, type Project } from "../services/projects/projectService";
 
 const PLATFORMS = ["TikTok Ads","Facebook Ads","Instagram Ads","Google Ads","YouTube Ads","Other"] as const;
 const TYPES = ["Boost","Leads","Conversion","Awareness","Other"] as const;
@@ -11,10 +12,12 @@ export default function AdExpensesPage() {
   const [amount, setAmount] = useState("");
   const [dateStr, setDateStr] = useState("");
   const [notes, setNotes] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ kind:"ok"|"err"; text:string } | null>(null);
 
   const [rows, setRows] = useState<AdExpense[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const totalKES = useMemo(() => rows.reduce((s, r) => s + Number(r.amount_kes || 0), 0), [rows]);
   const fmt = new Intl.NumberFormat(undefined, { style: "currency", currency: "KES", maximumFractionDigits: 2 });
 
@@ -23,6 +26,7 @@ export default function AdExpensesPage() {
     catch (e:any) { setMsg({ kind:"err", text:e.message || "Failed to load expenses." }); }
   };
   useEffect(() => { load(); }, []);
+  useEffect(() => { listProjects().then(setProjects).catch(() => setProjects([])); }, []);
 
   const submit = async () => {
     setSaving(true); setMsg(null);
@@ -32,9 +36,9 @@ export default function AdExpensesPage() {
       if (!amount.trim()) throw new Error("Enter an amount.");
       if (!dateStr) throw new Error("Choose an expense date.");
 
-      await addAdExpense({ adPlatform: platform, adType, amountKES: amount, dateString: dateStr, notes: notes || undefined });
+      await addAdExpense({ adPlatform: platform, adType, amountKES: amount, dateString: dateStr, notes: notes || undefined, projectId: projectId || undefined });
       setMsg({ kind:"ok", text:"Ad expense recorded." });
-      setPlatform(""); setAdType(""); setAmount(""); setDateStr(""); setNotes("");
+      setPlatform(""); setAdType(""); setAmount(""); setDateStr(""); setNotes(""); setProjectId("");
       await load();
     } catch (e:any) {
       setMsg({ kind:"err", text:e.message || "Failed to record ad expense." });
@@ -92,6 +96,16 @@ export default function AdExpensesPage() {
           <span className="text-sm">Notes (Optional)</span>
           <textarea className="border rounded px-3 py-2" rows={3} placeholder="Campaign details, target audience, performance notes…" value={notes} onChange={(e)=>setNotes(e.target.value)} />
         </label>
+
+        {projects.length > 0 && (
+          <label className="grid gap-1">
+            <span className="text-sm">Project (Optional)</span>
+            <select className="border rounded px-3 py-2" value={projectId} onChange={(e)=>setProjectId(e.target.value)}>
+              <option value="">No project</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </label>
+        )}
 
         <button className="px-4 py-2 rounded bg-black text-white disabled:opacity-50 w-fit" disabled={saving} onClick={submit}>
           {saving ? "Saving…" : "Record Expense"}

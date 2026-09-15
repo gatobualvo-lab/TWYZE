@@ -77,6 +77,20 @@ const safeNum = (v: any) => {
 
 const formatCurrency = (amount: number) => 'KES ' + amount.toLocaleString();
 
+// generatePrintHTML() below builds a full HTML document from user-entered
+// business/customer/document fields and injects it via document.write() in a
+// new window. Every dynamic string must go through this before interpolation,
+// otherwise a customer name or note containing markup executes in that window.
+export const escapeHtml = (value: unknown): string => {
+  const str = value === null || value === undefined ? '' : String(value);
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
 export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   documentId,
   onClose,
@@ -159,6 +173,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   const handlePrint = () => {
     if (!document || !businessSettings) return;
 
+    // No noopener/noreferrer — window.open() returns null whenever those are
+    // set (per spec), which made this fail every time regardless of any
+    // actual popup blocker. Safe to omit: we write our own trusted HTML into
+    // a blank window, not an external URL.
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       toast.error('Could not open print window');
@@ -181,8 +199,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       .map(
         (item) => `
       <tr>
-        <td class="border-b border-gray-300 py-3 px-4 text-left">${item.product_name}</td>
-        <td class="border-b border-gray-300 py-3 px-4 text-sm text-gray-600">${item.description}</td>
+        <td class="border-b border-gray-300 py-3 px-4 text-left">${escapeHtml(item.product_name)}</td>
+        <td class="border-b border-gray-300 py-3 px-4 text-sm text-gray-600">${escapeHtml(item.description)}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-right">${safeNum(item.quantity)}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-right">${formatCurrency(safeNum(item.unit_price))}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-right">${safeNum(item.discount_percent)}%</td>
@@ -202,7 +220,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${document.document_number}</title>
+        <title>${escapeHtml(document.document_number)}</title>
         <style>
           * {
             margin: 0;
@@ -399,17 +417,17 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           <!-- Header -->
           <div class="header">
             <div class="header-left">
-              <h1>${businessSettings.business_name}</h1>
-              <p>${businessSettings.physical_address}</p>
-              <p>${businessSettings.city}, ${businessSettings.country}</p>
-              <p>Phone: ${businessSettings.phone}</p>
-              <p>Email: ${businessSettings.email}</p>
-              ${businessSettings.kra_pin ? `<p>KRA PIN: ${businessSettings.kra_pin}</p>` : ''}
-              ${businessSettings.vat_number ? `<p>VAT: ${businessSettings.vat_number}</p>` : ''}
+              <h1>${escapeHtml(businessSettings.business_name)}</h1>
+              <p>${escapeHtml(businessSettings.physical_address)}</p>
+              <p>${escapeHtml(businessSettings.city)}, ${escapeHtml(businessSettings.country)}</p>
+              <p>Phone: ${escapeHtml(businessSettings.phone)}</p>
+              <p>Email: ${escapeHtml(businessSettings.email)}</p>
+              ${businessSettings.kra_pin ? `<p>KRA PIN: ${escapeHtml(businessSettings.kra_pin)}</p>` : ''}
+              ${businessSettings.vat_number ? `<p>VAT: ${escapeHtml(businessSettings.vat_number)}</p>` : ''}
             </div>
             <div class="header-right">
               <div class="doc-type">${docTypeLabel}</div>
-              <div class="doc-number">No: ${document.document_number}</div>
+              <div class="doc-number">No: ${escapeHtml(document.document_number)}</div>
               <div class="doc-date">Date: ${new Date(document.date).toLocaleDateString()}</div>
               ${document.due_date ? `<div class="doc-date">Due: ${new Date(document.due_date).toLocaleDateString()}</div>` : ''}
             </div>
@@ -420,10 +438,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             <div class="section">
               <div class="section-title">Bill To</div>
               <div class="info-block">
-                <p class="label">${document.customer_name}</p>
-                <p>${document.customer_address}</p>
-                <p>Phone: ${document.customer_phone}</p>
-                <p>Email: ${document.customer_email}</p>
+                <p class="label">${escapeHtml(document.customer_name)}</p>
+                <p>${escapeHtml(document.customer_address)}</p>
+                <p>Phone: ${escapeHtml(document.customer_phone)}</p>
+                <p>Email: ${escapeHtml(document.customer_email)}</p>
               </div>
             </div>
           </div>
@@ -494,7 +512,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           ${document.notes ? `
           <div class="notes">
             <strong>Notes:</strong><br/>
-            ${document.notes}
+            ${escapeHtml(document.notes)}
           </div>
           ` : ''}
 
@@ -502,8 +520,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           ${document.document_type === 'invoice' && (businessSettings.payment_instructions || businessSettings.bank_details) ? `
           <div class="payment-info">
             <div class="payment-info-title">Payment Instructions</div>
-            ${businessSettings.payment_instructions ? `<p>${businessSettings.payment_instructions}</p>` : ''}
-            ${businessSettings.bank_details ? `<p>Bank Details: ${businessSettings.bank_details}</p>` : ''}
+            ${businessSettings.payment_instructions ? `<p>${escapeHtml(businessSettings.payment_instructions)}</p>` : ''}
+            ${businessSettings.bank_details ? `<p>Bank Details: ${escapeHtml(businessSettings.bank_details)}</p>` : ''}
           </div>
           ` : ''}
 
@@ -511,13 +529,13 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           ${document.terms ? `
           <div class="terms">
             <div class="terms-title">Terms & Conditions</div>
-            ${document.terms}
+            ${escapeHtml(document.terms)}
           </div>
           ` : ''}
 
           <!-- Footer -->
           <div class="footer">
-            ${footerText || ''}
+            ${escapeHtml(footerText)}
             <p style="margin-top: 20px; font-size: 11px; color: #999;">Generated on ${new Date().toLocaleString()}</p>
           </div>
         </div>
@@ -558,13 +576,15 @@ Phone: ${businessSettings.phone}
 
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
-    window.open(whatsappUrl, '_blank');
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
     toast.success('Opening WhatsApp...');
   };
 
   const handleDownloadPDF = () => {
     if (!document) return;
 
+    // Same fix as handlePrint above — noopener/noreferrer forces window.open()
+    // to return null, which always looked like a blocked popup.
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       toast.error('Could not open print window');

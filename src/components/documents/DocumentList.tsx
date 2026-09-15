@@ -23,6 +23,7 @@ interface Document {
   payment_method: string | null;
   notes: string | null;
   template: string | null;
+  project_id: string | null;
   created_at: string;
   updated_at: string;
 }

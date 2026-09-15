@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BarChart3, Plus, Menu, X, Target, Shield, TrendingUp, Download, Zap, LogOut, Users, History, Settings, User, User as UserIcon, Package, BookOpen, Layers, DollarSign, Calendar, TrendingDown, Wallet, Truck, ChevronLeft, ChevronRight, Check, Receipt, AlertTriangle, Trash2, ChevronUp, ChevronDown, ShoppingCart, FileText } from 'lucide-react';
+import { BarChart3, Plus, Menu, X, Target, TrendingUp, Download, Zap, LogOut, Users, History, Settings, User, User as UserIcon, Package, BookOpen, Layers, Calendar, TrendingDown, Wallet, Truck, ChevronLeft, ChevronRight, Receipt, ChevronDown, ShoppingCart, FileText, Percent, Lightbulb, Sparkles, Trophy, Bell, UserCog, Repeat, HelpCircle, Briefcase } from 'lucide-react';
 import { CSSTransition } from 'react-transition-group';
 import { supabase, refreshSession } from '../utils/supabase';
-import { Sale, Supplier, AdExpense, GeneralExpense } from '../types';
 import { DownloadModal } from './DownloadModal';
 import { useDownloadReminder } from '../hooks/useDownloadReminder';
 import MultiProductSalesForm from './MultiProductSalesForm';
@@ -18,13 +17,39 @@ import MonthlyDashboard from './MonthlyDashboard';
 import ReportsAnalytics from './ReportsAnalytics';
 import DeliveryPayments from './payments/DeliveryPayments';
 import VendorTransactions from './payments/VendorTransactions';
+import CashPosition from './payments/CashPosition';
+import MobileBottomNav from './MobileBottomNav';
+import RecurringInvoices from './documents/RecurringInvoices';
+import ProjectsPage from './projects/ProjectsPage';
+import { runDueRecurringInvoices } from '../services/documents/recurringInvoiceService';
 import DropdownManagement from './DropdownManagement';
-import LoadingScreen from './LoadingScreen';
 import AccountSettings from './AccountSettings';
+import PaymentManagement from '../pages/PaymentManagement';
 import ClientManagement from './ClientManagement';
 import AdminPanel from '../pages/AdminPanel';
 import DashboardHome from './DashboardHome';
 import DocumentsPage from './documents/DocumentsPage';
+import NotificationBell from './notifications/NotificationBell';
+import { useOfflineSalesSync } from '../hooks/useOfflineSalesSync';
+import ProfitAnalytics from './analytics/ProfitAnalytics';
+import DailyClosingReport from './analytics/DailyClosingReport';
+import CustomerTimeline from './customers/CustomerTimeline';
+import SmartInventoryPredictions from './inventory/SmartInventoryPredictions';
+import OpportunityCenter from './opportunities/OpportunityCenter';
+import AIBusinessAdvisor from './advisor/AIBusinessAdvisor';
+import BusinessGoals from './goals/BusinessGoals';
+import UniversalSearch from './search/UniversalSearch';
+import BusinessCalendar from './calendar/BusinessCalendar';
+import NotificationCenter from './notifications/NotificationCenter';
+import { useNotificationSync } from '../services/notifications/useNotificationSync';
+import TeamManagement from './team/TeamManagement';
+import { useBusinessRole } from '../services/team/useBusinessRole';
+import { filterNavForRole } from '../services/team/navPermissions';
+import RecurringExpenses from './expenses/RecurringExpenses';
+import { runDueRecurringExpenses } from '../services/expenses/recurringExpenseService';
+import { applyMySubscriptionLapse, computeAccessLevel } from '../services/subscription/subscriptionLapseService';
+import { sendSubscriptionExpiryWarningEmail } from '../services/email/emailService';
+import { SubscriptionBanner, RestrictedFeatureGate } from './SubscriptionGate';
 import toast from 'react-hot-toast';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -34,6 +59,9 @@ interface UserProfile {
   email?: string;
   phone_number?: string;
   subscription_status?: string;
+  subscription_expiry?: string;
+  trial_end_date?: string;
+  current_billing_cycle?: string;
   role?: string;
   created_at?: string;
   last_login?: string;
@@ -50,213 +78,219 @@ interface UserData {
   profile?: UserProfile;
 }
 
+// Sidebar nav is data-driven from here rather than hand-written per item —
+// with 21+ top-level destinations (10 existing + 11 new BI features), three
+// parallel hardcoded switch-statements (sidebar JSX / header title / body
+// content) would mean every new feature touches three near-duplicate spots.
+// This registry drives the sidebar and header title; the body content switch
+// stays an explicit chain below since each tab renders a different component
+// with different props, which a generic map wouldn't meaningfully simplify.
+type IconType = React.ComponentType<{ className?: string }>;
+
+interface NavLeaf {
+  id: string;
+  label: string;
+  /** Header title, if different from the sidebar label. */
+  title?: string;
+  icon: IconType;
+}
+
+interface NavGroup {
+  kind: 'group';
+  id: string;
+  label: string;
+  icon: IconType;
+  iconClassName: string;
+  items: NavLeaf[];
+}
+
+type NavTopItem = ({ kind: 'leaf' } & NavLeaf) | NavGroup;
+
+// Reorganized per a business-owner usability pass: "Suppliers" was actually
+// a second sales channel (confusingly named the same as "vendor" elsewhere
+// in the app, which means who you BUY from) — folded into Sales under
+// clearer "Wholesale" labels. "Payment Management" collided in meaning
+// with the separate subscription-billing page of the same name — folded
+// into a new "Money" group alongside Expenses, since a business owner
+// thinks of "who I owe / who owes me" as one activity. "Reports &
+// Analytics" and "Insights" were an arbitrary split from the user's point
+// of view (both answer "how's my business doing") — merged into one
+// Insights group. Leaf ids are unchanged so routing, permissions
+// (SECTION_BY_NAV_ID), and existing deep links all keep working.
+const NAV_ITEMS: NavTopItem[] = [
+  { kind: 'leaf', id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+  {
+    kind: 'group', id: 'sales', label: 'Sales', icon: ShoppingCart, iconClassName: 'text-blue-600',
+    items: [
+      { id: 'add-sale', label: 'Add Sale', icon: Plus },
+      { id: 'view-sales', label: 'View Sales', icon: ShoppingCart },
+      { id: 'add-supplier', label: 'Add Wholesale Sale', icon: Plus },
+      { id: 'view-suppliers', label: 'Wholesale Dashboard', icon: Users },
+    ],
+  },
+  {
+    kind: 'group', id: 'money', label: 'Money', icon: Wallet, iconClassName: 'text-orange-600',
+    items: [
+      { id: 'cash-position', label: 'Cash Position', icon: Wallet },
+      { id: 'ad-expenses', label: 'Ad Expenses', icon: Target },
+      { id: 'general-expenses', label: 'General Expenses', icon: Receipt },
+      { id: 'recurring-expenses', label: 'Recurring Expenses', icon: Repeat },
+      { id: 'expense-overview', label: 'Expense Overview', icon: TrendingDown },
+      { id: 'vendor-transactions', label: 'Vendor Transactions', icon: User },
+      { id: 'delivery-payments', label: 'Delivery Payments', icon: Truck },
+    ],
+  },
+  {
+    kind: 'group', id: 'inventory-group', label: 'Inventory', icon: Package, iconClassName: 'text-cyan-600',
+    items: [
+      { id: 'inventory', label: 'Inventory', title: 'Inventory Management', icon: Package },
+      { id: 'inventory-predictions', label: 'Smart Inventory', icon: Zap },
+    ],
+  },
+  {
+    kind: 'group', id: 'customers-group', label: 'Customers', icon: Users, iconClassName: 'text-pink-600',
+    items: [
+      { id: 'clients', label: 'Clients', title: 'Client Management', icon: Users },
+      { id: 'customer-timeline', label: 'Customer Timeline', icon: History },
+    ],
+  },
+  {
+    kind: 'group', id: 'documents', label: 'Documents', icon: BookOpen, iconClassName: 'text-teal-600',
+    items: [
+      { id: 'documents-quotations', label: 'Quotations', icon: Layers },
+      { id: 'documents-invoices', label: 'Invoices', icon: FileText },
+      { id: 'documents-receipts', label: 'Receipts', icon: Receipt },
+      { id: 'recurring-invoices', label: 'Recurring Invoices', icon: Repeat },
+      { id: 'projects', label: 'Projects', icon: Briefcase },
+      { id: 'documents-settings', label: 'Doc Settings', title: 'Document Settings', icon: Settings },
+    ],
+  },
+  {
+    kind: 'group', id: 'insights-group', label: 'Insights', icon: Lightbulb, iconClassName: 'text-amber-600',
+    items: [
+      { id: 'opportunities', label: 'Opportunity Center', icon: Lightbulb },
+      { id: 'advisor', label: 'Business Advisor', icon: Sparkles },
+      { id: 'goals', label: 'Business Goals', icon: Trophy },
+      { id: 'calendar', label: 'Business Calendar', icon: Calendar },
+      { id: 'notifications', label: 'Notification Center', icon: Bell },
+      { id: 'monthly-dashboard', label: 'Monthly Dashboard', icon: TrendingUp },
+      { id: 'profit-analytics', label: 'Profit Analytics', icon: Percent },
+      { id: 'daily-closing', label: 'Daily Closing Report', icon: Receipt },
+      { id: 'data-export', label: 'Data Export', icon: Download },
+    ],
+  },
+  {
+    kind: 'group', id: 'settings-group', label: 'Settings', icon: Settings, iconClassName: 'text-gray-600',
+    items: [
+      { id: 'dropdown-management', label: 'Dropdown Management', icon: Settings },
+      { id: 'team', label: 'Team', icon: UserCog },
+    ],
+  },
+];
+
+const NAV_TITLES: Record<string, string> = { account: 'Account Settings', admin: 'Admin Panel', 'payment-management': 'Manage Subscription' };
+for (const entry of NAV_ITEMS) {
+  if (entry.kind === 'leaf') {
+    NAV_TITLES[entry.id] = entry.title ?? entry.label;
+  } else {
+    for (const item of entry.items) NAV_TITLES[item.id] = item.title ?? item.label;
+  }
+}
+
+interface NavButtonProps {
+  active: boolean;
+  collapsed: boolean;
+  label: string;
+  icon: IconType;
+  onClick: () => void;
+  iconClassName?: string;
+}
+
+const NavButton: React.FC<NavButtonProps> = ({ active, collapsed, label, icon: Icon, onClick, iconClassName }) => (
+  <button
+    onClick={onClick}
+    className={`group relative w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 ${
+      active
+        ? 'bg-blue-600 text-white shadow-sm'
+        : 'text-gray-700 hover:bg-gray-100 hover:translate-x-0.5 active:translate-x-0 active:bg-gray-200'
+    }`}
+  >
+    <Icon
+      className={`w-5 h-5 flex-shrink-0 transition-transform duration-150 group-hover:scale-110 ${
+        active ? '' : iconClassName ?? ''
+      }`}
+    />
+    {!collapsed && <span className="truncate">{label}</span>}
+  </button>
+);
+
 const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) => {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const { showModal, handleCloseModal } = useDownloadReminder();
+  useNotificationSync();
+  const { role: businessRole } = useBusinessRole();
+  const visibleNavItems = filterNavForRole(NAV_ITEMS, businessRole.isStaff, businessRole.permissions);
+  useEffect(() => { runDueRecurringExpenses().catch(() => {}); }, []);
+  useEffect(() => { runDueRecurringInvoices().catch(() => {}); }, []);
+  const { pendingCount: pendingOfflineSales } = useOfflineSalesSync();
+  useEffect(() => {
+    applyMySubscriptionLapse().then(newStatus => {
+      if (!newStatus) return;
+      setUser(prev => {
+        if (!prev?.profile) return prev;
+        // Send the "you've lapsed" email exactly once, right as the
+        // transition happens — not on every subsequent lapse check while
+        // still expired/restricted.
+        if (prev.profile.subscription_status !== newStatus && newStatus === 'expired') {
+          sendSubscriptionExpiryWarningEmail();
+        }
+        return { ...prev, profile: { ...prev.profile, subscription_status: newStatus } };
+      });
+    });
+  }, []);
   const location = useLocation();
   const [user, setUser] = useState<UserData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [adExpenses, setAdExpenses] = useState<AdExpense[]>([]);
-  const [generalExpenses, setGeneralExpenses] = useState<GeneralExpense[]>([]);
-  const [dataLoading, setDataLoading] = useState(false);
+  const accessLevel = computeAccessLevel(user?.profile?.subscription_status);
   const [activeTab, setActiveTab] = useState<string>(initialActiveTab || 'dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState<{
-    sales: boolean;
-    suppliers: boolean;
-    expenses: boolean;
-    reports: boolean;
-    payments: boolean;
-    documents: boolean;
-  }>({
-    sales: true,
-    suppliers: true,
-    expenses: true,
-    reports: true,
-    payments: true,
-    documents: true
+  // Groups start collapsed — except whichever one contains the page we're
+  // actually landing on, so a deep link never opens onto a hidden nav item.
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(() => {
+    const landingTab = initialActiveTab || 'dashboard';
+    const state: Record<string, boolean> = {};
+    for (const entry of NAV_ITEMS) {
+      if (entry.kind !== 'group') continue;
+      state[entry.id] = entry.items.some(item => item.id === landingTab);
+    }
+    return state;
   });
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const [dashboardMetrics, setDashboardMetrics] = useState({
-    todayGrossProfit: 0,
-    weekGrossProfit: 0,
-    monthNetProfit: 0,
-    owedToVendors: 0,
-    owedToDelivery: 0
-  });
 
   // Download modal state
   const [showDownloadModal, setShowDownloadModal] = useState(false);
 
-  const toggleCategory = (category: 'sales' | 'suppliers' | 'expenses' | 'reports' | 'payments' | 'documents') => {
+  const toggleCategory = (category: string) => {
     setExpandedCategories(prev => ({
       ...prev,
       [category]: !prev[category]
     }));
   };
 
-  // Calculate dashboard metrics
-  const calculateDashboardMetrics = async (salesData: Sale[], suppliersData: Supplier[]) => {
-    const today = new Date().toISOString().split('T')[0];
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-
-    // Today's gross profit
-    const todayGrossProfit = salesData
-      .filter(sale => sale.date === today)
-      .reduce((sum, sale) => sum + Number(sale.profit || 0), 0);
-
-    // Week's gross profit
-    const weekGrossProfit = salesData
-      .filter(sale => sale.date >= weekAgo)
-      .reduce((sum, sale) => sum + Number(sale.profit || 0), 0);
-
-    // Month's net profit (sales profit minus expenses)
-    const monthSalesProfit = salesData
-      .filter(sale => sale.date >= monthStart)
-      .reduce((sum, sale) => sum + Number(sale.profit || 0), 0);
-
-    const monthExpenses = [...adExpenses, ...generalExpenses]
-      .filter(expense => {
-        const expenseDate = expense.date || expense.occurred_on;
-        return expenseDate >= monthStart;
-      })
-      .reduce((sum, expense) => sum + Number(expense.amount || expense.amount_kes || 0), 0);
-
-    const monthNetProfit = monthSalesProfit - monthExpenses;
-
-    // Calculate owed to vendors from sale_items table
-    let owedToVendors = 0;
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: saleItems, error } = await supabase
-          .from('sale_items')
-          .select('buying_price, quantity, vendor_payment_status')
-          .eq('user_id', user.id)
-          .neq('vendor_payment_status', 'Paid');
-
-        if (!error && saleItems) {
-          owedToVendors = saleItems.reduce((sum, item) => {
-            return sum + (Number(item.buying_price || 0) * Number(item.quantity || 1));
-          }, 0);
-        }
-      }
-    } catch (error) {
-      console.error('Error calculating owed to vendors:', error);
-    }
-
-    // Calculate owed to delivery
-    const owedToDelivery = salesData
-      .filter(sale => !sale.delivery_fee_paid)
-      .reduce((sum, sale) => sum + Number(sale.delivery_fee || 0), 0);
-
-    setDashboardMetrics({
-      todayGrossProfit,
-      weekGrossProfit,
-      monthNetProfit,
-      owedToVendors,
-      owedToDelivery
-    });
+  // Picking a destination from the mobile drawer should close it — otherwise
+  // the user has to tap the backdrop or the X separately every single time.
+  const handleSidebarNavigate = (tab: string) => {
+    setActiveTab(tab);
+    if (isMobileView) setIsMobileMenuOpen(false);
   };
-
-  // Load user data function
-  async function loadUserData(userId: string) {
-    try {
-      try {
-        setDataLoading(true);
-        
-        // Fetch sales data
-        const { data: salesData, error: salesError } = await supabase
-          .from('sales')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('is_deleted', false)
-          .eq('is_archived', false)
-          .order('date', { ascending: false });
-
-        if (salesError) {
-          console.error('Error fetching sales:', salesError);
-          toast.error('Failed to load sales data');
-          setSales([]);
-        } else {
-          setSales(salesData || []);
-        }
-
-        // Fetch suppliers data
-        const { data: suppliersData, error: suppliersError } = await supabase
-          .from('suppliers')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('is_deleted', false)
-          .order('date', { ascending: false });
-
-        if (suppliersError) {
-          console.error('Error fetching suppliers:', suppliersError);
-          toast.error('Failed to load suppliers data');
-          setSuppliers([]);
-        } else {
-          setSuppliers(suppliersData || []);
-        }
-
-        // Fetch ad expenses data
-        const { data: adExpensesData, error: adExpensesError } = await supabase
-          .from('ad_expenses')
-          .select('*')
-          .eq('created_by', userId)
-          .eq('is_archived', false)
-          .order('occurred_on', { ascending: false });
-
-        if (adExpensesError) {
-          console.error('Error fetching ad expenses:', adExpensesError);
-          toast.error('Failed to load ad expenses data');
-          setAdExpenses([]);
-        } else {
-          setAdExpenses(adExpensesData || []);
-        }
-
-        // Fetch general expenses data
-        const { data: generalExpensesData, error: generalExpensesError } = await supabase
-          .from('general_expenses')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('is_deleted', false)
-          .eq('is_archived', false)
-          .order('date', { ascending: false });
-
-        if (generalExpensesError) {
-          console.error('Error fetching general expenses:', generalExpensesError);
-          toast.error('Failed to load general expenses data');
-          setGeneralExpenses([]);
-        } else {
-          setGeneralExpenses(generalExpensesData || []);
-        }
-
-        // Calculate dashboard metrics with available data
-        await calculateDashboardMetrics(salesData || [], suppliersData || []);
-      } catch (dataError: any) {
-        console.error('Error in loadUserData:', dataError);
-        toast.error('Failed to load data. Please refresh the page.');
-      }
-    } catch (error) {
-      console.error('Error loading user data:', error);
-      toast.error('Failed to load data');
-    } finally {
-      setDataLoading(false);
-    }
-  }
 
   // All useEffect hooks must be declared before any early returns
   useEffect(() => {
     const getUser = async () => {
       try {
         try {
-          setLoading(true);
           // Get current session
           const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
           
@@ -300,8 +334,6 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
                 });
               } else if (profile) {
                 // Set user with profile data
-                console.log('✅ Profile loaded:', profile);
-                console.log('👤 User role:', profile.role);
                 setUser({
                   id: userData.user.id,
                   email: userData.user.email,
@@ -315,9 +347,6 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
                   email: userData.user.email
                 });
               }
-              
-              // Load user data
-              await loadUserData(userData.user.id);
             } catch (profileError) {
               console.error('Error in profile fetch:', profileError);
               // Set basic user without profile
@@ -338,8 +367,6 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
         toast.error('Failed to load user data');
         // Redirect to login if there's an auth error
         navigate('/login');
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -360,6 +387,8 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
       setActiveTab('account');
     } else if (location.pathname === '/admin') {
       setActiveTab('admin');
+    } else if (location.pathname === '/payment-management') {
+      setActiveTab('payment-management');
     }
   }, [location]);
 
@@ -401,12 +430,22 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
         </button>
       </div>
 
+      {/* Mobile sidebar backdrop */}
+      {isMobileMenuOpen && isMobileView && (
+        <div
+          className="fixed inset-0 bg-black/40 z-[9] md:hidden animate-fade-in"
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Sidebar */}
       <CSSTransition
         in={isMobileMenuOpen || !isMobileView}
         timeout={300}
         classNames="sidebar"
         unmountOnExit={isMobileView}
+        nodeRef={sidebarRef}
       >
         <div
           ref={sidebarRef}
@@ -442,377 +481,58 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
           {/* Sidebar Navigation */}
           <div className="flex-1 overflow-y-auto py-4 flex flex-col">
             <nav className="px-2 space-y-2">
-              {/* Dashboard */}
-              <button
-                onClick={() => setActiveTab('dashboard')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                  activeTab === 'dashboard'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <BarChart3 className="w-5 h-5 flex-shrink-0" />
-                {!isSidebarCollapsed && <span>Dashboard</span>}
-              </button>
+              {visibleNavItems.map(entry => {
+                if (entry.kind === 'leaf') {
+                  return (
+                    <NavButton
+                      key={entry.id}
+                      active={activeTab === entry.id}
+                      collapsed={isSidebarCollapsed}
+                      label={entry.label}
+                      icon={entry.icon}
+                      onClick={() => handleSidebarNavigate(entry.id)}
+                    />
+                  );
+                }
 
-              {/* Sales Category */}
-              <div className="space-y-1">
-                <button
-                  onClick={() => toggleCategory('sales')}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <ShoppingCart className="w-5 h-5 flex-shrink-0 text-blue-600" />
-                    {!isSidebarCollapsed && <span className="font-medium">Sales</span>}
-                  </div>
-                  {!isSidebarCollapsed && (
-                    expandedCategories.sales ? 
-                    <ChevronUp className="w-4 h-4 text-gray-500" /> : 
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
-                  )}
-                </button>
-                
-                {(expandedCategories.sales || isSidebarCollapsed) && (
-                  <div className={`space-y-1 ${isSidebarCollapsed ? '' : 'ml-4'}`}>
-                    {/* Add Sale */}
+                const expanded = expandedCategories[entry.id] ?? false;
+                const GroupIcon = entry.icon;
+                return (
+                  <div key={entry.id} className="space-y-1">
                     <button
-                      onClick={() => setActiveTab('add-sale')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'add-sale'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
+                      onClick={() => toggleCategory(entry.id)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100 active:bg-gray-200 transition-colors duration-150"
                     >
-                      <Plus className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Add Sale</span>}
+                      <div className="flex items-center gap-3">
+                        <GroupIcon className={`w-5 h-5 flex-shrink-0 ${entry.iconClassName}`} />
+                        {!isSidebarCollapsed && <span className="font-medium">{entry.label}</span>}
+                      </div>
+                      {!isSidebarCollapsed && (
+                        <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+                      )}
                     </button>
-                    
-                    {/* View Sales */}
-                    <button
-                      onClick={() => setActiveTab('view-sales')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'view-sales'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <ShoppingCart className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>View Sales</span>}
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {/* Suppliers Category */}
-              <div className="space-y-1">
-                <button
-                  onClick={() => toggleCategory('suppliers')}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Users className="w-5 h-5 flex-shrink-0 text-green-600" />
-                    {!isSidebarCollapsed && <span className="font-medium">Suppliers</span>}
-                  </div>
-                  {!isSidebarCollapsed && (
-                    expandedCategories.suppliers ? 
-                    <ChevronUp className="w-4 h-4 text-gray-500" /> : 
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
-                  )}
-                </button>
-                
-                {(expandedCategories.suppliers || isSidebarCollapsed) && (
-                  <div className={`space-y-1 ${isSidebarCollapsed ? '' : 'ml-4'}`}>
-                    {/* Add Supplier Sale */}
-                    <button
-                      onClick={() => setActiveTab('add-supplier')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'add-supplier'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Plus className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Add Supplier Sale</span>}
-                    </button>
-                    
-                    {/* View Suppliers */}
-                    <button
-                      onClick={() => setActiveTab('view-suppliers')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'view-suppliers'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Users className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Supply Dashboard</span>}
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {/* Expenses Category */}
-              <div className="space-y-1">
-                <button
-                  onClick={() => toggleCategory('expenses')}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <DollarSign className="w-5 h-5 flex-shrink-0 text-red-600" />
-                    {!isSidebarCollapsed && <span className="font-medium">Expenses</span>}
-                  </div>
-                  {!isSidebarCollapsed && (
-                    expandedCategories.expenses ? 
-                    <ChevronUp className="w-4 h-4 text-gray-500" /> : 
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
-                  )}
-                </button>
-                
-                {(expandedCategories.expenses || isSidebarCollapsed) && (
-                  <div className={`space-y-1 ${isSidebarCollapsed ? '' : 'ml-4'}`}>
-                    {/* Ad Expenses */}
-                    <button
-                      onClick={() => setActiveTab('ad-expenses')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'ad-expenses'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Target className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Ad Expenses</span>}
-                    </button>
-                    
-                    {/* General Expenses */}
-                    <button
-                      onClick={() => setActiveTab('general-expenses')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'general-expenses'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Receipt className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>General Expenses</span>}
-                    </button>
-                    
-                    {/* Expense Overview */}
-                    <button
-                      onClick={() => setActiveTab('expense-overview')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'expense-overview'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <TrendingDown className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Expense Overview</span>}
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {/* Inventory */}
-              <button
-                onClick={() => setActiveTab('inventory')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                  activeTab === 'inventory'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <Package className="w-5 h-5 flex-shrink-0" />
-                {!isSidebarCollapsed && <span>Inventory</span>}
-              </button>
 
-              {/* Clients */}
-              <button
-                onClick={() => setActiveTab('clients')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                  activeTab === 'clients'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <Users className="w-5 h-5 flex-shrink-0" />
-                {!isSidebarCollapsed && <span>Clients</span>}
-              </button>
-
-              {/* Documents Category */}
-              <div className="space-y-1">
-                <button
-                  onClick={() => toggleCategory('documents')}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <BookOpen className="w-5 h-5 flex-shrink-0 text-teal-600" />
-                    {!isSidebarCollapsed && <span className="font-medium">Documents</span>}
+                    <div
+                      className={`grid transition-all duration-200 ease-smooth ${
+                        isSidebarCollapsed || expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                      }`}
+                    >
+                      <div className={`overflow-hidden space-y-1 ${isSidebarCollapsed ? '' : 'ml-4'}`}>
+                        {entry.items.map(item => (
+                          <NavButton
+                            key={item.id}
+                            active={activeTab === item.id}
+                            collapsed={isSidebarCollapsed}
+                            label={item.label}
+                            icon={item.icon}
+                            onClick={() => handleSidebarNavigate(item.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  {!isSidebarCollapsed && (
-                    expandedCategories.documents ?
-                    <ChevronUp className="w-4 h-4 text-gray-500" /> :
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
-                  )}
-                </button>
-
-                {(expandedCategories.documents || isSidebarCollapsed) && (
-                  <div className={`space-y-1 ${isSidebarCollapsed ? '' : 'ml-4'}`}>
-                    <button
-                      onClick={() => setActiveTab('documents-quotations')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'documents-quotations'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Layers className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Quotations</span>}
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('documents-invoices')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'documents-invoices'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <FileText className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Invoices</span>}
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('documents-receipts')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'documents-receipts'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Receipt className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Receipts</span>}
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('documents-settings')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'documents-settings'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Settings className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Doc Settings</span>}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Reports & Analytics Category */}
-              <div className="space-y-1">
-                <button
-                  onClick={() => toggleCategory('reports')}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 flex-shrink-0 text-purple-600" />
-                    {!isSidebarCollapsed && <span className="font-medium">Reports & Analytics</span>}
-                  </div>
-                  {!isSidebarCollapsed && (
-                    expandedCategories.reports ? 
-                    <ChevronUp className="w-4 h-4 text-gray-500" /> : 
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
-                  )}
-                </button>
-                
-                {(expandedCategories.reports || isSidebarCollapsed) && (
-                  <div className={`space-y-1 ${isSidebarCollapsed ? '' : 'ml-4'}`}>
-                    {/* Monthly Dashboard */}
-                    <button
-                      onClick={() => setActiveTab('monthly-dashboard')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'monthly-dashboard'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <TrendingUp className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Monthly Dashboard</span>}
-                    </button>
-                    
-                    {/* Data Export */}
-                    <button
-                      onClick={() => setActiveTab('data-export')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'data-export'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Download className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Data Export</span>}
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {/* Payment Management Category */}
-              <div className="space-y-1">
-                <button
-                  onClick={() => toggleCategory('payments')}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Wallet className="w-5 h-5 flex-shrink-0 text-orange-600" />
-                    {!isSidebarCollapsed && <span className="font-medium">Payment Management</span>}
-                  </div>
-                  {!isSidebarCollapsed && (
-                    expandedCategories.payments ? 
-                    <ChevronUp className="w-4 h-4 text-gray-500" /> : 
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
-                  )}
-                </button>
-                
-                {(expandedCategories.payments || isSidebarCollapsed) && (
-                  <div className={`space-y-1 ${isSidebarCollapsed ? '' : 'ml-4'}`}>
-                    {/* Delivery Payments */}
-                    <button
-                      onClick={() => setActiveTab('delivery-payments')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'delivery-payments'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Truck className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Delivery Payments</span>}
-                    </button>
-                    
-                    {/* Vendor Transactions */}
-                    <button
-                      onClick={() => setActiveTab('vendor-transactions')}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        activeTab === 'vendor-transactions'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <User className="w-5 h-5 flex-shrink-0" />
-                      {!isSidebarCollapsed && <span>Vendor Transactions</span>}
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {/* Dropdown Management */}
-              <button
-                onClick={() => setActiveTab('dropdown-management')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                  activeTab === 'dropdown-management'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <Settings className="w-5 h-5 flex-shrink-0" />
-                {!isSidebarCollapsed && <span>Dropdown Management</span>}
-              </button>
+                );
+              })}
             </nav>
             
             {/* Help & Support Section */}
@@ -821,6 +541,15 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
                 Help & Support
               </h3>
               <div className="mt-2 space-y-1">
+                <a
+                  href="/help"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-gray-700 hover:bg-gray-100"
+                >
+                  <HelpCircle className="w-5 h-5 flex-shrink-0 text-purple-600" />
+                  {!isSidebarCollapsed && <span>Help Center</span>}
+                </a>
                 <a
                   href="https://wa.me/0113476311"
                   target="_blank"
@@ -861,7 +590,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
               </h3>
               <div className="mt-2 space-y-1">
                 <button
-                  onClick={() => setActiveTab('account')}
+                  onClick={() => handleSidebarNavigate('account')}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                     activeTab === 'account'
                       ? 'bg-blue-600 text-white'
@@ -902,7 +631,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
                 <div className="mt-2 space-y-1">
                   <button
                     onClick={() => {
-                      setActiveTab('admin');
+                      handleSidebarNavigate('admin');
                       navigate('/admin');
                     }}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
@@ -941,34 +670,14 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
       </CSSTransition>
 
       {/* Main Content */}
-      <div className="flex-1 p-4 md:p-6 ml-0 md:ml-0 transition-all duration-300">
+      <div className="flex-1 p-4 md:p-6 pb-20 md:pb-6 ml-0 md:ml-0 transition-all duration-300">
         {/* User Profile Bar */}
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 mb-6 flex justify-between items-center">
-          <div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6 flex justify-between items-center">
+          <div key={activeTab} className="animate-slide-up">
             <h1 className="text-xl font-bold text-gray-800">
-              {activeTab === 'dashboard' && 'Dashboard'}
-              {activeTab === 'add-sale' && 'Add Sale'}
-              {activeTab === 'view-sales' && 'View Sales'}
-              {activeTab === 'add-supplier' && 'Add Supplier Sale'}
-              {activeTab === 'view-suppliers' && 'Supply Dashboard'}
-              {activeTab === 'ad-expenses' && 'Ad Expenses'}
-              {activeTab === 'general-expenses' && 'General Expenses'}
-              {activeTab === 'expense-overview' && 'Expense Overview'}
-              {activeTab === 'inventory' && 'Inventory Management'}
-              {activeTab === 'clients' && 'Client Management'}
-              {activeTab === 'documents-quotations' && 'Quotations'}
-              {activeTab === 'documents-invoices' && 'Invoices'}
-              {activeTab === 'documents-receipts' && 'Receipts'}
-              {activeTab === 'documents-settings' && 'Document Settings'}
-              {activeTab === 'monthly-dashboard' && 'Monthly Dashboard'}
-              {activeTab === 'data-export' && 'Data Export'}
-              {activeTab === 'delivery-payments' && 'Delivery Payments'}
-              {activeTab === 'vendor-transactions' && 'Vendor Transactions'}
-              {activeTab === 'dropdown-management' && 'Dropdown Management'}
-              {activeTab === 'account' && 'Account Settings'}
-              {activeTab === 'admin' && 'Admin Panel'}
+              {NAV_TITLES[activeTab] ?? ''}
             </h1>
-            <p className="text-gray-600">
+            <p className="text-gray-500 text-sm mt-0.5">
               {user?.profile?.full_name || user?.email || 'Welcome back!'}
             </p>
           </div>
@@ -985,58 +694,94 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
                   : `Billing: ${user?.profile?.current_billing_cycle || 'Unknown'}`}
               </p>
             </div>
-            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+            {pendingOfflineSales > 0 && (
+              <span
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200"
+                title="Recorded while offline — will sync automatically once you're back online"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                {pendingOfflineSales} pending sync
+              </span>
+            )}
+            <UniversalSearch onNavigate={setActiveTab} />
+            <NotificationBell onNavigate={setActiveTab} />
+            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center transition-transform duration-150 hover:scale-105">
               <UserIcon className="w-6 h-6 text-blue-600" />
             </div>
           </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="animate-fadeIn">
-          {dataLoading ? (
-            <LoadingScreen />
-          ) : (
-            <>
-              {activeTab === 'dashboard' && (
-                <DashboardHome
-                  userName={user?.profile?.full_name || user?.email || ''}
-                  onNavigate={setActiveTab}
-                />
-              )}
+        <SubscriptionBanner accessLevel={accessLevel} onNavigate={setActiveTab} />
 
-              {activeTab === 'add-sale' && <MultiProductSalesForm />}
-              {activeTab === 'view-sales' && <SalesList />}
-              {activeTab === 'add-supplier' && <SupplierForm />}
-              {activeTab === 'view-suppliers' && (
-                <div>
-                  <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-6">
-                    <h2 className="text-xl font-bold text-gray-800 mb-2">Supply Dashboard</h2>
-                    <p className="text-gray-600">View and manage your supply-to-client transactions</p>
-                  </div>
-                  <SupplierDashboard />
-                </div>
-              )}
-              {activeTab === 'ad-expenses' && <AdExpensesPage />}
-              {activeTab === 'general-expenses' && <GeneralExpenseForm />}
-              {activeTab === 'expense-overview' && <ExpenseOverview />}
-              {activeTab === 'inventory' && <InventoryManagement />}
-              {activeTab === 'clients' && <ClientManagement />}
-              {activeTab === 'documents-quotations' && <DocumentsPage initialTab="quotation" />}
-              {activeTab === 'documents-invoices' && <DocumentsPage initialTab="invoice" />}
-              {activeTab === 'documents-receipts' && <DocumentsPage initialTab="receipt" />}
-              {activeTab === 'documents-settings' && <DocumentsPage initialTab="settings" />}
-              {activeTab === 'monthly-dashboard' && <MonthlyDashboard />}
-              {activeTab === 'data-export' && <ReportsAnalytics />}
-              {activeTab === 'delivery-payments' && <DeliveryPayments />}
-              {activeTab === 'vendor-transactions' && <VendorTransactions />}
-              {activeTab === 'dropdown-management' && <DropdownManagement />}
-              {activeTab === 'account' && <AccountSettings />}
-              {activeTab === 'admin' && <AdminPanel />}
-            </>
+        {/* Main Content Area — key={activeTab} replays the entrance animation on every tab switch, giving each page a smooth transition without any extra transition-management code. Each tab component owns its own data fetch and loading state; nothing here needs to gate on them. */}
+        <div key={activeTab} className="animate-slide-up">
+          {activeTab === 'dashboard' && (
+            <DashboardHome
+              userName={user?.profile?.full_name || user?.email || ''}
+              onNavigate={setActiveTab}
+            />
           )}
+          {activeTab === 'opportunities' && <OpportunityCenter onNavigate={setActiveTab} />}
+          {activeTab === 'advisor' && <AIBusinessAdvisor onNavigate={setActiveTab} />}
+          {activeTab === 'goals' && <BusinessGoals />}
+          {activeTab === 'calendar' && <BusinessCalendar onNavigate={setActiveTab} />}
+          {activeTab === 'notifications' && <NotificationCenter onNavigate={setActiveTab} />}
+          {activeTab === 'team' && <TeamManagement />}
+          {activeTab === 'recurring-expenses' && <RecurringExpenses />}
+
+          {activeTab === 'add-sale' && (
+            <RestrictedFeatureGate accessLevel={accessLevel} onNavigate={setActiveTab}>
+              <MultiProductSalesForm />
+            </RestrictedFeatureGate>
+          )}
+          {activeTab === 'view-sales' && <SalesList />}
+          {activeTab === 'add-supplier' && (
+            <RestrictedFeatureGate accessLevel={accessLevel} onNavigate={setActiveTab}>
+              <SupplierForm />
+            </RestrictedFeatureGate>
+          )}
+          {activeTab === 'view-suppliers' && (
+            <div>
+              <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-2">Supply Dashboard</h2>
+                <p className="text-gray-600">View and manage your supply-to-client transactions</p>
+              </div>
+              <SupplierDashboard />
+            </div>
+          )}
+          {activeTab === 'ad-expenses' && <AdExpensesPage />}
+          {activeTab === 'general-expenses' && (
+            <RestrictedFeatureGate accessLevel={accessLevel} onNavigate={setActiveTab}>
+              <GeneralExpenseForm />
+            </RestrictedFeatureGate>
+          )}
+          {activeTab === 'expense-overview' && <ExpenseOverview />}
+          {activeTab === 'inventory' && <InventoryManagement />}
+          {activeTab === 'inventory-predictions' && <SmartInventoryPredictions />}
+          {activeTab === 'clients' && <ClientManagement />}
+          {activeTab === 'customer-timeline' && <CustomerTimeline />}
+          {activeTab === 'documents-quotations' && <DocumentsPage initialTab="quotation" />}
+          {activeTab === 'documents-invoices' && <DocumentsPage initialTab="invoice" />}
+          {activeTab === 'documents-receipts' && <DocumentsPage initialTab="receipt" />}
+          {activeTab === 'recurring-invoices' && <RecurringInvoices />}
+          {activeTab === 'projects' && <ProjectsPage />}
+          {activeTab === 'documents-settings' && <DocumentsPage initialTab="settings" />}
+          {activeTab === 'monthly-dashboard' && <MonthlyDashboard />}
+          {activeTab === 'profit-analytics' && <ProfitAnalytics />}
+          {activeTab === 'daily-closing' && <DailyClosingReport />}
+          {activeTab === 'data-export' && <ReportsAnalytics />}
+          {activeTab === 'cash-position' && <CashPosition onNavigate={setActiveTab} />}
+          {activeTab === 'delivery-payments' && <DeliveryPayments />}
+          {activeTab === 'vendor-transactions' && <VendorTransactions />}
+          {activeTab === 'dropdown-management' && <DropdownManagement />}
+          {activeTab === 'account' && <AccountSettings />}
+          {activeTab === 'payment-management' && <PaymentManagement />}
+          {activeTab === 'admin' && <AdminPanel />}
         </div>
       </div>
     </div>
+
+    <MobileBottomNav activeTab={activeTab} onNavigate={handleSidebarNavigate} onMore={() => setIsMobileMenuOpen(true)} />
 
     {/* Download Modal (triggered by button) */}
     <DownloadModal isOpen={showDownloadModal} onClose={() => setShowDownloadModal(false)} />

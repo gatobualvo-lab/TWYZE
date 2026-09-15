@@ -237,7 +237,7 @@ const SupplierDashboard: React.FC = () => {
           Sales to Clients Overview
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div className="p-3 rounded-full bg-red-100">
                 <AlertTriangle className="w-8 h-8 text-red-600" />
@@ -250,7 +250,7 @@ const SupplierDashboard: React.FC = () => {
             </div>
           </div>
           
-          <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div className="p-3 rounded-full bg-green-100">
                 <DollarSign className="w-8 h-8 text-green-600" />
@@ -263,7 +263,7 @@ const SupplierDashboard: React.FC = () => {
             </div>
           </div>
           
-          <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
             <div className="flex items-center justify-between">
               <div className="p-3 rounded-full bg-blue-100">
                 <TrendingUp className="w-8 h-8 text-blue-600" />
@@ -290,7 +290,7 @@ const SupplierDashboard: React.FC = () => {
             {Object.entries(clientSummary).map(([client, stats]) => (
               <div 
                 key={client} 
-                className={`bg-white rounded-xl shadow-md border border-gray-200 p-4 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer ${
+                className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer ${
                   stats.unpaidBalance > 0 ? 'border-l-4 border-l-orange-400' : 'border-l-4 border-l-green-400'
                 }`}
                 onClick={() => setExpandedClient(expandedClient === client ? null : client)}
@@ -411,14 +411,14 @@ const SupplierDashboard: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-md border border-gray-200 p-8 text-center hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
             <p className="text-gray-500">No supplier transactions found</p>
           </div>
         )}
       </div>
       
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="flex items-center gap-3 mb-4">
           <Filter className="w-5 h-5 text-gray-600" />
           <h3 className="text-md font-bold text-gray-800" style={{ color: '#374151' }}>Transaction Filters</h3>
@@ -455,7 +455,7 @@ const SupplierDashboard: React.FC = () => {
       </div>
 
       {/* Supplier Transactions Table */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-bold text-gray-800" style={{ color: '#374151' }}>All Transactions</h3>
         </div>

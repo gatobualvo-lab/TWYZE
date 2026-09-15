@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart3,
@@ -13,7 +13,13 @@ import {
   Smartphone,
   Laptop,
   Tablet,
+  Menu,
+  X,
+  UserCog,
+  FileText,
+  Sparkles,
 } from 'lucide-react';
+import { BILLING_PLANS } from '../utils/subscription';
 
 const scrollToId = (id: string) => {
   const el = document.getElementById(id);
@@ -106,8 +112,21 @@ const DashboardMockup: React.FC = () => (
   </div>
 );
 
+const NAV_LINKS = [
+  { id: 'features', label: 'Features' },
+  { id: 'pricing', label: 'Pricing' },
+  { id: 'trust', label: 'Why Trackwyze' },
+  { id: 'contact', label: 'Contact' },
+];
+
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const handleMobileNav = (id: string) => {
+    setIsMobileMenuOpen(false);
+    scrollToId(id);
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -125,21 +144,17 @@ const LandingPage: React.FC = () => {
             </div>
 
             <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
-              <button onClick={() => scrollToId('features')} className="hover:text-gray-900 transition">
-                Features
-              </button>
-              <button onClick={() => scrollToId('trust')} className="hover:text-gray-900 transition">
-                Why Trackwyze
-              </button>
-              <button onClick={() => scrollToId('contact')} className="hover:text-gray-900 transition">
-                Contact
-              </button>
+              {NAV_LINKS.map(link => (
+                <button key={link.id} onClick={() => scrollToId(link.id)} className="hover:text-gray-900 transition">
+                  {link.label}
+                </button>
+              ))}
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={() => navigate('/login')}
-                className="px-3 sm:px-4 py-2 text-sm font-semibold text-gray-700 hover:text-gray-900 transition"
+                className="hidden sm:inline-flex px-3 sm:px-4 py-2 text-sm font-semibold text-gray-700 hover:text-gray-900 transition"
               >
                 <LogIn className="w-4 h-4 inline mr-1" />
                 Login
@@ -150,8 +165,37 @@ const LandingPage: React.FC = () => {
               >
                 Get Started
               </button>
+              <button
+                onClick={() => setIsMobileMenuOpen(open => !open)}
+                className="md:hidden p-2 -mr-2 text-gray-600 hover:text-gray-900"
+                aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+                aria-expanded={isMobileMenuOpen}
+              >
+                {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
             </div>
           </div>
+
+          {isMobileMenuOpen && (
+            <div className="md:hidden pb-4 flex flex-col gap-1 text-sm font-medium text-gray-700 animate-slide-up">
+              {NAV_LINKS.map(link => (
+                <button
+                  key={link.id}
+                  onClick={() => handleMobileNav(link.id)}
+                  className="text-left px-2 py-2.5 rounded-lg hover:bg-gray-50"
+                >
+                  {link.label}
+                </button>
+              ))}
+              <button
+                onClick={() => { setIsMobileMenuOpen(false); navigate('/login'); }}
+                className="text-left px-2 py-2.5 rounded-lg hover:bg-gray-50 sm:hidden"
+              >
+                <LogIn className="w-4 h-4 inline mr-1.5" />
+                Login
+              </button>
+            </div>
+          )}
         </div>
       </nav>
 
@@ -246,11 +290,25 @@ const LandingPage: React.FC = () => {
                 body: 'Live inventory levels with reorder alerts so bestsellers stay in stock.',
               },
               {
-                icon: Shield,
-                tint: 'text-sky-600',
-                bg: 'bg-sky-50',
-                title: 'Your Data, Protected',
-                body: 'Encrypted storage and role-based access keep your business data safe.',
+                icon: FileText,
+                tint: 'text-teal-600',
+                bg: 'bg-teal-50',
+                title: 'Quotations, Invoices & Receipts',
+                body: 'Create professional documents in seconds and track every one to payment.',
+              },
+              {
+                icon: UserCog,
+                tint: 'text-violet-600',
+                bg: 'bg-violet-50',
+                title: 'Team Access, Your Rules',
+                body: 'Invite staff and control exactly what each person can see — including who can view buying prices and profit.',
+              },
+              {
+                icon: Sparkles,
+                tint: 'text-pink-600',
+                bg: 'bg-pink-50',
+                title: 'Business Insights, Not Just Numbers',
+                body: 'A built-in advisor flags opportunities and risks so you know what to do next, not just what happened.',
               },
               {
                 icon: Users,
@@ -258,6 +316,20 @@ const LandingPage: React.FC = () => {
                 bg: 'bg-orange-50',
                 title: 'Suppliers & Deliveries',
                 body: 'Manage vendors, payments and delivery fees from one clean dashboard.',
+              },
+              {
+                icon: Shield,
+                tint: 'text-sky-600',
+                bg: 'bg-sky-50',
+                title: 'Your Data, Protected',
+                body: 'Encrypted storage and role-based access keep your business data safe.',
+              },
+              {
+                icon: Smartphone,
+                tint: 'text-indigo-600',
+                bg: 'bg-indigo-50',
+                title: 'Works Everywhere You Do',
+                body: 'A full desktop app plus a browser experience that stays in sync on tablet and mobile.',
               },
             ].map(({ icon: Icon, tint, bg, title, body }) => (
               <div
@@ -272,6 +344,77 @@ const LandingPage: React.FC = () => {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto">
+            <h2 className="text-sm text-blue-600 font-semibold tracking-wider uppercase">Pricing</h2>
+            <p className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+              Simple pricing that grows with you
+            </p>
+            <p className="mt-3 text-lg text-gray-600">
+              Every plan includes full access to every feature. No hidden tiers, no feature gates.
+            </p>
+          </div>
+
+          <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto items-stretch">
+            <div className="rounded-2xl border border-gray-200 p-8 flex flex-col">
+              <h3 className="text-lg font-bold text-gray-900">Free Trial</h3>
+              <p className="mt-1 text-sm text-gray-500">Month 1</p>
+              <div className="mt-5 flex items-baseline gap-1">
+                <span className="text-4xl font-extrabold text-gray-900">KES 0</span>
+              </div>
+              <p className="mt-2 text-sm text-gray-600">Full access to every feature. No credit card required.</p>
+              <button
+                onClick={() => navigate('/login')}
+                className="mt-8 w-full py-2.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-800 font-semibold text-sm transition"
+              >
+                Start Free Trial
+              </button>
+            </div>
+
+            <div className="relative rounded-2xl border-2 border-blue-600 p-8 flex flex-col shadow-lg shadow-blue-600/10 md:-translate-y-2">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                Most Popular
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Early Bird</h3>
+              <p className="mt-1 text-sm text-gray-500">Months 2&ndash;3</p>
+              <div className="mt-5 flex items-baseline gap-1">
+                <span className="text-4xl font-extrabold text-gray-900">KES {BILLING_PLANS['month2-3'].amount}</span>
+                <span className="text-sm font-medium text-gray-500">/ month</span>
+              </div>
+              <p className="mt-2 text-sm text-gray-600">Everything in the trial, at a discounted rate while your business grows.</p>
+              <button
+                onClick={() => navigate('/login')}
+                className="mt-8 w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-sm shadow-blue-600/20 transition"
+              >
+                Get Started
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 p-8 flex flex-col">
+              <h3 className="text-lg font-bold text-gray-900">Regular</h3>
+              <p className="mt-1 text-sm text-gray-500">Month 4 onwards</p>
+              <div className="mt-5 flex items-baseline gap-1">
+                <span className="text-4xl font-extrabold text-gray-900">KES {BILLING_PLANS['month4+'].amount}</span>
+                <span className="text-sm font-medium text-gray-500">/ month</span>
+              </div>
+              <p className="mt-2 text-sm text-gray-600">Full price once you're established. Cancel any time, no lock-in.</p>
+              <button
+                onClick={() => navigate('/login')}
+                className="mt-8 w-full py-2.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-800 font-semibold text-sm transition"
+              >
+                Get Started
+              </button>
+            </div>
+          </div>
+
+          <p className="mt-8 text-center text-sm text-gray-500">
+            Pay by M-Pesa or card, or submit proof of payment manually &mdash; whatever's easiest for you.
+          </p>
         </div>
       </section>
 
@@ -387,6 +530,11 @@ const LandingPage: React.FC = () => {
                   </button>
                 </li>
                 <li>
+                  <button onClick={() => scrollToId('pricing')} className="hover:text-white transition">
+                    Pricing
+                  </button>
+                </li>
+                <li>
                   <button onClick={() => scrollToId('trust')} className="hover:text-white transition">
                     Why Trackwyze
                   </button>
@@ -408,6 +556,11 @@ const LandingPage: React.FC = () => {
                   </button>
                 </li>
                 <li>
+                  <button onClick={() => navigate('/help')} className="hover:text-white transition">
+                    Help Center
+                  </button>
+                </li>
+                <li>
                   <a href="mailto:hello@trackwyze.app" className="hover:text-white transition">
                     Contact
                   </a>
@@ -420,6 +573,11 @@ const LandingPage: React.FC = () => {
             <p className="text-sm text-gray-500">
               &copy; {new Date().getFullYear()} Trackwyze. All rights reserved.
             </p>
+            <div className="flex items-center gap-5 text-sm text-gray-500">
+              <button onClick={() => navigate('/terms')} className="hover:text-white transition">Terms</button>
+              <button onClick={() => navigate('/privacy')} className="hover:text-white transition">Privacy</button>
+              <button onClick={() => navigate('/refund')} className="hover:text-white transition">Refunds</button>
+            </div>
             <p className="text-sm text-gray-500">Track Smart. Profit Wise.</p>
           </div>
         </div>

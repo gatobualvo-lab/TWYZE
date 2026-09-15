@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dev-dist
 *.local
 
 # Editor directories and files
@@ -23,3 +24,12 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Local Netlify folder
+.netlify
+
+# Electron build output (large binaries, rebuilt on demand)
+release
+
+# Supabase CLI local state
+supabase/.temp
