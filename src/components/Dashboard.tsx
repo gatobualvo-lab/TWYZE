@@ -670,7 +670,10 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
       </CSSTransition>
 
       {/* Main Content */}
-      <div className="flex-1 p-4 md:p-6 pb-20 md:pb-6 ml-0 md:ml-0 transition-all duration-300">
+      <div
+        className="flex-1 p-4 md:p-6 pb-20 md:pb-6 ml-0 md:ml-0 transition-all duration-300"
+        style={isMobileView ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4.5rem)' } : undefined}
+      >
         {/* User Profile Bar */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6 flex justify-between items-center">
           <div key={activeTab} className="animate-slide-up">
