@@ -131,7 +131,7 @@ const LandingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-gray-100">
+      <nav className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-gray-100 safe-pt">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2">
