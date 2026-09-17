@@ -145,7 +145,7 @@ const AIChatPanel: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavig
   const lastAssistantTurn = [...turns].reverse().find(t => t.role === 'assistant' && !t.pending);
 
   return (
-    <Card padding="none" className="flex flex-col overflow-hidden" style={{ height: '560px' }}>
+    <Card padding="none" className="flex flex-col overflow-hidden h-[75dvh] md:h-[560px]">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center gap-2">
