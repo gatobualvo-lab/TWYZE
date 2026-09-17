@@ -7,8 +7,6 @@ import {
   Users,
   LogIn,
   ArrowRight,
-  TrendingUp,
-  Receipt,
   CheckCircle2,
   Smartphone,
   Laptop,
@@ -26,90 +24,34 @@ const scrollToId = (id: string) => {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
-const DashboardMockup: React.FC = () => (
-  <div className="relative w-full max-w-xl mx-auto">
+// Real screenshots from the live app (captured from a demo account, not
+// hand-coded mockup data) — framed in a lightweight browser-chrome card so
+// they read as "this is what's actually in your browser."
+const ScreenshotCard: React.FC<{ src: string; alt: string; label: string; width: number; height: number; maxWidth?: string }> = ({
+  src, alt, label, width, height, maxWidth = 'max-w-xl',
+}) => (
+  <div className={`relative w-full ${maxWidth} mx-auto`}>
     <div className="absolute -inset-4 bg-gradient-to-tr from-blue-200/60 via-sky-100/40 to-emerald-100/40 blur-2xl rounded-3xl" />
     <div className="relative bg-white rounded-2xl shadow-2xl ring-1 ring-gray-200/70 overflow-hidden">
       <div className="flex items-center gap-1.5 px-4 py-3 border-b border-gray-100 bg-gray-50">
         <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
         <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
         <span className="w-2.5 h-2.5 rounded-full bg-green-400" />
-        <div className="ml-3 text-xs font-medium text-gray-500">trackwyze.app / dashboard</div>
+        <div className="ml-3 text-xs font-medium text-gray-500">{label}</div>
       </div>
-
-      <div className="p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="text-xs uppercase tracking-wider text-gray-400 font-semibold">Overview</div>
-            <div className="text-lg font-bold text-gray-900">Today at a glance</div>
-          </div>
-          <div className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
-            Live
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-white border border-emerald-100 p-3">
-            <div className="flex items-center gap-2 text-emerald-700 text-xs font-semibold">
-              <TrendingUp className="w-3.5 h-3.5" />
-              Profit
-            </div>
-            <div className="mt-2 text-xl font-extrabold text-gray-900">KES 48,200</div>
-            <div className="text-xs text-emerald-600 font-medium mt-0.5">+12.4% vs yesterday</div>
-          </div>
-          <div className="rounded-xl bg-gradient-to-br from-blue-50 to-white border border-blue-100 p-3">
-            <div className="flex items-center gap-2 text-blue-700 text-xs font-semibold">
-              <BarChart3 className="w-3.5 h-3.5" />
-              Sales
-            </div>
-            <div className="mt-2 text-xl font-extrabold text-gray-900">KES 182,900</div>
-            <div className="text-xs text-blue-600 font-medium mt-0.5">34 orders today</div>
-          </div>
-          <div className="rounded-xl bg-gradient-to-br from-orange-50 to-white border border-orange-100 p-3">
-            <div className="flex items-center gap-2 text-orange-700 text-xs font-semibold">
-              <Receipt className="w-3.5 h-3.5" />
-              Expenses
-            </div>
-            <div className="mt-2 text-xl font-extrabold text-gray-900">KES 22,450</div>
-            <div className="text-xs text-orange-600 font-medium mt-0.5">Ads + vendors</div>
-          </div>
-        </div>
-
-        <div className="mt-4 rounded-xl border border-gray-100 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-semibold text-gray-800">Revenue this week</div>
-            <div className="text-xs text-gray-400">Mon - Sun</div>
-          </div>
-          <div className="flex items-end gap-2 h-24">
-            {[40, 62, 48, 78, 56, 90, 72].map((h, i) => (
-              <div key={i} className="flex-1 rounded-t-md bg-gradient-to-t from-blue-500 to-sky-400" style={{ height: `${h}%` }} />
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div className="flex items-center gap-3 rounded-lg border border-gray-100 p-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-              <Package className="w-4 h-4 text-emerald-700" />
-            </div>
-            <div>
-              <div className="text-xs text-gray-500">In stock</div>
-              <div className="text-sm font-bold text-gray-900">128 SKUs</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg border border-gray-100 p-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-              <Users className="w-4 h-4 text-blue-700" />
-            </div>
-            <div>
-              <div className="text-xs text-gray-500">Suppliers</div>
-              <div className="text-sm font-bold text-gray-900">12 active</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <img src={src} alt={alt} width={width} height={height} className="w-full h-auto block" loading="lazy" />
     </div>
   </div>
+);
+
+const DashboardMockup: React.FC = () => (
+  <ScreenshotCard
+    src="/screenshots/dashboard-hero.png"
+    alt="TrackWyze dashboard showing today's sales, weekly and monthly profit, expenses, business health score, and a 30-day sales trend"
+    label="trackwyze.com / dashboard"
+    width={1752}
+    height={879}
+  />
 );
 
 const NAV_LINKS = [
@@ -343,6 +285,49 @@ const LandingPage: React.FC = () => {
                 <p className="mt-1.5 text-sm text-gray-600 leading-relaxed">{body}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* AI Business Advisor */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            <div className="text-center lg:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-50 text-pink-700 text-xs font-semibold ring-1 ring-pink-100">
+                <Sparkles className="w-3.5 h-3.5" />
+                AI Business Advisor
+              </div>
+              <h2 className="mt-5 text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+                Ask your business anything
+              </h2>
+              <p className="mt-4 text-lg text-gray-600 leading-relaxed">
+                Real answers grounded in your real TrackWyze data — not generic advice. Ask why profit
+                dropped, which customers to chase for payment, or what's about to run out of stock, and
+                get a straight answer with the numbers behind it.
+              </p>
+              <ul className="mt-6 space-y-3 text-left inline-block lg:block">
+                {[
+                  'Explains what happened and why, in plain language',
+                  'Flags risks — like slow-paying customers — before they hurt cash flow',
+                  'Recommends specific next actions, not just data',
+                ].map((point) => (
+                  <li key={point} className="flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-gray-700">{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <ScreenshotCard
+              src="/screenshots/ai-advisor.png"
+              alt="AI Business Advisor chat answering 'How is my business performing?' with a health score, real figures, and specific recommendations"
+              label="trackwyze.com / advisor"
+              width={1068}
+              height={835}
+              maxWidth="max-w-md"
+            />
           </div>
         </div>
       </section>
