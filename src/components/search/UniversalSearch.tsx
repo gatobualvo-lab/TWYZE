@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Search, X, Users, Package, ShoppingCart, FileText, Clock, CornerDownLeft, Loader2 } from 'lucide-react';
+import { Search, X, Users, Package, ShoppingCart, FileText, Clock, CornerDownLeft, Loader2, Truck, Briefcase, Trophy, Repeat, Receipt } from 'lucide-react';
 import { useUniversalSearch } from '../../hooks/useUniversalSearch';
 import { getRecentSearches, saveRecentSearch, SearchResult, SearchResultType } from '../../services/search/searchService';
 
@@ -13,6 +13,11 @@ const TYPE_ICON: Record<SearchResultType, React.ComponentType<{ className?: stri
   sale: ShoppingCart,
   supplier: Users,
   document: FileText,
+  vendor: Truck,
+  project: Briefcase,
+  goal: Trophy,
+  recurring_invoice: Repeat,
+  expense: Receipt,
 };
 
 const TYPE_LABEL: Record<SearchResultType, string> = {
@@ -21,6 +26,11 @@ const TYPE_LABEL: Record<SearchResultType, string> = {
   sale: 'Sale',
   supplier: 'Supplier',
   document: 'Document',
+  vendor: 'Vendor',
+  project: 'Project',
+  goal: 'Goal',
+  recurring_invoice: 'Recurring Invoice',
+  expense: 'Expense',
 };
 
 const ResultRow: React.FC<{ result: SearchResult; active: boolean; onClick: () => void }> = ({ result, active, onClick }) => {
@@ -131,7 +141,7 @@ const UniversalSearch: React.FC<UniversalSearchProps> = ({ onNavigate }) => {
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Search customers, products, sales, suppliers, documents…"
+                placeholder="Search anything — customers, sales, vendors, projects, goals…"
                 className="flex-1 text-sm outline-none placeholder:text-gray-400"
               />
               <button onClick={() => setOpen(false)} className="text-gray-300 hover:text-gray-500 flex-shrink-0 transition-colors" aria-label="Close">

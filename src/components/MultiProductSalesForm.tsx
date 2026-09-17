@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, User, DollarSign, Truck, MapPin, Calendar, CreditCard, Save } from 'lucide-react';
+import { Plus, User, DollarSign, Truck, MapPin, Calendar, CreditCard, Save, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import EnhancedDropdown from './EnhancedDropdown';
@@ -101,6 +101,9 @@ const MultiProductSalesForm: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Collapsed by default — most SMEs (walk-in retail, in-person services)
+  // never touch delivery at all, so it shouldn't clutter every sale form.
+  const [showDeliveryDetails, setShowDeliveryDetails] = useState(false);
   const [totalProfit, setTotalProfit] = useState(0);
   const [totalSellingPrice, setTotalSellingPrice] = useState(0);
   const [totalBuyingPrice, setTotalBuyingPrice] = useState(0);
@@ -164,12 +167,9 @@ const MultiProductSalesForm: React.FC = () => {
       newErrors.product = 'At least one product is required';
     }
         
-    // A pure-service sale has nothing to physically deliver — only require
-    // a delivery person when at least one line item is an actual good.
-    const hasGoodsItem = products.some(product => product.product.trim() !== '' && product.itemType !== 'service');
-    if (hasGoodsItem && !formData.deliveryGuy.trim()) {
-      newErrors.deliveryGuy = 'Delivery person is required';
-    }
+    // Delivery is optional — plenty of SMEs (walk-in retail, in-person
+    // services) never use a delivery person at all, so a sale is never
+    // blocked on it regardless of whether the line items are goods.
 
     if (formData.deliveryFee < 0) {
       newErrors.deliveryFee = 'Delivery fee cannot be negative';
@@ -177,10 +177,6 @@ const MultiProductSalesForm: React.FC = () => {
 
     if (formData.clientDeliveryCharge < 0) {
       newErrors.clientDeliveryCharge = 'Delivery charge cannot be negative';
-    }
-    
-    if (!formData.location.trim()) {
-      newErrors.location = 'Location is required';
     }
     
     if (!formData.date) {
@@ -194,19 +190,17 @@ const MultiProductSalesForm: React.FC = () => {
           newErrors[`product_${index}_sellingPrice`] = 'Selling price must be greater than 0';
         }
 
-        // Buying price, quantity, and vendor are goods-specific — a service
-        // line item has no unit cost, stock unit, or supplier.
+        // Quantity and buying price are goods-specific (a service line item
+        // has no stock unit or unit cost) and always required — you can't
+        // sell 0 units of a good, and profit can't be computed without a
+        // cost. Vendor stays optional: not every SME buys from a formal
+        // vendor per sale.
         if (product.itemType !== 'service') {
-          if (canSeeCosts && product.buyingPrice <= 0) {
-            newErrors[`product_${index}_buyingPrice`] = 'Buying price must be greater than 0';
-          }
-
           if (product.quantity <= 0) {
             newErrors[`product_${index}_quantity`] = 'Quantity must be greater than 0';
           }
-
-          if (!product.vendor.trim()) {
-            newErrors[`product_${index}_vendor`] = 'Vendor is required';
+          if (canSeeCosts && product.buyingPrice <= 0) {
+            newErrors[`product_${index}_buyingPrice`] = 'Buying price must be greater than 0';
           }
         }
       }
@@ -472,100 +466,6 @@ const MultiProductSalesForm: React.FC = () => {
         <Card>
           <h3 className="font-semibold text-gray-800 mb-4">Sale Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {/* Delivery Guy — only required if the sale has a physical good
-                to deliver; a pure-service sale has nothing to deliver. */}
-            <EnhancedDropdown
-              label="Delivery Person"
-              value={formData.deliveryGuy}
-              onChange={(value) => handleInputChange('deliveryGuy', value)}
-              type="delivery_guy"
-              placeholder="Select delivery person"
-              required={products.some(p => p.product.trim() !== '' && p.itemType !== 'service')}
-              icon={<Truck className="w-4 h-4 inline mr-1" />}
-            />
-
-            {/* Delivery Fee */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Truck className="w-4 h-4 inline mr-1" />
-                Delivery Fee
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={displayNumber(formData.deliveryFee)}
-                onChange={(e) => handleInputChange('deliveryFee', toNum(e.target.value))}
-                className={`w-full px-3 py-2 border ${
-                  errors.deliveryFee ? 'border-red-500' : 'border-gray-300'
-                } rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                placeholder="0.00"
-              />
-              {errors.deliveryFee && (
-                <p className="mt-1 text-sm text-red-600">{errors.deliveryFee}</p>
-              )}
-            </div>
-
-            {/* Delivery Fee Paid */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <CreditCard className="w-4 h-4 inline mr-1" />
-                Delivery Fee Status
-              </label>
-              <select
-                value={formData.deliveryFeePaid ? 'true' : 'false'}
-                onChange={(e) => handleInputChange('deliveryFeePaid', e.target.value === 'true')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="false">Not Paid</option>
-                <option value="true">Paid</option>
-              </select>
-            </div>
-
-            {/* Delivery Charge billed to client */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <DollarSign className="w-4 h-4 inline mr-1" />
-                Delivery Charge (billed to client)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={displayNumber(formData.clientDeliveryCharge)}
-                onChange={(e) => handleInputChange('clientDeliveryCharge', toNum(e.target.value))}
-                className={`w-full px-3 py-2 border ${
-                  errors.clientDeliveryCharge ? 'border-red-500' : 'border-gray-300'
-                } rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                placeholder="0.00"
-              />
-              <p className="mt-1 text-xs text-gray-400">Amount the customer pays for delivery. Adds to sale revenue.</p>
-              {errors.clientDeliveryCharge && (
-                <p className="mt-1 text-sm text-red-600">{errors.clientDeliveryCharge}</p>
-              )}
-            </div>
-
-            {/* Location */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <MapPin className="w-4 h-4 inline mr-1" />
-                Location *
-              </label>
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => handleInputChange('location', e.target.value)}
-                className={`w-full px-3 py-2 border ${
-                  errors.location ? 'border-red-500' : 'border-gray-300'
-                } rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                placeholder="Enter delivery location"
-                required
-              />
-              {errors.location && (
-                <p className="mt-1 text-sm text-red-600">{errors.location}</p>
-              )}
-            </div>
-
             {/* Date */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -633,35 +533,141 @@ const MultiProductSalesForm: React.FC = () => {
               </select>
             </div>
 
-            {/* Delivery Status */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Truck className="w-4 h-4 inline mr-1" />
-                Delivery Status
-              </label>
-              <select
-                value={formData.deliveryStatus}
-                onChange={(e) => handleInputChange('deliveryStatus', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="Pending">Pending</option>
-                <option value="Delivered">Delivered</option>
-              </select>
-            </div>
+          </div>
 
-            {/* Delivery Date */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Calendar className="w-4 h-4 inline mr-1" />
-                Delivery Date
-              </label>
-              <input
-                type="date"
-                value={formData.deliveryDate}
-                onChange={(e) => handleInputChange('deliveryDate', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+          {/* Delivery — collapsed by default. Everything here (person, fee,
+              fee status, charge to client, status, date) is fully optional;
+              a walk-in-retail or in-person-service business never needs to
+              open this at all. */}
+          <div className="mt-5 pt-5 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => setShowDeliveryDetails(v => !v)}
+              className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              {showDeliveryDetails ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <Truck className="w-4 h-4" />
+              {showDeliveryDetails ? 'Hide delivery details' : 'Add delivery details (optional)'}
+            </button>
+
+            {showDeliveryDetails && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-4">
+                {/* Location */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <MapPin className="w-4 h-4 inline mr-1" />
+                    Location
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => handleInputChange('location', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter delivery location"
+                  />
+                </div>
+
+                <EnhancedDropdown
+                  label="Delivery Person (optional)"
+                  value={formData.deliveryGuy}
+                  onChange={(value) => handleInputChange('deliveryGuy', value)}
+                  type="delivery_guy"
+                  placeholder="Select delivery person"
+                  icon={<Truck className="w-4 h-4 inline mr-1" />}
+                />
+
+                {/* Delivery Fee */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Truck className="w-4 h-4 inline mr-1" />
+                    Delivery Fee
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={displayNumber(formData.deliveryFee)}
+                    onChange={(e) => handleInputChange('deliveryFee', toNum(e.target.value))}
+                    className={`w-full px-3 py-2 border ${
+                      errors.deliveryFee ? 'border-red-500' : 'border-gray-300'
+                    } rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                    placeholder="0.00"
+                  />
+                  {errors.deliveryFee && (
+                    <p className="mt-1 text-sm text-red-600">{errors.deliveryFee}</p>
+                  )}
+                </div>
+
+                {/* Delivery Fee Paid */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <CreditCard className="w-4 h-4 inline mr-1" />
+                    Delivery Fee Status
+                  </label>
+                  <select
+                    value={formData.deliveryFeePaid ? 'true' : 'false'}
+                    onChange={(e) => handleInputChange('deliveryFeePaid', e.target.value === 'true')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="false">Not Paid</option>
+                    <option value="true">Paid</option>
+                  </select>
+                </div>
+
+                {/* Delivery Charge billed to client */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <DollarSign className="w-4 h-4 inline mr-1" />
+                    Delivery Charge (billed to client)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={displayNumber(formData.clientDeliveryCharge)}
+                    onChange={(e) => handleInputChange('clientDeliveryCharge', toNum(e.target.value))}
+                    className={`w-full px-3 py-2 border ${
+                      errors.clientDeliveryCharge ? 'border-red-500' : 'border-gray-300'
+                    } rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                    placeholder="0.00"
+                  />
+                  <p className="mt-1 text-xs text-gray-400">Amount the customer pays for delivery. Adds to sale revenue.</p>
+                  {errors.clientDeliveryCharge && (
+                    <p className="mt-1 text-sm text-red-600">{errors.clientDeliveryCharge}</p>
+                  )}
+                </div>
+
+                {/* Delivery Status */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Truck className="w-4 h-4 inline mr-1" />
+                    Delivery Status
+                  </label>
+                  <select
+                    value={formData.deliveryStatus}
+                    onChange={(e) => handleInputChange('deliveryStatus', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Delivered">Delivered</option>
+                  </select>
+                </div>
+
+                {/* Delivery Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Calendar className="w-4 h-4 inline mr-1" />
+                    Delivery Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.deliveryDate}
+                    onChange={(e) => handleInputChange('deliveryDate', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </Card>
 

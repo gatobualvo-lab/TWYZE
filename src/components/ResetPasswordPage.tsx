@@ -204,7 +204,10 @@ const ResetPasswordPage: React.FC = () => {
           </form>
         )}
       </div>
-      <Toaster />
+      <Toaster
+        position="bottom-center"
+        containerStyle={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' }}
+      />
     </div>
   );
 };

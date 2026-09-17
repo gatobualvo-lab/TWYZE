@@ -85,6 +85,25 @@ describe('calculateHealthScore', () => {
     expect(result.score).toBeLessThanOrEqual(100);
   });
 
+  it('does not present a misleading 0/critical score off a single factor', () => {
+    // Real scenario: this period has zero sales (so profitability,
+    // collections, expense discipline, and payables can't be computed —
+    // they're all revenue-relative), but the previous period had real
+    // revenue, so revenue trend alone computes to a harsh -100%. Before the
+    // fix this produced a confident "0/100 Critical" off one data point.
+    const current = metrics({ totalExpenses: 8500 });
+    const previous = metrics({ salesRevenue: 198200 });
+    const result = calculateHealthScore(current, previous);
+
+    expect(result.factorsIncluded).toBe(1);
+    expect(result.score).toBeNull();
+    expect(result.band).toBeNull();
+    expect(result.insufficientDataReason).toContain('1 of 5');
+    // The one real data point should still be surfaced, just not as a verdict.
+    expect(result.factors).toHaveLength(1);
+    expect(result.factors[0].key).toBe('revenueTrend');
+  });
+
   it('factor weights always sum to 1 after renormalization', () => {
     const current = metrics({ salesRevenue: 10000, netProfit: 1000 });
     const result = calculateHealthScore(current, null); // no previous period -> 4 factors

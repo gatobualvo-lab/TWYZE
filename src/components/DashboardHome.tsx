@@ -6,6 +6,7 @@ import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import toast from 'react-hot-toast';
 import { formatCurrency as formatKES, formatDate } from '../utils/format';
+import { getPeriodRange } from '../utils/dateRange';
 import BusinessHealthScore from './analytics/BusinessHealthScore';
 import { listTasks, createTask, toggleTaskCompleted, deleteTask as deleteTaskRecord } from '../services/tasks/taskService';
 import type { BusinessTask } from '../services/tasks/taskService';
@@ -57,9 +58,13 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
 
   // KPI data
   const [todaySales, setTodaySales] = useState(0);
-  const [todayProfit, setTodayProfit] = useState(0);
-  const [outstandingBalances, setOutstandingBalances] = useState(0);
-  const [todayExpenses, setTodayExpenses] = useState(0);
+  const [todayOrderCount, setTodayOrderCount] = useState(0);
+  const [weekGrossProfit, setWeekGrossProfit] = useState(0);
+  const [weekGrossProfitChangePct, setWeekGrossProfitChangePct] = useState<number | null>(null);
+  const [monthNetProfit, setMonthNetProfit] = useState(0);
+  const [monthNetProfitChangePct, setMonthNetProfitChangePct] = useState<number | null>(null);
+  const [weekExpenses, setWeekExpenses] = useState(0);
+  const [weekExpensesChangePct, setWeekExpensesChangePct] = useState<number | null>(null);
 
   // Chart data
   const [chartData, setChartData] = useState<any>({ labels: [], datasets: [] });
@@ -108,48 +113,71 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
         });
       }
 
-      // Fetch today's sales
+      // Fetch today's sales — order count comes free from the same query,
+      // no need for a separate count-only round trip.
       const { data: todaySalesData } = await supabase
-        .from('sales')
-        .select('selling_price, profit')
-        .eq('user_id', user.id)
-        .eq('is_deleted', false)
-        .eq('is_archived', false)
-        .eq('date', today);
-
-      const salesTotal = (todaySalesData || []).reduce((sum, s) => sum + safeNum(s.selling_price), 0);
-      const profitTotal = (todaySalesData || []).reduce((sum, s) => sum + safeNum(s.profit), 0);
-      setTodaySales(salesTotal);
-      setTodayProfit(profitTotal);
-
-      // Outstanding balances (unpaid sales)
-      const { data: unpaidSales } = await supabase
         .from('sales')
         .select('selling_price')
         .eq('user_id', user.id)
         .eq('is_deleted', false)
         .eq('is_archived', false)
-        .eq('payment_status', 'Unpaid');
-      setOutstandingBalances((unpaidSales || []).reduce((sum, s) => sum + safeNum(s.selling_price), 0));
+        .eq('date', today);
 
-      // Today's expenses (vendor + ad expenses)
-      const { data: vendorExpData, error: vendorExpError } = await supabase
-        .from('vendor_expenses')
-        .select('amount_kes')
-        .eq('created_by', user.id)
-        .eq('is_deleted', false)
-        .eq('occurred_on', today);
-      if (vendorExpError) console.error('Today vendor expenses error:', vendorExpError);
-      const { data: adExpData, error: adExpError } = await supabase
-        .from('ad_expenses')
-        .select('amount_kes')
-        .eq('created_by', user.id)
-        .eq('is_deleted', false)
-        .eq('occurred_on', today);
-      if (adExpError) console.error('Today ad expenses error:', adExpError);
-      const vendorTotal = (vendorExpData || []).reduce((sum, e) => sum + safeNum(e.amount_kes), 0);
-      const adTotal = (adExpData || []).reduce((sum, e) => sum + safeNum(e.amount_kes), 0);
-      setTodayExpenses(vendorTotal + adTotal);
+      setTodaySales((todaySalesData || []).reduce((sum, s) => sum + safeNum(s.selling_price), 0));
+      setTodayOrderCount((todaySalesData || []).length);
+
+      // This Week's Gross Profit + Expenses, This Month's Net Profit, each
+      // paired with its prior-period equivalent for a "vs last week/month"
+      // trend — all from the same get_business_metrics RPC already used by
+      // Cash Position/AI Assistant/Reports, just called per period rather
+      // than re-deriving the expense/profit math a third time here.
+      const weekRange = getPeriodRange('week');
+      const monthRange = getPeriodRange('month');
+      const lastWeekEnd = new Date(weekRange.start);
+      lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
+      const lastWeekRange = getPeriodRange('week', lastWeekEnd);
+      const lastMonthEnd = new Date(monthRange.start);
+      lastMonthEnd.setDate(lastMonthEnd.getDate() - 1);
+      const lastMonthRange = getPeriodRange('month', lastMonthEnd);
+
+      const [
+        { data: weekMetrics, error: weekError },
+        { data: lastWeekMetrics, error: lastWeekError },
+        { data: monthMetrics, error: monthError },
+        { data: lastMonthMetrics, error: lastMonthError },
+      ] = await Promise.all([
+        supabase.rpc('get_business_metrics', { p_start: weekRange.start, p_end: weekRange.end }),
+        supabase.rpc('get_business_metrics', { p_start: lastWeekRange.start, p_end: lastWeekRange.end }),
+        supabase.rpc('get_business_metrics', { p_start: monthRange.start, p_end: monthRange.end }),
+        supabase.rpc('get_business_metrics', { p_start: lastMonthRange.start, p_end: lastMonthRange.end }),
+      ]);
+      if (weekError) console.error('Week metrics error:', weekError);
+      if (lastWeekError) console.error('Last week metrics error:', lastWeekError);
+      if (monthError) console.error('Month metrics error:', monthError);
+      if (lastMonthError) console.error('Last month metrics error:', lastMonthError);
+
+      // % change vs prior period — only shown when the prior period had a
+      // real positive baseline to compare against. A negative/zero baseline
+      // makes a percentage meaningless or actively misleading (e.g. -1000 ->
+      // 500 isn't "-150%"), same reasoning as Business Health's revenue
+      // trend factor, which is excluded rather than fabricated in that case.
+      const pctChange = (current: number, previous: number): number | null =>
+        previous > 0 ? ((current - previous) / previous) * 100 : null;
+
+      const weekGross = safeNum(weekMetrics?.[0]?.gross_profit);
+      const lastWeekGross = safeNum(lastWeekMetrics?.[0]?.gross_profit);
+      setWeekGrossProfit(weekGross);
+      setWeekGrossProfitChangePct(pctChange(weekGross, lastWeekGross));
+
+      const monthNet = safeNum(monthMetrics?.[0]?.net_profit);
+      const lastMonthNet = safeNum(lastMonthMetrics?.[0]?.net_profit);
+      setMonthNetProfit(monthNet);
+      setMonthNetProfitChangePct(pctChange(monthNet, lastMonthNet));
+
+      const weekExp = safeNum(weekMetrics?.[0]?.total_expenses);
+      const lastWeekExp = safeNum(lastWeekMetrics?.[0]?.total_expenses);
+      setWeekExpenses(weekExp);
+      setWeekExpensesChangePct(pctChange(weekExp, lastWeekExp));
 
       // Chart: last 30 days sales & profit
       const thirtyDaysAgo = new Date();
@@ -188,14 +216,17 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
         .eq('delivery_status', 'Pending');
       setPendingDeliveries(deliveryCount || 0);
 
-      // Low stock
-      const { count: lowCount } = await supabase
+      // Low stock — compared against each item's own reorder_level (set on
+      // Inventory), not a flat number. An item with no reorder_level set
+      // only flags once it's genuinely at 0, never a false alarm off a
+      // threshold the owner never configured for that product.
+      const { data: stockData } = await supabase
         .from('inventory_items')
-        .select('id', { count: 'exact', head: true })
+        .select('current_stock, reorder_level')
         .eq('user_id', user.id)
-        .eq('is_deleted', false)
-        .lte('current_stock', 5);
-      setLowStockItems(lowCount || 0);
+        .eq('is_deleted', false);
+      const lowCount = (stockData || []).filter(item => safeNum(item.current_stock) <= safeNum(item.reorder_level)).length;
+      setLowStockItems(lowCount);
 
       // Outstanding customers count
       const { data: custData } = await supabase
@@ -235,9 +266,15 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
     }
 
     sales.forEach(s => {
-      if (salesByDay[s.date] !== undefined) {
-        salesByDay[s.date] += safeNum(s.selling_price);
-        profitByDay[s.date] += safeNum(s.profit);
+      // Supabase returns `date` as a full timestamp string
+      // ("2026-08-20T00:00:00+00:00"), not the bare "YYYY-MM-DD" these
+      // buckets are keyed by — slice it down before matching, otherwise
+      // the string comparison never matches and every sale is silently
+      // dropped from the chart.
+      const dayKey = typeof s.date === 'string' ? s.date.slice(0, 10) : s.date;
+      if (salesByDay[dayKey] !== undefined) {
+        salesByDay[dayKey] += safeNum(s.selling_price);
+        profitByDay[dayKey] += safeNum(s.profit);
       }
     });
 
@@ -439,14 +476,35 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
       {/* KPI Cards */}
       {prefs.show_kpi_cards && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { tab: 'view-sales', bg: 'bg-blue-500/10', icon: TrendingUp, iconColor: 'text-blue-600', label: "Today's Sales", value: todaySales },
-            { tab: 'monthly-dashboard', bg: 'bg-emerald-500/10', icon: DollarSign, iconColor: 'text-emerald-600', label: "Today's Profit", value: todayProfit },
-            { tab: 'clients', bg: 'bg-amber-500/10', icon: Users, iconColor: 'text-amber-600', label: 'Outstanding', value: outstandingBalances },
-            { tab: 'general-expenses', bg: 'bg-rose-500/10', icon: Receipt, iconColor: 'text-rose-600', label: "Today's Expenses", value: todayExpenses },
-          ].map((kpi, i) => (
+          {([
+            {
+              tab: 'view-sales', bg: 'bg-blue-500/10', icon: TrendingUp, iconColor: 'text-blue-600',
+              label: "Today's Sales", value: todaySales,
+              sub: todayOrderCount > 0 ? `${todayOrderCount} order${todayOrderCount === 1 ? '' : 's'} today` : null,
+              subTone: 'neutral',
+            },
+            {
+              tab: 'monthly-dashboard', bg: 'bg-emerald-500/10', icon: DollarSign, iconColor: 'text-emerald-600',
+              label: "This Week's Gross Profit", value: weekGrossProfit,
+              sub: weekGrossProfitChangePct !== null ? `${weekGrossProfitChangePct >= 0 ? '+' : ''}${weekGrossProfitChangePct.toFixed(0)}% vs last week` : null,
+              subTone: weekGrossProfitChangePct !== null && weekGrossProfitChangePct >= 0 ? 'good' : 'bad',
+            },
+            {
+              tab: 'monthly-dashboard', bg: 'bg-amber-500/10', icon: TrendingUp, iconColor: 'text-amber-600',
+              label: "This Month's Net Profit", value: monthNetProfit,
+              sub: monthNetProfitChangePct !== null ? `${monthNetProfitChangePct >= 0 ? '+' : ''}${monthNetProfitChangePct.toFixed(0)}% vs last month` : null,
+              subTone: monthNetProfitChangePct !== null && monthNetProfitChangePct >= 0 ? 'good' : 'bad',
+            },
+            {
+              tab: 'general-expenses', bg: 'bg-rose-500/10', icon: Receipt, iconColor: 'text-rose-600',
+              label: "This Week's Expenses", value: weekExpenses,
+              sub: weekExpensesChangePct !== null ? `${weekExpensesChangePct >= 0 ? '+' : ''}${weekExpensesChangePct.toFixed(0)}% vs last week` : null,
+              // Inverted: lower expenses is the good direction, unlike the two profit cards above.
+              subTone: weekExpensesChangePct !== null && weekExpensesChangePct <= 0 ? 'good' : 'bad',
+            },
+          ] as Array<{ tab: string; bg: string; icon: typeof TrendingUp; iconColor: string; label: string; value: number; sub: string | null; subTone: 'good' | 'bad' | 'neutral' }>).map((kpi, i) => (
             <div
-              key={kpi.tab}
+              key={kpi.label}
               className={`${cardClass} animate-slide-up group`}
               style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'backwards' }}
               onClick={() => onNavigate(kpi.tab)}
@@ -458,6 +516,13 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
                 <div className="min-w-0">
                   <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{kpi.label}</p>
                   <p className={`text-xl font-bold truncate tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatKES(kpi.value)}</p>
+                  {kpi.sub && (
+                    <p className={`text-xs mt-0.5 truncate ${
+                      kpi.subTone === 'good' ? 'text-green-600' : kpi.subTone === 'bad' ? 'text-red-500' : isDark ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
+                      {kpi.sub}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

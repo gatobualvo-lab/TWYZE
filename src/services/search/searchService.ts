@@ -1,6 +1,16 @@
 import { supabase } from '../../utils/supabase';
 
-export type SearchResultType = 'customer' | 'product' | 'sale' | 'supplier' | 'document';
+export type SearchResultType =
+  | 'customer'
+  | 'product'
+  | 'sale'
+  | 'supplier'
+  | 'document'
+  | 'vendor'
+  | 'project'
+  | 'goal'
+  | 'recurring_invoice'
+  | 'expense';
 
 export interface SearchResult {
   type: SearchResultType;

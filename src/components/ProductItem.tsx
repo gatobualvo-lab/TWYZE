@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Package, DollarSign, Calculator, Trash2, Users, Clock, Briefcase, ShoppingBag } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Package, DollarSign, Calculator, Trash2, Users, Clock, Briefcase, ShoppingBag, ChevronDown, ChevronRight } from 'lucide-react';
 import ProductSelector from './ProductSelector';
 import EnhancedDropdown from './EnhancedDropdown';
 import { User, CreditCard } from 'lucide-react';
@@ -77,6 +77,10 @@ const ProductItem: React.FC<ProductItemProps> = ({
   };
 
   const isService = product.itemType === 'service';
+  // Collapsed by default — color, tax type, vendor, and staff/provider are
+  // all genuinely optional per sale; buying/selling price and quantity are
+  // the only things needed for the common case, so they stay always visible.
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
 
   const handleItemTypeChange = (itemType: 'goods' | 'service') => {
     if (itemType === 'service') {
@@ -149,54 +153,8 @@ const ProductItem: React.FC<ProductItemProps> = ({
           />
         </div>
 
-        {/* Color — goods-only (a physical product variant) */}
-        {!isService && (
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Color (optional)
-          </label>
-          {product.availableColors && product.availableColors.length > 0 ? (
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
-                {product.availableColors.map(color => {
-                  const isSelected = product.color === color;
-                  return (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => handleInputChange('color', isSelected ? '' : color)}
-                      className={`px-3 py-1.5 rounded-full border text-sm transition-all duration-150 active:scale-95 ${
-                        isSelected
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {color}
-                    </button>
-                  );
-                })}
-              </div>
-              <input
-                type="text"
-                value={product.color || ''}
-                onChange={(e) => handleInputChange('color', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Or type a custom color"
-              />
-            </div>
-          ) : (
-            <input
-              type="text"
-              value={product.color || ''}
-              onChange={(e) => handleInputChange('color', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="e.g. Black, White, Red"
-            />
-          )}
-        </div>
-        )}
-
-        {/* Buying Price — goods-only (a service has no unit cost) */}
+        {/* Buying Price — goods-only, required so profit can actually be
+            calculated (a service has no unit cost, so it stays exempt). */}
         {!isService && canSeeCosts && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -281,77 +239,142 @@ const ProductItem: React.FC<ProductItemProps> = ({
           />
         </div>
 
-        {/* Tax Type */}
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            <Calculator className="w-4 h-4 inline mr-1" />
-            Tax Type
-          </label>
-          <select
-            value={product.taxType}
-            onChange={(e) => handleInputChange('taxType', e.target.value as 'none' | 'vat' | 'turnover')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        {/* More details — collapsed by default. Color, tax type, vendor,
+            and staff/provider are all genuinely skippable per sale. */}
+        <div className="md:col-span-2 pt-1">
+          <button
+            type="button"
+            onClick={() => setShowMoreDetails(v => !v)}
+            className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
           >
-            <option value="none">No Tax</option>
-            <option value="vat">VAT (16%)</option>
-            <option value="turnover">Turnover Tax (1.5%)</option>
-          </select>
+            {showMoreDetails ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            {showMoreDetails ? 'Hide more details' : 'Add more details (optional)'}
+          </button>
         </div>
 
-        {/* Staff / Provider — service-only, deliberately separate from the
-            sale-level Delivery Guy field (a hybrid sale can have both). */}
-        {isService && (
-          <div className="md:col-span-2">
-            <EnhancedDropdown
-              label="Staff/Provider"
-              value={product.staffName || ''}
-              onChange={(value) => handleInputChange('staffName', value)}
-              type="staff"
-              placeholder="Who performed this service?"
-              icon={<Users className="w-4 h-4 inline mr-1" />}
-            />
-          </div>
-        )}
+        {showMoreDetails && (
+          <>
+            {/* Color — goods-only (a physical product variant) */}
+            {!isService && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Color (optional)
+              </label>
+              {product.availableColors && product.availableColors.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {product.availableColors.map(color => {
+                      const isSelected = product.color === color;
+                      return (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => handleInputChange('color', isSelected ? '' : color)}
+                          className={`px-3 py-1.5 rounded-full border text-sm transition-all duration-150 active:scale-95 ${
+                            isSelected
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {color}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <input
+                    type="text"
+                    value={product.color || ''}
+                    onChange={(e) => handleInputChange('color', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Or type a custom color"
+                  />
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={product.color || ''}
+                  onChange={(e) => handleInputChange('color', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="e.g. Black, White, Red"
+                />
+              )}
+            </div>
+            )}
 
-        {/* Vendor — goods-only */}
-        {!isService && (
-        <div className="md:col-span-2">
-          <EnhancedDropdown
-            label="Vendor"
-            value={product.vendor}
-            onChange={(value) => handleInputChange('vendor', value)}
-            type="supplier"
-            placeholder="Select vendor"
-            required
-            icon={<User className="w-4 h-4 inline mr-1" />}
-          />
-        </div>
-        )}
+            {/* Tax Type */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <Calculator className="w-4 h-4 inline mr-1" />
+                Tax Type
+              </label>
+              <select
+                value={product.taxType}
+                onChange={(e) => handleInputChange('taxType', e.target.value as 'none' | 'vat' | 'turnover')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="none">No Tax</option>
+                <option value="vat">VAT (16%)</option>
+                <option value="turnover">Turnover Tax (1.5%)</option>
+              </select>
+            </div>
 
-        {/* Vendor Payment Status — goods-only */}
-        {!isService && (
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            <CreditCard className="w-4 h-4 inline mr-1" />
-            Vendor Payment Status *
-          </label>
-          <select
-            value={product.vendorPaymentStatus}
-            onChange={(e) => handleInputChange('vendorPaymentStatus', e.target.value as 'Paid' | 'Unpaid')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            required
-          >
-            <option value="Unpaid">Unpaid</option>
-            <option value="Paid">Paid</option>
-          </select>
-          <p className="text-xs text-gray-400 mt-1">
-            {product.vendorPaymentStatus === 'Unpaid'
-              ? canSeeCosts
-                ? `If unpaid, you owe the vendor ${formatCurrency(toNum(product.buyingPrice) * toNum(product.quantity))}`
-                : 'An amount will be owed to the vendor for this item'
-              : 'No amount owed to vendor'}
-          </p>
-        </div>
+            {/* Staff / Provider — service-only, deliberately separate from the
+                sale-level Delivery Guy field (a hybrid sale can have both). */}
+            {isService && (
+              <div className="md:col-span-2">
+                <EnhancedDropdown
+                  label="Staff/Provider"
+                  value={product.staffName || ''}
+                  onChange={(value) => handleInputChange('staffName', value)}
+                  type="staff"
+                  placeholder="Who performed this service?"
+                  icon={<Users className="w-4 h-4 inline mr-1" />}
+                />
+              </div>
+            )}
+
+            {/* Vendor — goods-only, optional. Not every SME buys from a
+                formal supplier per sale (made-to-order, drop-ship, or they just
+                don't track it) — leaving it blank is fine, it just means this
+                item never shows up in Vendor Transactions. */}
+            {!isService && (
+            <div className="md:col-span-2">
+              <EnhancedDropdown
+                label="Vendor (optional)"
+                value={product.vendor}
+                onChange={(value) => handleInputChange('vendor', value)}
+                type="supplier"
+                placeholder="Select vendor"
+                icon={<User className="w-4 h-4 inline mr-1" />}
+              />
+            </div>
+            )}
+
+            {/* Vendor Payment Status — only meaningful once a vendor is actually selected */}
+            {!isService && product.vendor.trim() !== '' && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <CreditCard className="w-4 h-4 inline mr-1" />
+                Vendor Payment Status
+              </label>
+              <select
+                value={product.vendorPaymentStatus}
+                onChange={(e) => handleInputChange('vendorPaymentStatus', e.target.value as 'Paid' | 'Unpaid')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="Unpaid">Unpaid</option>
+                <option value="Paid">Paid</option>
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                {product.vendorPaymentStatus === 'Unpaid'
+                  ? canSeeCosts
+                    ? `If unpaid, you owe the vendor ${formatCurrency(toNum(product.buyingPrice) * toNum(product.quantity))}`
+                    : 'An amount will be owed to the vendor for this item'
+                  : 'No amount owed to vendor'}
+              </p>
+            </div>
+            )}
+          </>
         )}
 
         {/* Product Summary */}

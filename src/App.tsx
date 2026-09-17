@@ -98,7 +98,10 @@ const App = () => {
 
   return (
     <BrowserRouter>
-      <Toaster position="top-right" />
+      <Toaster
+        position="bottom-center"
+        containerStyle={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 68px)' }}
+      />
       <ErrorBoundary>
         <Suspense fallback={<LazyFallback />}>
           <Routes>

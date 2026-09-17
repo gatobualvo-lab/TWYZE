@@ -58,8 +58,26 @@ const BusinessHealthScore: React.FC = () => {
       </div>
 
       {result.score === null ? (
-        <div className="text-center py-6">
-          <p className="text-gray-500 text-sm">{result.insufficientDataReason}</p>
+        <div className="py-2">
+          <p className="text-gray-500 text-sm text-center py-4">{result.insufficientDataReason}</p>
+          {/* Show whatever partial signal does exist rather than nothing at
+              all — "still learning" doesn't mean "we know nothing." */}
+          {result.factors.length > 0 && (
+            <div className="space-y-2 pt-2 border-t border-gray-100">
+              {result.factors.map(f => (
+                <div key={f.key} className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500 w-32 flex-shrink-0">{f.label}</span>
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700 ease-smooth"
+                      style={{ width: `${f.score}%`, backgroundColor: f.score >= 60 ? '#16a34a' : f.score >= 40 ? '#eab308' : '#dc2626' }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-400 w-8 text-right tabular-nums">{Math.round(f.score)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <>

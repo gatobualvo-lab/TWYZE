@@ -143,15 +143,24 @@ export function calculateHealthScore(current: BusinessMetrics, previous: Busines
     });
   }
 
-  if (factors.length === 0) {
+  // Fewer than 3 of 5 factors is too thin a sample to responsibly present a
+  // single confident number — a lone factor (e.g. only "revenue trend",
+  // because this period had zero sales) can swing the whole score to 0 and
+  // read as "your business is failing" when really it's "we don't know
+  // enough yet." Show what's actually known instead of a fabricated verdict.
+  const MIN_FACTORS_FOR_SCORE = 3;
+  if (factors.length < MIN_FACTORS_FOR_SCORE) {
     return {
       score: null,
       band: null,
-      bandLabel: 'Not enough data',
-      factors: [],
-      factorsIncluded: 0,
+      bandLabel: 'Still learning your business',
+      factors,
+      factorsIncluded: factors.length,
       factorsPossible: 5,
-      insufficientDataReason: 'There’s activity this period, but not enough to score reliably yet (e.g. expenses with no revenue). Check back after a few sales.',
+      insufficientDataReason:
+        factors.length === 0
+          ? 'There’s activity this period, but not enough to score reliably yet (e.g. expenses with no revenue). Check back after a few sales.'
+          : `Only ${factors.length} of 5 factors have enough data to score reliably yet — record a few more sales this period and check back.`,
     };
   }
 
