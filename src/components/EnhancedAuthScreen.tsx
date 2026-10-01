@@ -6,6 +6,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { checkRateLimit, RATE_LIMIT_MESSAGE, checkLeakedPassword, LEAKED_PASSWORD_MESSAGE } from '../utils/security';
 import { sendWelcomeEmail } from '../services/email/emailService';
 import { trackEvent } from '../lib/analytics';
+import { BUSINESS_CATEGORIES, REFERRAL_SOURCES } from '../constants/businessCategory';
 
 type Mode = 'login' | 'signup';
 
@@ -14,6 +15,8 @@ interface FormData {
   email: string;
   password: string;
   confirmPassword: string;
+  businessCategory: string;
+  referralSource: string;
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -27,6 +30,8 @@ const EnhancedAuthScreen: React.FC = () => {
     email: '',
     password: '',
     confirmPassword: '',
+    businessCategory: '',
+    referralSource: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -46,6 +51,8 @@ const EnhancedAuthScreen: React.FC = () => {
     if (!EMAIL_REGEX.test(formData.email.trim())) return 'Please enter a valid email address';
     if (formData.password.length < 8) return 'Password must be at least 8 characters';
     if (formData.password !== formData.confirmPassword) return 'Passwords do not match';
+    if (!formData.businessCategory) return 'Please select your business type';
+    if (!formData.referralSource) return 'Please tell us how you heard about Trackwyze';
     return null;
   };
 
@@ -86,6 +93,8 @@ const EnhancedAuthScreen: React.FC = () => {
           emailRedirectTo: `${window.location.origin}/login`,
           data: {
             full_name: formData.name.trim(),
+            business_category: formData.businessCategory,
+            referral_source: formData.referralSource,
           },
         },
       });
@@ -104,7 +113,7 @@ const EnhancedAuthScreen: React.FC = () => {
         const msg = 'Account created successfully. Please check your email to confirm your account.';
         setSuccess(msg);
         toast.success('Account created. Check your email to confirm.');
-        setFormData({ name: '', email: '', password: '', confirmPassword: '' });
+        setFormData({ name: '', email: '', password: '', confirmPassword: '', businessCategory: '', referralSource: '' });
         setMode('login');
         return;
       }
@@ -322,6 +331,44 @@ const EnhancedAuthScreen: React.FC = () => {
                   disabled={isSubmitting}
                 />
               </div>
+            </div>
+          )}
+
+          {!isLogin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                What kind of business is it?
+              </label>
+              <select
+                value={formData.businessCategory}
+                onChange={e => handleInputChange('businessCategory', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                disabled={isSubmitting}
+              >
+                <option value="" disabled>Select your business type</option>
+                {BUSINESS_CATEGORIES.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {!isLogin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                How did you hear about Trackwyze?
+              </label>
+              <select
+                value={formData.referralSource}
+                onChange={e => handleInputChange('referralSource', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                disabled={isSubmitting}
+              >
+                <option value="" disabled>Select an option</option>
+                {REFERRAL_SOURCES.map(r => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
             </div>
           )}
 

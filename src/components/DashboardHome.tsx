@@ -12,12 +12,14 @@ import { listTasks, createTask, toggleTaskCompleted, deleteTask as deleteTaskRec
 import type { BusinessTask } from '../services/tasks/taskService';
 import { Skeleton, SkeletonStatGrid, SkeletonList } from './ui';
 import OnboardingChecklist from './onboarding/OnboardingChecklist';
+import { getCategoryConfig } from '../constants/businessCategory';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 interface DashboardHomeProps {
   userName: string;
   onNavigate: (tab: string) => void;
+  businessCategory?: string | null;
 }
 
 interface DashboardPrefs {
@@ -49,8 +51,10 @@ const safeNum = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) => {
+const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, businessCategory }) => {
   const { theme } = useTheme();
+  const categoryConfig = getCategoryConfig(businessCategory);
+  const saleNounPlural = `${categoryConfig.saleNounSingular}s`;
   const [loading, setLoading] = useState(true);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showCustomize, setShowCustomize] = useState(false);
@@ -404,7 +408,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
                 isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
               }`}>
                 {[
-                  { label: 'Add Sale', tab: 'add-sale', icon: ShoppingCart },
+                  { label: categoryConfig.addSaleLabel, tab: 'add-sale', icon: ShoppingCart },
                   { label: 'Add Expense', tab: 'general-expenses', icon: DollarSign },
                   { label: 'Add Delivery', tab: 'delivery-payments', icon: Truck },
                   { label: 'Add Supplier Sale', tab: 'add-supplier', icon: Users },
@@ -444,8 +448,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
           <div className="flex flex-wrap gap-3">
             {[
               { key: 'show_kpi_cards', label: 'KPI Cards' },
-              { key: 'show_chart', label: 'Sales & Profit Chart' },
-              { key: 'show_recent_sales', label: 'Recent Sales' },
+              { key: 'show_chart', label: `${categoryConfig.salesLabel} & Profit Chart` },
+              { key: 'show_recent_sales', label: `Recent ${categoryConfig.salesLabel}` },
               { key: 'show_attention', label: 'Attention Needed' },
               { key: 'show_tasks', label: 'Business Tasks' },
             ].map(item => (
@@ -479,8 +483,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
           {([
             {
               tab: 'view-sales', bg: 'bg-blue-500/10', icon: TrendingUp, iconColor: 'text-blue-600',
-              label: "Today's Sales", value: todaySales,
-              sub: todayOrderCount > 0 ? `${todayOrderCount} order${todayOrderCount === 1 ? '' : 's'} today` : null,
+              label: `Today's ${categoryConfig.salesLabel}`, value: todaySales,
+              sub: todayOrderCount > 0 ? `${todayOrderCount} ${todayOrderCount === 1 ? categoryConfig.saleNounSingular : saleNounPlural} today` : null,
               subTone: 'neutral',
             },
             {
@@ -535,7 +539,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
         {/* Chart */}
         {prefs.show_chart && (
           <div className={`lg:col-span-2 rounded-xl border p-5 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
-            <h2 className={sectionTitle}>Sales & Profit</h2>
+            <h2 className={sectionTitle}>{categoryConfig.salesLabel} & Profit</h2>
             <p className={`text-xs mb-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Last 30 days</p>
             <div className="h-56">
               <Line
@@ -586,10 +590,10 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate }) =
         {prefs.show_recent_sales && (
           <div className={`rounded-xl border p-5 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className={sectionTitle}>Recent Sales</h2>
+              <h2 className={sectionTitle}>Recent {categoryConfig.salesLabel}</h2>
             </div>
             {recentSales.length === 0 ? (
-              <p className={`text-sm py-6 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No sales recorded yet.</p>
+              <p className={`text-sm py-6 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No {saleNounPlural} recorded yet.</p>
             ) : (
               <div className="space-y-3">
                 {recentSales.map(sale => (

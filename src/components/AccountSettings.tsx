@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, CreditCard, LogOut, Save, AlertCircle, CheckCircle } from 'lucide-react';
+import { User, Mail, Phone, CreditCard, LogOut, Save, AlertCircle, CheckCircle, Briefcase } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import LoadingScreen from './LoadingScreen';
 import { getSubscriptionPlanLabel, getSubscriptionStatusLabel, getBillingCycleLabel } from '../utils/subscription';
+import { BUSINESS_CATEGORIES } from '../constants/businessCategory';
 
 interface UserProfile {
   id: string;
   full_name?: string;
   email?: string;
   phone_number?: string;
+  business_category?: string | null;
   subscription_status?: string;
   trial_end_date?: string;
   current_billing_cycle?: string;
@@ -26,6 +28,7 @@ const AccountSettings: React.FC = () => {
   const [formData, setFormData] = useState({
     fullName: '',
     phoneNumber: '',
+    businessCategory: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -65,6 +68,7 @@ const AccountSettings: React.FC = () => {
       setFormData({
         fullName: profileData.full_name || '',
         phoneNumber: profileData.phone_number || '',
+        businessCategory: profileData.business_category || '',
       });
       
     } catch (error: any) {
@@ -120,6 +124,7 @@ const AccountSettings: React.FC = () => {
         .update({
           full_name: formData.fullName,
           phone_number: formData.phoneNumber,
+          business_category: formData.businessCategory || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', user?.id);
@@ -231,6 +236,27 @@ const AccountSettings: React.FC = () => {
             {errors.phoneNumber && (
               <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
             )}
+          </div>
+
+          {/* Business Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Business Type
+            </label>
+            <div className="relative">
+              <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <select
+                value={formData.businessCategory}
+                onChange={(e) => handleInputChange('businessCategory', e.target.value)}
+                className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              >
+                <option value="">Not set</option>
+                {BUSINESS_CATEGORIES.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Tailors wording and menu order across the app to your kind of business</p>
           </div>
 
           {/* Email (Read-only) */}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { BarChart3, Plus, Package, Wallet, Menu } from 'lucide-react';
+import { getCategoryConfig } from '../constants/businessCategory';
 
 // The sidebar (hamburger → collapsible groups) makes sense on desktop, but
 // on a phone-first market it means every single action is 2+ taps away
@@ -11,16 +12,18 @@ interface MobileBottomNavProps {
   activeTab: string;
   onNavigate: (tab: string) => void;
   onMore: () => void;
+  businessCategory?: string | null;
 }
 
-const TABS: { id: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: 'dashboard', label: 'Home', icon: BarChart3 },
-  { id: 'add-sale', label: 'Sale', icon: Plus },
-  { id: 'inventory', label: 'Stock', icon: Package },
-  { id: 'cash-position', label: 'Money', icon: Wallet },
-];
-
-const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, onNavigate, onMore }) => (
+const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, onNavigate, onMore, businessCategory }) => {
+  const config = getCategoryConfig(businessCategory);
+  const TABS: { id: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: 'dashboard', label: 'Home', icon: BarChart3 },
+    { id: 'add-sale', label: config.saleNounSingular.replace(/^\w/, c => c.toUpperCase()), icon: Plus },
+    { id: 'inventory', label: config.inventoryLabel, icon: Package },
+    { id: 'cash-position', label: 'Money', icon: Wallet },
+  ];
+  return (
   <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 bg-white border-t border-gray-200 safe-pb">
     <div className="flex items-stretch justify-around">
       {TABS.map(tab => {
@@ -48,6 +51,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, onNavigate
       </button>
     </div>
   </nav>
-);
+  );
+};
 
 export default MobileBottomNav;

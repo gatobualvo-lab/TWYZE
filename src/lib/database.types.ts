@@ -269,7 +269,9 @@ export type Database = {
           country: string | null
           created_at: string | null
           default_currency: string | null
+          default_notes: string | null
           default_template: string | null
+          default_terms: string | null
           email: string | null
           id: string
           invoice_footer: string | null
@@ -301,7 +303,9 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           default_currency?: string | null
+          default_notes?: string | null
           default_template?: string | null
+          default_terms?: string | null
           email?: string | null
           id?: string
           invoice_footer?: string | null
@@ -333,7 +337,9 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           default_currency?: string | null
+          default_notes?: string | null
           default_template?: string | null
+          default_terms?: string | null
           email?: string | null
           id?: string
           invoice_footer?: string | null
@@ -1044,6 +1050,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          business_category: string | null
           created_at: string | null
           current_billing_cycle: string | null
           email: string | null
@@ -1052,6 +1059,7 @@ export type Database = {
           last_login: string | null
           phone_number: string | null
           phone_token: string | null
+          referral_source: string | null
           role: Database["public"]["Enums"]["user_role"]
           subscription_expiry: string | null
           subscription_status: string | null
@@ -1060,6 +1068,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          business_category?: string | null
           created_at?: string | null
           current_billing_cycle?: string | null
           email?: string | null
@@ -1068,6 +1077,7 @@ export type Database = {
           last_login?: string | null
           phone_number?: string | null
           phone_token?: string | null
+          referral_source?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           subscription_expiry?: string | null
           subscription_status?: string | null
@@ -1076,6 +1086,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          business_category?: string | null
           created_at?: string | null
           current_billing_cycle?: string | null
           email?: string | null
@@ -1084,6 +1095,7 @@ export type Database = {
           last_login?: string | null
           phone_number?: string | null
           phone_token?: string | null
+          referral_source?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           subscription_expiry?: string | null
           subscription_status?: string | null

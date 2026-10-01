@@ -12,6 +12,9 @@ import {
   FileText,
   Palette,
   Loader,
+  Image as ImageIcon,
+  Upload,
+  X,
 } from 'lucide-react';
 
 interface BusinessSettings {
@@ -36,6 +39,8 @@ interface BusinessSettings {
   invoice_footer: string;
   quotation_footer: string;
   receipt_footer: string;
+  default_notes: string;
+  default_terms: string;
   invoice_prefix: string;
   quotation_prefix: string;
   receipt_prefix: string;
@@ -60,6 +65,7 @@ export default function BusinessSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [settings, setSettings] = useState<Partial<BusinessSettings>>({
     business_name: '',
     phone: '',
@@ -77,6 +83,8 @@ export default function BusinessSettings() {
     invoice_footer: 'Thank you for your business!',
     quotation_footer: 'This quotation is valid for 30 days.',
     receipt_footer: 'Thank you for your payment!',
+    default_notes: '',
+    default_terms: '',
     invoice_prefix: 'INV-',
     quotation_prefix: 'QT-',
     receipt_prefix: 'RCPT-',
@@ -149,6 +157,47 @@ export default function BusinessSettings() {
       ...prev,
       [field]: value,
     }));
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file later
+    if (!file || !userId) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Logo must be under 2MB');
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const ext = file.name.split('.').pop() || 'png';
+      const path = `${userId}/logo.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('business-assets')
+        .upload(path, file, { upsert: true, cacheControl: '3600' });
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('business-assets').getPublicUrl(path);
+      // Cache-bust: the path doesn't change on re-upload, so append a
+      // timestamp or the <img> below would keep showing the old cached logo.
+      const bustedUrl = `${data.publicUrl}?t=${Date.now()}`;
+      setSettings((prev) => ({ ...prev, logo_url: bustedUrl }));
+      toast.success('Logo uploaded — click Save Settings to keep it');
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      toast.error('Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    setSettings((prev) => ({ ...prev, logo_url: '' }));
   };
 
   const handleSave = async () => {
@@ -335,6 +384,65 @@ export default function BusinessSettings() {
                   handleInputChange('postal_address', e.target.value)
                 }
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Branding Section */}
+        <div className={`${sectionClasses} mb-6`}>
+          <div className="flex items-center gap-3 mb-6">
+            <ImageIcon className="w-6 h-6 text-indigo-500" />
+            <div>
+              <h2 className={`text-xl font-semibold ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>
+                Branding
+              </h2>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                Your logo, shown on every quotation, invoice, and receipt
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-5">
+            <div className={`w-24 h-24 rounded-lg border-2 border-dashed flex items-center justify-center flex-shrink-0 overflow-hidden ${
+              isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-gray-50'
+            }`}>
+              {settings.logo_url ? (
+                <img src={settings.logo_url} alt="Business logo" className="w-full h-full object-contain" />
+              ) : (
+                <ImageIcon className={`w-8 h-8 ${isDark ? 'text-gray-500' : 'text-gray-300'}`} />
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border font-medium text-sm cursor-pointer transition-colors ${
+                isDark
+                  ? 'border-gray-600 text-gray-200 hover:bg-gray-700'
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+              } ${uploadingLogo ? 'opacity-60 pointer-events-none' : ''}`}>
+                {uploadingLogo ? <Loader className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {uploadingLogo ? 'Uploading...' : settings.logo_url ? 'Replace Logo' : 'Upload Logo'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                  disabled={uploadingLogo}
+                />
+              </label>
+              {settings.logo_url && (
+                <button
+                  type="button"
+                  onClick={handleRemoveLogo}
+                  className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 font-medium"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Remove logo
+                </button>
+              )}
+              <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                PNG or JPG, under 2MB. Square or wide logos work best.
+              </p>
             </div>
           </div>
         </div>
@@ -567,6 +675,51 @@ export default function BusinessSettings() {
                 value={settings.receipt_footer || ''}
                 onChange={(e) =>
                   handleInputChange('receipt_footer', e.target.value)
+                }
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Default Notes & Terms Section */}
+        <div className={`${sectionClasses} mb-6`}>
+          <div className="flex items-center gap-3 mb-6">
+            <FileText className="w-6 h-6 text-teal-500" />
+            <div>
+              <h2 className={`text-xl font-semibold ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>
+                Default Notes &amp; Terms
+              </h2>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                Pre-fills the Notes and Terms &amp; Conditions fields when you create a new
+                document — leave blank to start every document empty
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className={labelClasses}>Default Notes</label>
+              <textarea
+                className={textareaClasses}
+                placeholder="e.g. Prices are subject to change without notice."
+                rows={2}
+                value={settings.default_notes || ''}
+                onChange={(e) =>
+                  handleInputChange('default_notes', e.target.value)
+                }
+              />
+            </div>
+            <div>
+              <label className={labelClasses}>Default Terms &amp; Conditions</label>
+              <textarea
+                className={textareaClasses}
+                placeholder="e.g. Goods sold are non-refundable after 7 days."
+                rows={3}
+                value={settings.default_terms || ''}
+                onChange={(e) =>
+                  handleInputChange('default_terms', e.target.value)
                 }
               />
             </div>

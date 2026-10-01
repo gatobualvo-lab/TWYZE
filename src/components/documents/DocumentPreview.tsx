@@ -246,6 +246,13 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             border-bottom: 2px solid #333;
             padding-bottom: 20px;
           }
+          .logo {
+            max-height: 60px;
+            max-width: 200px;
+            object-fit: contain;
+            margin-bottom: 10px;
+            display: block;
+          }
           .header-left h1 {
             font-size: 24px;
             font-weight: 600;
@@ -417,6 +424,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           <!-- Header -->
           <div class="header">
             <div class="header-left">
+              ${businessSettings.logo_url ? `<img class="logo" src="${escapeHtml(businessSettings.logo_url)}" alt="" />` : ''}
               <h1>${escapeHtml(businessSettings.business_name)}</h1>
               <p>${escapeHtml(businessSettings.physical_address)}</p>
               <p>${escapeHtml(businessSettings.city)}, ${escapeHtml(businessSettings.country)}</p>
@@ -806,6 +814,9 @@ Phone: ${businessSettings.phone}
           {/* Header */}
           <div className="flex justify-between items-start p-8 border-b border-gray-200">
             <div>
+              {businessSettings.logo_url && (
+                <img src={businessSettings.logo_url} alt="" className="max-h-16 max-w-[200px] object-contain mb-3" />
+              )}
               <h1 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {businessSettings.business_name}
               </h1>

@@ -111,11 +111,20 @@ const DocumentsPage: React.FC<DocumentsPageProps> = ({ initialTab }) => {
 
   if (view === 'preview' && selectedDocId) {
     return (
-      <DocumentPreview
-        documentId={selectedDocId}
-        onClose={handleCancel}
-        onEdit={() => handleEdit(selectedDocId)}
-      />
+      <div className="space-y-4">
+        <button
+          onClick={handleCancel}
+          className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to {activeDocType === 'quotation' ? 'Quotations' : activeDocType === 'invoice' ? 'Invoices' : 'Receipts'}
+        </button>
+        <DocumentPreview
+          documentId={selectedDocId}
+          onClose={handleCancel}
+          onEdit={() => handleEdit(selectedDocId)}
+        />
+      </div>
     );
   }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BarChart3, Plus, Menu, X, Target, TrendingUp, Download, Zap, LogOut, Users, History, Settings, User, User as UserIcon, Package, BookOpen, Layers, Calendar, TrendingDown, Wallet, Truck, ChevronLeft, ChevronRight, Receipt, ChevronDown, ShoppingCart, FileText, Percent, Lightbulb, Sparkles, Trophy, Bell, UserCog, Repeat, HelpCircle, Briefcase } from 'lucide-react';
 import { CSSTransition } from 'react-transition-group';
@@ -45,6 +45,7 @@ import { useNotificationSync } from '../services/notifications/useNotificationSy
 import TeamManagement from './team/TeamManagement';
 import { useBusinessRole } from '../services/team/useBusinessRole';
 import { filterNavForRole } from '../services/team/navPermissions';
+import { applyCategoryToNav } from '../services/personalization/categoryNav';
 import RecurringExpenses from './expenses/RecurringExpenses';
 import { runDueRecurringExpenses } from '../services/expenses/recurringExpenseService';
 import { applyMySubscriptionLapse, computeAccessLevel } from '../services/subscription/subscriptionLapseService';
@@ -58,6 +59,7 @@ interface UserProfile {
   full_name?: string;
   email?: string;
   phone_number?: string;
+  business_category?: string | null;
   subscription_status?: string;
   subscription_expiry?: string;
   trial_end_date?: string;
@@ -230,7 +232,6 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   const { showModal, handleCloseModal } = useDownloadReminder();
   useNotificationSync();
   const { role: businessRole } = useBusinessRole();
-  const visibleNavItems = filterNavForRole(NAV_ITEMS, businessRole.isStaff, businessRole.permissions);
   useEffect(() => { runDueRecurringExpenses().catch(() => {}); }, []);
   useEffect(() => { runDueRecurringInvoices().catch(() => {}); }, []);
   const { pendingCount: pendingOfflineSales } = useOfflineSalesSync();
@@ -252,6 +253,23 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   const location = useLocation();
   const [user, setUser] = useState<UserData | null>(null);
   const accessLevel = computeAccessLevel(user?.profile?.subscription_status);
+  const visibleNavItems = applyCategoryToNav(
+    filterNavForRole(NAV_ITEMS, businessRole.isStaff, businessRole.permissions),
+    user?.profile?.business_category
+  );
+  // Header title per tab, re-derived from the category-relabeled nav so it
+  // matches the sidebar/bottom-nav wording instead of the static default.
+  const navTitles = useMemo(() => {
+    const map: Record<string, string> = { ...NAV_TITLES };
+    for (const entry of visibleNavItems) {
+      if (entry.kind === 'leaf') {
+        map[entry.id] = entry.title ?? entry.label;
+      } else {
+        for (const item of entry.items) map[item.id] = item.title ?? item.label;
+      }
+    }
+    return map;
+  }, [visibleNavItems]);
   const [activeTab, setActiveTab] = useState<string>(initialActiveTab || 'dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -678,7 +696,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6 flex justify-between items-center">
           <div key={activeTab} className="animate-slide-up">
             <h1 className="text-xl font-bold text-gray-800">
-              {NAV_TITLES[activeTab] ?? ''}
+              {navTitles[activeTab] ?? ''}
             </h1>
             <p className="text-gray-500 text-sm mt-0.5">
               {user?.profile?.full_name || user?.email || 'Welcome back!'}
@@ -722,6 +740,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
             <DashboardHome
               userName={user?.profile?.full_name || user?.email || ''}
               onNavigate={setActiveTab}
+              businessCategory={user?.profile?.business_category}
             />
           )}
           {activeTab === 'opportunities' && <OpportunityCenter onNavigate={setActiveTab} />}
@@ -784,7 +803,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
       </div>
     </div>
 
-    <MobileBottomNav activeTab={activeTab} onNavigate={handleSidebarNavigate} onMore={() => setIsMobileMenuOpen(true)} />
+    <MobileBottomNav activeTab={activeTab} onNavigate={handleSidebarNavigate} onMore={() => setIsMobileMenuOpen(true)} businessCategory={user?.profile?.business_category} />
 
     {/* Download Modal (triggered by button) */}
     <DownloadModal isOpen={showDownloadModal} onClose={() => setShowDownloadModal(false)} />

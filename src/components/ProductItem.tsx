@@ -77,10 +77,9 @@ const ProductItem: React.FC<ProductItemProps> = ({
   };
 
   const isService = product.itemType === 'service';
-  // Collapsed by default — color, tax type, vendor, and staff/provider are
-  // all genuinely optional per sale; buying/selling price and quantity are
-  // the only things needed for the common case, so they stay always visible.
-  const [showMoreDetails, setShowMoreDetails] = useState(false);
+  // Expanded by default — users found having to click through the collapse
+  // on every sale slower than just always seeing these optional fields.
+  const [showMoreDetails, setShowMoreDetails] = useState(true);
 
   const handleItemTypeChange = (itemType: 'goods' | 'service') => {
     if (itemType === 'service') {

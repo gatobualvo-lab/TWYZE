@@ -97,6 +97,21 @@ export default function DocumentForm({
   }, []);
 
   useEffect(() => {
+    if (existingDocumentId || existingDocument) return;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: bs } = await supabase
+        .from('business_settings')
+        .select('default_notes, default_terms')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (bs?.default_notes) setNotes(bs.default_notes);
+      if (bs?.default_terms) setTerms(bs.default_terms);
+    })();
+  }, [existingDocumentId, existingDocument]);
+
+  useEffect(() => {
     if (existingDocumentId && !existingDocument) {
       (async () => {
         const { data: { user } } = await supabase.auth.getUser();
