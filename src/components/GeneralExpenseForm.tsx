@@ -4,6 +4,7 @@ import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import { toNum, parseInput, NumericInput } from '../utils/numberInput';
 import { listProjects, type Project } from '../services/projects/projectService';
+import { enqueueWrite, isNetworkError } from '../services/offline/offlineQueue';
 
 interface GeneralExpenseFormData {
   expense_type: string;
@@ -99,20 +100,35 @@ const GeneralExpenseForm: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      // getUser() round-trips to the server, which fails outright while
+      // offline — fall back to the locally persisted session so a queued
+      // expense doesn't get blocked by the connectivity check itself.
+      let userId: string | null = null;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        userId = user?.id ?? null;
+      } catch {
+        // fall through to session fallback below
+      }
+      if (!userId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        userId = session?.user?.id ?? null;
+      }
+      if (!userId) {
         toast.error('You must be logged in to add expenses');
         return;
       }
 
-      // Add new expense type if it doesn't exist
+      // Add new expense type if it doesn't exist (best-effort — skipped
+      // offline since it needs its own round-trip; it'll just re-run next
+      // time this expense type is used while online).
       if (!userExpenseTypes.includes(formData.expense_type) && !EXPENSE_TYPES.includes(formData.expense_type)) {
-        await addNewExpenseType(formData.expense_type);
+        await addNewExpenseType(formData.expense_type).catch(() => {});
       }
 
       const expenseData = {
         id: crypto.randomUUID(),
-        user_id: user.id,
+        user_id: userId,
         ...formData,
         amount: toNum(formData.amount),
         project_id: formData.project_id || null
@@ -123,10 +139,18 @@ const GeneralExpenseForm: React.FC = () => {
         .insert(expenseData);
 
       if (error) {
-        throw error;
+        if (!isNetworkError(error)) throw error;
+        enqueueWrite({
+          id: expenseData.id,
+          kind: 'general_expense',
+          table: 'general_expenses',
+          payload: expenseData,
+          label: `${formData.expense_type} — KES ${toNum(formData.amount)}`,
+        });
+        toast.success("Saved offline — will sync when you're back online", { duration: 5000 });
+      } else {
+        toast.success('General expense recorded successfully!');
       }
-
-      toast.success('General expense recorded successfully!');
 
       // Reset form
       setFormData({

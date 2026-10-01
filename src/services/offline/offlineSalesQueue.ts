@@ -5,6 +5,9 @@
 // no shared data-access layer, so generalizing this to every write path
 // would be a much larger undertaking than what was actually asked for.
 
+import { isNetworkError } from './networkError';
+export { isNetworkError };
+
 const STORAGE_KEY = 'trackwyze_offline_sales_queue';
 
 export interface DecrementTarget {
@@ -60,21 +63,4 @@ export function markProductDecremented(saleId: string, productName: string): voi
     record.decrementedProductNames.push(productName);
     writeQueue(queue);
   }
-}
-
-/**
- * Heuristic for "this failed because there's no connection" vs. a real
- * validation/business error. Supabase-js doesn't throw on a fetch failure —
- * it resolves with an error object carrying the underlying fetch/TypeError
- * message and no real Postgres error code, which is what these patterns
- * target.
- */
-export function isNetworkError(error: unknown): boolean {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
-  if (!error) return false;
-  const message =
-    typeof error === 'object' && error !== null && 'message' in error
-      ? String((error as { message?: unknown }).message ?? '')
-      : String(error);
-  return /failed to fetch|network ?error|load failed|err_internet_disconnected|err_network|err_connection/i.test(message);
 }

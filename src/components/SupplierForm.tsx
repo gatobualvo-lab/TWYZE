@@ -5,6 +5,7 @@ import EnhancedDropdown from './EnhancedDropdown';
 import ClientDropdown from './ClientDropdown';
 import toast from 'react-hot-toast';
 import { toNum, displayNumber } from '../utils/number';
+import { enqueueWrite, isNetworkError } from '../services/offline/offlineQueue';
 
 type PaymentStatus = 'Paid' | 'Partial' | 'Pending';
 
@@ -94,15 +95,28 @@ const SupplierForm: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      // getUser() round-trips to the server, which fails outright while
+      // offline — fall back to the locally persisted session so a queued
+      // sale doesn't get blocked by the connectivity check itself.
+      let userId: string | null = null;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        userId = user?.id ?? null;
+      } catch {
+        // fall through to session fallback below
+      }
+      if (!userId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        userId = session?.user?.id ?? null;
+      }
+      if (!userId) {
         toast.error('You must be logged in to record supplier sales');
         return;
       }
 
       const supplierData = {
         id: crypto.randomUUID(),
-        user_id: user.id,
+        user_id: userId,
         // Legacy/back-compat columns kept populated so older queries still work
         name: formData.client,
         amount: formData.selling_price,
@@ -122,9 +136,19 @@ const SupplierForm: React.FC = () => {
       };
 
       const { error } = await supabase.from('suppliers').insert(supplierData);
-      if (error) throw error;
-
-      toast.success('Supplier sale recorded successfully!');
+      if (error) {
+        if (!isNetworkError(error)) throw error;
+        enqueueWrite({
+          id: supplierData.id,
+          kind: 'supplier_sale',
+          table: 'suppliers',
+          payload: supplierData,
+          label: `${formData.client} — ${formData.product}`,
+        });
+        toast.success("Saved offline — will sync when you're back online", { duration: 5000 });
+      } else {
+        toast.success('Supplier sale recorded successfully!');
+      }
       setFormData(blankForm());
     } catch (error: any) {
       console.error('Error recording supplier sale:', error);

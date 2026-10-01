@@ -36,10 +36,10 @@ export default function AdExpensesPage() {
       if (!amount.trim()) throw new Error("Enter an amount.");
       if (!dateStr) throw new Error("Choose an expense date.");
 
-      await addAdExpense({ adPlatform: platform, adType, amountKES: amount, dateString: dateStr, notes: notes || undefined, projectId: projectId || undefined });
-      setMsg({ kind:"ok", text:"Ad expense recorded." });
+      const result = await addAdExpense({ adPlatform: platform, adType, amountKES: amount, dateString: dateStr, notes: notes || undefined, projectId: projectId || undefined });
+      setMsg({ kind:"ok", text: result.offline ? "Saved offline — will sync when you're back online." : "Ad expense recorded." });
       setPlatform(""); setAdType(""); setAmount(""); setDateStr(""); setNotes(""); setProjectId("");
-      await load();
+      if (!result.offline) await load();
     } catch (e:any) {
       setMsg({ kind:"err", text:e.message || "Failed to record ad expense." });
     } finally { setSaving(false); }

@@ -1,5 +1,6 @@
 import { supabase } from "../../utils/supabase";
 import { checkRateLimit, RATE_LIMIT_MESSAGE } from "../../utils/security";
+import { enqueueWrite, isNetworkError } from "../../services/offline/offlineQueue";
 
 export type AdExpense = {
   id: string;
@@ -26,7 +27,7 @@ export async function addAdExpense(input: {
   dateString: string;
   notes?: string;
   projectId?: string;
-}): Promise<AdExpense> {
+}): Promise<{ data: AdExpense | null; offline: boolean }> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Please sign in to record an expense.");
 
@@ -39,21 +40,34 @@ export async function addAdExpense(input: {
     throw new Error(RATE_LIMIT_MESSAGE);
   }
 
+  const record = {
+    id: crypto.randomUUID(),
+    ad_platform: input.adPlatform,
+    ad_type: input.adType || "Other",
+    amount_kes: amount,
+    occurred_on: toISO(input.dateString),
+    notes: input.notes ?? null,
+    project_id: input.projectId ?? null,
+  };
+
   const { data, error } = await supabase
     .from("ad_expenses")
-    .insert({
-      ad_platform: input.adPlatform,
-      ad_type: input.adType || "Other",
-      amount_kes: amount,
-      occurred_on: toISO(input.dateString),
-      notes: input.notes ?? null,
-      project_id: input.projectId ?? null,
-    })
+    .insert(record)
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
-  return data as AdExpense;
+  if (error) {
+    if (!isNetworkError(error)) throw new Error(error.message);
+    enqueueWrite({
+      id: record.id,
+      kind: 'ad_expense',
+      table: 'ad_expenses',
+      payload: record,
+      label: `${input.adPlatform} — KES ${amount}`,
+    });
+    return { data: null, offline: true };
+  }
+  return { data: data as AdExpense, offline: false };
 }
 
 export async function listRecentAdExpenses(limit = 20): Promise<AdExpense[]> {

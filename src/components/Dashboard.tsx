@@ -31,6 +31,7 @@ import DashboardHome from './DashboardHome';
 import DocumentsPage from './documents/DocumentsPage';
 import NotificationBell from './notifications/NotificationBell';
 import { useOfflineSalesSync } from '../hooks/useOfflineSalesSync';
+import { useOfflineWriteSync } from '../hooks/useOfflineWriteSync';
 import ProfitAnalytics from './analytics/ProfitAnalytics';
 import DailyClosingReport from './analytics/DailyClosingReport';
 import CustomerTimeline from './customers/CustomerTimeline';
@@ -226,6 +227,38 @@ const NavButton: React.FC<NavButtonProps> = ({ active, collapsed, label, icon: I
   </button>
 );
 
+const LAST_TAB_STORAGE_KEY = 'trackwyze_last_active_tab';
+
+function readStoredTab(): string {
+  try {
+    return sessionStorage.getItem(LAST_TAB_STORAGE_KEY) || 'dashboard';
+  } catch {
+    return 'dashboard';
+  }
+}
+
+// Once a tab has been visited this session it stays mounted (just hidden)
+// instead of being torn down — switching tabs used to fully unmount the
+// previous page via `{activeTab === id && <X/>}`, so an in-progress form,
+// an applied filter, or a scroll position was wiped out the moment you
+// navigated away and back. Only tabs the user actually opened get mounted,
+// so this doesn't pay for the other ~25 unvisited ones.
+interface TabSlotProps {
+  id: string;
+  activeTab: string;
+  visitedTabs: Set<string>;
+  children: React.ReactNode;
+}
+const TabSlot: React.FC<TabSlotProps> = ({ id, activeTab, visitedTabs, children }) => {
+  if (!visitedTabs.has(id)) return null;
+  const isActive = activeTab === id;
+  return (
+    <div className={isActive ? 'animate-slide-up' : ''} style={isActive ? undefined : { display: 'none' }}>
+      {children}
+    </div>
+  );
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) => {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -235,6 +268,8 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   useEffect(() => { runDueRecurringExpenses().catch(() => {}); }, []);
   useEffect(() => { runDueRecurringInvoices().catch(() => {}); }, []);
   const { pendingCount: pendingOfflineSales } = useOfflineSalesSync();
+  const { pendingCount: pendingOfflineWrites } = useOfflineWriteSync();
+  const pendingOfflineTotal = pendingOfflineSales + pendingOfflineWrites;
   useEffect(() => {
     applyMySubscriptionLapse().then(newStatus => {
       if (!newStatus) return;
@@ -270,13 +305,21 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
     }
     return map;
   }, [visibleNavItems]);
-  const [activeTab, setActiveTab] = useState<string>(initialActiveTab || 'dashboard');
+  // A route that names an explicit tab (e.g. /account) always wins; otherwise
+  // restore whichever tab was last active so reopening the app (or reloading
+  // the page) doesn't dump the user back on Dashboard.
+  const [activeTab, setActiveTab] = useState<string>(() => initialActiveTab || readStoredTab());
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([initialActiveTab || readStoredTab()]));
+  useEffect(() => {
+    setVisitedTabs(prev => (prev.has(activeTab) ? prev : new Set(prev).add(activeTab)));
+    try { sessionStorage.setItem(LAST_TAB_STORAGE_KEY, activeTab); } catch { /* ignore */ }
+  }, [activeTab]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   // Groups start collapsed — except whichever one contains the page we're
   // actually landing on, so a deep link never opens onto a hidden nav item.
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(() => {
-    const landingTab = initialActiveTab || 'dashboard';
+    const landingTab = initialActiveTab || readStoredTab();
     const state: Record<string, boolean> = {};
     for (const entry of NAV_ITEMS) {
       if (entry.kind !== 'group') continue;
@@ -715,13 +758,13 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
                   : `Billing: ${user?.profile?.current_billing_cycle || 'Unknown'}`}
               </p>
             </div>
-            {pendingOfflineSales > 0 && (
+            {pendingOfflineTotal > 0 && (
               <span
                 className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200"
                 title="Recorded while offline — will sync automatically once you're back online"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                {pendingOfflineSales} pending sync
+                {pendingOfflineTotal} pending sync
               </span>
             )}
             <UniversalSearch onNavigate={setActiveTab} />
@@ -734,35 +777,35 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
 
         <SubscriptionBanner accessLevel={accessLevel} onNavigate={setActiveTab} />
 
-        {/* Main Content Area — key={activeTab} replays the entrance animation on every tab switch, giving each page a smooth transition without any extra transition-management code. Each tab component owns its own data fetch and loading state; nothing here needs to gate on them. */}
-        <div key={activeTab} className="animate-slide-up">
-          {activeTab === 'dashboard' && (
+        {/* Main Content Area — each tab that's been visited this session stays mounted (TabSlot), so switching away and back preserves in-progress forms, filters, and scroll instead of resetting them. */}
+        <div>
+          <TabSlot id="dashboard" activeTab={activeTab} visitedTabs={visitedTabs}>
             <DashboardHome
               userName={user?.profile?.full_name || user?.email || ''}
               onNavigate={setActiveTab}
               businessCategory={user?.profile?.business_category}
             />
-          )}
-          {activeTab === 'opportunities' && <OpportunityCenter onNavigate={setActiveTab} />}
-          {activeTab === 'advisor' && <AIBusinessAdvisor onNavigate={setActiveTab} />}
-          {activeTab === 'goals' && <BusinessGoals />}
-          {activeTab === 'calendar' && <BusinessCalendar onNavigate={setActiveTab} />}
-          {activeTab === 'notifications' && <NotificationCenter onNavigate={setActiveTab} />}
-          {activeTab === 'team' && <TeamManagement />}
-          {activeTab === 'recurring-expenses' && <RecurringExpenses />}
+          </TabSlot>
+          <TabSlot id="opportunities" activeTab={activeTab} visitedTabs={visitedTabs}><OpportunityCenter onNavigate={setActiveTab} /></TabSlot>
+          <TabSlot id="advisor" activeTab={activeTab} visitedTabs={visitedTabs}><AIBusinessAdvisor onNavigate={setActiveTab} /></TabSlot>
+          <TabSlot id="goals" activeTab={activeTab} visitedTabs={visitedTabs}><BusinessGoals /></TabSlot>
+          <TabSlot id="calendar" activeTab={activeTab} visitedTabs={visitedTabs}><BusinessCalendar onNavigate={setActiveTab} /></TabSlot>
+          <TabSlot id="notifications" activeTab={activeTab} visitedTabs={visitedTabs}><NotificationCenter onNavigate={setActiveTab} /></TabSlot>
+          <TabSlot id="team" activeTab={activeTab} visitedTabs={visitedTabs}><TeamManagement /></TabSlot>
+          <TabSlot id="recurring-expenses" activeTab={activeTab} visitedTabs={visitedTabs}><RecurringExpenses /></TabSlot>
 
-          {activeTab === 'add-sale' && (
+          <TabSlot id="add-sale" activeTab={activeTab} visitedTabs={visitedTabs}>
             <RestrictedFeatureGate accessLevel={accessLevel} onNavigate={setActiveTab}>
               <MultiProductSalesForm />
             </RestrictedFeatureGate>
-          )}
-          {activeTab === 'view-sales' && <SalesList />}
-          {activeTab === 'add-supplier' && (
+          </TabSlot>
+          <TabSlot id="view-sales" activeTab={activeTab} visitedTabs={visitedTabs}><SalesList /></TabSlot>
+          <TabSlot id="add-supplier" activeTab={activeTab} visitedTabs={visitedTabs}>
             <RestrictedFeatureGate accessLevel={accessLevel} onNavigate={setActiveTab}>
               <SupplierForm />
             </RestrictedFeatureGate>
-          )}
-          {activeTab === 'view-suppliers' && (
+          </TabSlot>
+          <TabSlot id="view-suppliers" activeTab={activeTab} visitedTabs={visitedTabs}>
             <div>
               <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-2">Supply Dashboard</h2>
@@ -770,35 +813,35 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
               </div>
               <SupplierDashboard />
             </div>
-          )}
-          {activeTab === 'ad-expenses' && <AdExpensesPage />}
-          {activeTab === 'general-expenses' && (
+          </TabSlot>
+          <TabSlot id="ad-expenses" activeTab={activeTab} visitedTabs={visitedTabs}><AdExpensesPage /></TabSlot>
+          <TabSlot id="general-expenses" activeTab={activeTab} visitedTabs={visitedTabs}>
             <RestrictedFeatureGate accessLevel={accessLevel} onNavigate={setActiveTab}>
               <GeneralExpenseForm />
             </RestrictedFeatureGate>
-          )}
-          {activeTab === 'expense-overview' && <ExpenseOverview />}
-          {activeTab === 'inventory' && <InventoryManagement />}
-          {activeTab === 'inventory-predictions' && <SmartInventoryPredictions />}
-          {activeTab === 'clients' && <ClientManagement />}
-          {activeTab === 'customer-timeline' && <CustomerTimeline />}
-          {activeTab === 'documents-quotations' && <DocumentsPage initialTab="quotation" />}
-          {activeTab === 'documents-invoices' && <DocumentsPage initialTab="invoice" />}
-          {activeTab === 'documents-receipts' && <DocumentsPage initialTab="receipt" />}
-          {activeTab === 'recurring-invoices' && <RecurringInvoices />}
-          {activeTab === 'projects' && <ProjectsPage />}
-          {activeTab === 'documents-settings' && <DocumentsPage initialTab="settings" />}
-          {activeTab === 'monthly-dashboard' && <MonthlyDashboard />}
-          {activeTab === 'profit-analytics' && <ProfitAnalytics />}
-          {activeTab === 'daily-closing' && <DailyClosingReport />}
-          {activeTab === 'data-export' && <ReportsAnalytics />}
-          {activeTab === 'cash-position' && <CashPosition onNavigate={setActiveTab} />}
-          {activeTab === 'delivery-payments' && <DeliveryPayments />}
-          {activeTab === 'vendor-transactions' && <VendorTransactions />}
-          {activeTab === 'dropdown-management' && <DropdownManagement />}
-          {activeTab === 'account' && <AccountSettings />}
-          {activeTab === 'payment-management' && <PaymentManagement />}
-          {activeTab === 'admin' && <AdminPanel />}
+          </TabSlot>
+          <TabSlot id="expense-overview" activeTab={activeTab} visitedTabs={visitedTabs}><ExpenseOverview /></TabSlot>
+          <TabSlot id="inventory" activeTab={activeTab} visitedTabs={visitedTabs}><InventoryManagement /></TabSlot>
+          <TabSlot id="inventory-predictions" activeTab={activeTab} visitedTabs={visitedTabs}><SmartInventoryPredictions /></TabSlot>
+          <TabSlot id="clients" activeTab={activeTab} visitedTabs={visitedTabs}><ClientManagement /></TabSlot>
+          <TabSlot id="customer-timeline" activeTab={activeTab} visitedTabs={visitedTabs}><CustomerTimeline /></TabSlot>
+          <TabSlot id="documents-quotations" activeTab={activeTab} visitedTabs={visitedTabs}><DocumentsPage initialTab="quotation" /></TabSlot>
+          <TabSlot id="documents-invoices" activeTab={activeTab} visitedTabs={visitedTabs}><DocumentsPage initialTab="invoice" /></TabSlot>
+          <TabSlot id="documents-receipts" activeTab={activeTab} visitedTabs={visitedTabs}><DocumentsPage initialTab="receipt" /></TabSlot>
+          <TabSlot id="recurring-invoices" activeTab={activeTab} visitedTabs={visitedTabs}><RecurringInvoices /></TabSlot>
+          <TabSlot id="projects" activeTab={activeTab} visitedTabs={visitedTabs}><ProjectsPage /></TabSlot>
+          <TabSlot id="documents-settings" activeTab={activeTab} visitedTabs={visitedTabs}><DocumentsPage initialTab="settings" /></TabSlot>
+          <TabSlot id="monthly-dashboard" activeTab={activeTab} visitedTabs={visitedTabs}><MonthlyDashboard /></TabSlot>
+          <TabSlot id="profit-analytics" activeTab={activeTab} visitedTabs={visitedTabs}><ProfitAnalytics /></TabSlot>
+          <TabSlot id="daily-closing" activeTab={activeTab} visitedTabs={visitedTabs}><DailyClosingReport /></TabSlot>
+          <TabSlot id="data-export" activeTab={activeTab} visitedTabs={visitedTabs}><ReportsAnalytics /></TabSlot>
+          <TabSlot id="cash-position" activeTab={activeTab} visitedTabs={visitedTabs}><CashPosition onNavigate={setActiveTab} /></TabSlot>
+          <TabSlot id="delivery-payments" activeTab={activeTab} visitedTabs={visitedTabs}><DeliveryPayments /></TabSlot>
+          <TabSlot id="vendor-transactions" activeTab={activeTab} visitedTabs={visitedTabs}><VendorTransactions /></TabSlot>
+          <TabSlot id="dropdown-management" activeTab={activeTab} visitedTabs={visitedTabs}><DropdownManagement /></TabSlot>
+          <TabSlot id="account" activeTab={activeTab} visitedTabs={visitedTabs}><AccountSettings /></TabSlot>
+          <TabSlot id="payment-management" activeTab={activeTab} visitedTabs={visitedTabs}><PaymentManagement /></TabSlot>
+          <TabSlot id="admin" activeTab={activeTab} visitedTabs={visitedTabs}><AdminPanel /></TabSlot>
         </div>
       </div>
     </div>

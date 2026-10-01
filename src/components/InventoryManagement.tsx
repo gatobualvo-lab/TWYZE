@@ -5,6 +5,7 @@ import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
 import { toNum, parseInput, NumericInput } from '../utils/numberInput';
 import { formatCurrency } from '../utils/format';
+import { enqueueWrite, isNetworkError } from '../services/offline/offlineQueue';
 
 interface InventoryItem {
   id: string;
@@ -191,8 +192,21 @@ const InventoryManagement: React.FC = () => {
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      // getUser() round-trips to the server, which fails outright while
+      // offline — fall back to the locally persisted session so a queued
+      // item doesn't get blocked by the connectivity check itself.
+      let userId: string | null = null;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        userId = user?.id ?? null;
+      } catch {
+        // fall through to session fallback below
+      }
+      if (!userId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        userId = session?.user?.id ?? null;
+      }
+      if (!userId) {
         toast.error('You must be logged in to manage inventory');
         return;
       }
@@ -204,26 +218,30 @@ const InventoryManagement: React.FC = () => {
         cost_price: toNum(formData.cost_price),
         selling_price: toNum(formData.selling_price),
         colors: formData.colors,
-        user_id: user.id,
+        user_id: userId,
         id: editingItem?.id || crypto.randomUUID()
       };
 
-      let error;
-      if (editingItem) {
-        ({ error } = await supabase
-          .from('inventory_items')
-          .update(itemData)
-          .eq('id', editingItem.id));
-      } else {
-        ({ error } = await supabase
-          .from('inventory_items')
-          .insert(itemData));
+      // upsert rather than insert/update so a queued offline write replays
+      // the exact same way whether it was a new item or a stock edit.
+      const { error } = await supabase.from('inventory_items').upsert(itemData);
+
+      if (error) {
+        if (!isNetworkError(error)) throw error;
+        enqueueWrite({
+          id: itemData.id,
+          kind: 'inventory_item',
+          table: 'inventory_items',
+          payload: itemData,
+          label: `${formData.product_name} — stock ${toNum(formData.current_stock)}`,
+        });
+        toast.success("Saved offline — will sync when you're back online", { duration: 5000 });
+        resetForm();
+        return;
       }
 
-      if (error) throw error;
-
       // Sync with user_products so the sales form auto-fills buying/selling prices
-      await syncProductCatalog(user.id, formData.product_name, toNum(formData.cost_price), toNum(formData.selling_price));
+      await syncProductCatalog(userId, formData.product_name, toNum(formData.cost_price), toNum(formData.selling_price));
 
       toast.success(`Item ${editingItem ? 'updated' : 'added'} successfully!`);
       resetForm();
