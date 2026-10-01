@@ -65,6 +65,13 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Pages now stay mounted when you switch tabs instead of reloading, so a
+  // product added on the Inventory page wouldn't otherwise show up here
+  // until a hard refresh — refetch right as the list is opened instead.
+  useEffect(() => {
+    if (isDropdownOpen) fetchProducts();
+  }, [isDropdownOpen]);
+
   useEffect(() => {
     if (!value || !onProductSelect) return;
     const match = products.find(p => p.name.toLowerCase() === value.toLowerCase());

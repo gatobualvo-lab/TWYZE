@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BarChart3, Plus, Menu, X, Target, TrendingUp, Download, Zap, LogOut, Users, History, Settings, User, User as UserIcon, Package, BookOpen, Layers, Calendar, TrendingDown, Wallet, Truck, ChevronLeft, ChevronRight, Receipt, ChevronDown, ShoppingCart, FileText, Percent, Lightbulb, Sparkles, Trophy, Bell, UserCog, Repeat, HelpCircle, Briefcase } from 'lucide-react';
+import { BarChart3, Plus, Menu, X, Target, TrendingUp, Download, Zap, LogOut, Users, History, Settings, User, User as UserIcon, Package, BookOpen, Layers, Calendar, TrendingDown, Wallet, Truck, ChevronLeft, ChevronRight, Receipt, ChevronDown, ShoppingCart, FileText, Percent, Lightbulb, Sparkles, Trophy, Bell, UserCog, Repeat, HelpCircle, Briefcase, RefreshCw } from 'lucide-react';
 import { CSSTransition } from 'react-transition-group';
 import { supabase, refreshSession } from '../utils/supabase';
 import { DownloadModal } from './DownloadModal';
@@ -767,6 +767,13 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
                 {pendingOfflineTotal} pending sync
               </span>
             )}
+            <button
+              onClick={() => window.location.reload()}
+              className="h-10 w-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+              title="Refresh the app — reloads with the latest data and app version, keeping you on this page"
+            >
+              <RefreshCw className="w-5 h-5 text-gray-600" />
+            </button>
             <UniversalSearch onNavigate={setActiveTab} />
             <NotificationBell onNavigate={setActiveTab} />
             <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center transition-transform duration-150 hover:scale-105">

@@ -76,6 +76,13 @@ const EnhancedDropdown: React.FC<EnhancedDropdownProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [type]);
 
+  // Pages now stay mounted when you switch tabs instead of reloading, so an
+  // item added elsewhere (e.g. a new vendor) wouldn't otherwise show up
+  // here until a hard refresh — refetch right as the list is opened instead.
+  useEffect(() => {
+    if (isDropdownOpen) fetchItems();
+  }, [isDropdownOpen]);
+
   const fetchItems = async () => {
     try {
       setLoading(true);
