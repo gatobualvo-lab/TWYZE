@@ -2,6 +2,32 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plus, CreditCard as Edit, Trash2, Check, X, ChevronDown, Package, Search } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
+import { toNum, parseInput, NumericInput } from '../utils/numberInput';
+
+interface NewProductDetails {
+  sku: string;
+  category: string;
+  unit: string;
+  current_stock: NumericInput;
+  reorder_level: NumericInput;
+  cost_price: NumericInput;
+  selling_price: NumericInput;
+  description: string;
+}
+
+const BLANK_DETAILS: NewProductDetails = {
+  sku: '',
+  category: '',
+  unit: '',
+  current_stock: '',
+  reorder_level: '',
+  cost_price: '',
+  selling_price: '',
+  description: '',
+};
+
+// Escape LIKE wildcards so a product literally named "50%_off" doesn't match others.
+const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&');
 
 interface ProductSelectorProps {
   value: string;
@@ -32,6 +58,8 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
   const [newProductName, setNewProductName] = useState('');
   const [newProductColors, setNewProductColors] = useState<string[]>([]);
   const [newColorInput, setNewColorInput] = useState('');
+  const [newDetails, setNewDetails] = useState<NewProductDetails>(BLANK_DETAILS);
+  const [isSavingNew, setIsSavingNew] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editColors, setEditColors] = useState<string[]>([]);
@@ -138,12 +166,28 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
     }
   };
 
+  const resetNewProductForm = () => {
+    setNewProductName('');
+    setNewProductColors([]);
+    setNewColorInput('');
+    setNewDetails(BLANK_DETAILS);
+  };
+
+  // Creates the same inventory record the Inventory page does (so stock, reorder
+  // alerts and prices all exist), plus the catalog entry this dropdown reads from.
   const addNewProduct = async () => {
-    if (!newProductName.trim()) {
+    const name = newProductName.trim();
+    if (!name) {
       toast.error('Please enter a product name');
       return;
     }
+    const sellingPrice = toNum(newDetails.selling_price);
+    if (sellingPrice <= 0) {
+      toast.error('Please enter a selling price');
+      return;
+    }
 
+    setIsSavingNew(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -151,44 +195,82 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
         return;
       }
 
-      const { data, error } = await supabase
-        .from('user_products')
-        .insert({
-          id: crypto.randomUUID(),
-          user_id: user.id,
-          name: newProductName.trim(),
-          colors: newProductColors,
-        })
-        .select()
-        .single();
+      const likeName = escapeLike(name);
 
-      if (error) {
-        if (error.code === '23505') {
-          toast.error('This product already exists');
-        } else {
-          throw error;
-        }
+      const { data: existingInventory, error: lookupError } = await supabase
+        .from('inventory_items')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_deleted', false)
+        .ilike('product_name', likeName)
+        .limit(1);
+      if (lookupError) throw lookupError;
+      if (existingInventory && existingInventory.length > 0) {
+        toast.error('This product already exists in your inventory');
         return;
       }
 
-      setProducts(prev => [...prev, data]);
-      onChange(newProductName.trim());
+      const costPrice = toNum(newDetails.cost_price);
+
+      const { error: inventoryError } = await supabase.from('inventory_items').insert({
+        id: crypto.randomUUID(),
+        user_id: user.id,
+        product_name: name,
+        sku: newDetails.sku.trim(),
+        category: newDetails.category.trim(),
+        unit: newDetails.unit.trim(),
+        current_stock: toNum(newDetails.current_stock),
+        reorder_level: toNum(newDetails.reorder_level),
+        cost_price: costPrice,
+        selling_price: sellingPrice,
+        description: newDetails.description.trim(),
+        colors: newProductColors,
+      });
+      if (inventoryError) throw inventoryError;
+
+      const { data: existingCatalog } = await supabase
+        .from('user_products')
+        .select('id')
+        .eq('user_id', user.id)
+        .ilike('name', likeName)
+        .limit(1);
+
+      const catalogFields = {
+        price: sellingPrice,
+        buying_price: costPrice,
+        colors: newProductColors,
+      };
+
+      const catalogQuery = existingCatalog && existingCatalog.length > 0
+        ? supabase
+            .from('user_products')
+            .update({ ...catalogFields, updated_at: new Date().toISOString() })
+            .eq('id', existingCatalog[0].id)
+        : supabase
+            .from('user_products')
+            .insert({ id: crypto.randomUUID(), user_id: user.id, name, ...catalogFields });
+      const { data: catalogRow, error: catalogError } = await catalogQuery.select().single();
+      if (catalogError) throw catalogError;
+
+      const saved = catalogRow as Product;
+      setProducts(prev => [...prev.filter(p => p.id !== saved.id), saved]);
+      onChange(name);
       if (onProductSelect) {
         onProductSelect({
-          name: data.name,
-          price: Number(data.price) || 0,
-          buying_price: Number(data.buying_price) || 0,
-          colors: data.colors ?? [],
+          name,
+          price: sellingPrice,
+          buying_price: costPrice,
+          colors: newProductColors,
         });
       }
-      setNewProductName('');
-      setNewProductColors([]);
-      setNewColorInput('');
+      resetNewProductForm();
       setIsAddModalOpen(false);
-      toast.success('Product added successfully');
+      toast.success('Product added to inventory');
     } catch (error: any) {
       console.error('Error adding product:', error);
       toast.error(error.message || 'Failed to add product');
+    } finally {
+      setIsSavingNew(false);
     }
   };
 
@@ -386,24 +468,121 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
       
       {/* Add Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div ref={modalRef} className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-bold mb-4">Add New Product</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div ref={modalRef} className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold mb-1">Add New Product</h3>
+            <p className="text-sm text-gray-500 mb-4">Saved to your inventory, so stock and prices are tracked from the start.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Product Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={newProductName}
                   onChange={(e) => setNewProductName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter product name"
+                  placeholder="e.g., Blue T-Shirt"
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Color Options (optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
+                <input
+                  type="text"
+                  value={newDetails.sku}
+                  onChange={(e) => setNewDetails(prev => ({ ...prev, sku: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="e.g., TSH-BLU-001"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <input
+                  type="text"
+                  value={newDetails.category}
+                  onChange={(e) => setNewDetails(prev => ({ ...prev, category: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="e.g., Clothing"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                <input
+                  type="text"
+                  value={newDetails.unit}
+                  onChange={(e) => setNewDetails(prev => ({ ...prev, unit: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="pcs, kg, liters"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Current Stock</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newDetails.current_stock}
+                  onChange={(e) => setNewDetails(prev => ({ ...prev, current_stock: parseInput(e.target.value) }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="0"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newDetails.reorder_level}
+                  onChange={(e) => setNewDetails(prev => ({ ...prev, reorder_level: parseInput(e.target.value) }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 mt-1">Alert when stock falls to this level</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Buying Price (per unit)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">KES</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newDetails.cost_price}
+                    onChange={(e) => setNewDetails(prev => ({ ...prev, cost_price: parseInput(e.target.value) }))}
+                    className="w-full pl-12 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="0.00"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">What it costs you per unit</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Selling Price (per unit) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">KES</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newDetails.selling_price}
+                    onChange={(e) => setNewDetails(prev => ({ ...prev, selling_price: parseInput(e.target.value) }))}
+                    className="w-full pl-12 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="0.00"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">What you charge customers per unit</p>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Available Colors</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -443,17 +622,26 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-gray-500 mt-1">Press Enter or click Add to include each color.</p>
+                <p className="text-xs text-gray-500 mt-1">Optional. Press Enter or click Add to include each color.</p>
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={newDetails.description}
+                  onChange={(e) => setNewDetails(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Optional notes about this item"
+                  rows={2}
+                />
+              </div>
+
+              <div className="sm:col-span-2 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setIsAddModalOpen(false);
-                    setNewProductName('');
-                    setNewProductColors([]);
-                    setNewColorInput('');
+                    resetNewProductForm();
                   }}
                   className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg"
                 >
@@ -462,9 +650,10 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                 <button
                   type="button"
                   onClick={addNewProduct}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                  disabled={isSavingNew}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg"
                 >
-                  Add Product
+                  {isSavingNew ? 'Saving...' : 'Add Product'}
                 </button>
               </div>
             </div>
