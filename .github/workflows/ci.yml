@@ -37,7 +37,15 @@ jobs:
         continue-on-error: true
 
       - name: Test
-        run: npm test
+        run: |
+          set +e
+          npm test 2>&1 | tee test.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            msg=$(tail -n 80 test.log | sed 's/\x1b\[[0-9;]*m//g; s/\r//g' | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')
+            echo "::error title=Test output (tail)::${msg}"
+          fi
+          exit $code
 
       - name: Build
         run: npm run build
