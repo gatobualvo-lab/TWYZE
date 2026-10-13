@@ -67,7 +67,12 @@ Deno.serve(async (req) => {
 
     const txRef = `tw_${user.id.slice(0, 8)}_${Date.now()}`;
 
-    const { error: insertError } = await supabase.from('payment_submissions').insert({
+    // Inserted with the service key, not the caller's JWT: gateway rows must
+    // only ever come from this function (trusted amount/plan). RLS no longer
+    // lets a user insert source='gateway' rows themselves, which would let
+    // them pick their own amount and have the webhook honour it.
+    const adminClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const { error: insertError } = await adminClient.from('payment_submissions').insert({
       user_id: user.id,
       amount: planConfig.amount,
       currency: planConfig.currency,
