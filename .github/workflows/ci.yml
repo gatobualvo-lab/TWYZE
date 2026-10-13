@@ -14,7 +14,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # jsdom 30 (used by the test suite) requires Node >=22.22 / >=24.15;
+          # on Node 20 its bundled undici crashes before any test starts.
+          node-version: 24
           cache: npm
 
       - run: npm ci
