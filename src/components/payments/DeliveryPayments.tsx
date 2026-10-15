@@ -1,3 +1,4 @@
+import { formatCurrency as formatAccountCurrency } from '../../utils/format';
 import React, { useState, useEffect } from 'react';
 import { Truck, AlertTriangle, CheckCircle, CheckCircle2, Calendar, MapPin, Package } from 'lucide-react';
 import { supabase } from '../../utils/supabase';
@@ -124,11 +125,7 @@ const DeliveryPayments: React.FC = () => {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 0
-    }).format(amount);
+    return formatAccountCurrency(amount);
   };
 
   const formatDate = (dateString: string) => {

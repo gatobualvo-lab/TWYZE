@@ -9,13 +9,15 @@ beforeEach(() => {
 
 describe('print preferences', () => {
   it('defaults to standard paper, dialog printing, default printer', () => {
-    expect(getPrintPrefs()).toEqual({ receiptPaper: 'standard', silent: false, printerName: '' });
+    expect(getPrintPrefs()).toEqual({ receiptPaper: 'standard', silent: false, printerName: '', bluetooth: false, bluetoothName: '' });
   });
 
   it('persists changes and merges partial updates', () => {
     setPrintPrefs({ receiptPaper: 'thermal80' });
-    setPrintPrefs({ silent: true, printerName: 'Front Desk' });
-    expect(getPrintPrefs()).toEqual({ receiptPaper: 'thermal80', silent: true, printerName: 'Front Desk' });
+    setPrintPrefs({ silent: true, printerName: 'Front Desk', bluetooth: true, bluetoothName: 'MPT-II' });
+    expect(getPrintPrefs()).toEqual({
+      receiptPaper: 'thermal80', silent: true, printerName: 'Front Desk', bluetooth: true, bluetoothName: 'MPT-II',
+    });
   });
 
   it('survives corrupted storage', () => {
@@ -24,8 +26,8 @@ describe('print preferences', () => {
   });
 
   it('ignores an unknown paper value', () => {
-    localStorage.setItem(KEY, JSON.stringify({ receiptPaper: 'huge', silent: 'yes' }));
-    expect(getPrintPrefs()).toEqual({ receiptPaper: 'standard', silent: false, printerName: '' });
+    localStorage.setItem(KEY, JSON.stringify({ receiptPaper: 'huge', silent: 'yes', bluetooth: 'yes' }));
+    expect(getPrintPrefs()).toEqual({ receiptPaper: 'standard', silent: false, printerName: '', bluetooth: false, bluetoothName: '' });
   });
 });
 

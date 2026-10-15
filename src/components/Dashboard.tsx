@@ -54,6 +54,7 @@ import { sendSubscriptionExpiryWarningEmail } from '../services/email/emailServi
 import { SubscriptionBanner, RestrictedFeatureGate } from './SubscriptionGate';
 import toast from 'react-hot-toast';
 import { useTheme } from '../contexts/ThemeContext';
+import { setAccountCurrency, useAccountCurrency } from '../utils/accountCurrency';
 
 interface UserProfile {
   id: string;
@@ -61,6 +62,7 @@ interface UserProfile {
   email?: string;
   phone_number?: string;
   business_category?: string | null;
+  currency?: string;
   subscription_status?: string;
   subscription_expiry?: string;
   trial_end_date?: string;
@@ -164,10 +166,10 @@ const NAV_ITEMS: NavTopItem[] = [
       { id: 'documents-invoices', label: 'Invoices', icon: FileText },
       { id: 'documents-receipts', label: 'Receipts', icon: Receipt },
       { id: 'recurring-invoices', label: 'Recurring Invoices', icon: Repeat },
-      { id: 'projects', label: 'Projects', icon: Briefcase },
       { id: 'documents-settings', label: 'Doc Settings', title: 'Document Settings', icon: Settings },
     ],
   },
+  { kind: 'leaf', id: 'projects', label: 'Projects', icon: Briefcase },
   {
     kind: 'group', id: 'insights-group', label: 'Insights', icon: Lightbulb, iconClassName: 'text-amber-600',
     items: [
@@ -282,6 +284,8 @@ const TabSlot: React.FC<TabSlotProps> = ({ id, activeTab, visitedTabs, children 
 
 const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) => {
   const { theme, toggleTheme } = useTheme();
+  // Re-key the content area when the account currency changes so every screen re-renders in it.
+  const accountCurrency = useAccountCurrency();
   const navigate = useNavigate();
   const { showModal, handleCloseModal } = useDownloadReminder();
   useNotificationSync();
@@ -416,6 +420,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
                 });
               } else if (profile) {
                 // Set user with profile data
+                setAccountCurrency(profile.currency);
                 setUser({
                   id: userData.user.id,
                   email: userData.user.email,
@@ -806,7 +811,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
         <SubscriptionBanner accessLevel={accessLevel} onNavigate={setActiveTab} />
 
         {/* Main Content Area — each tab that's been visited this session stays mounted (TabSlot), so switching away and back preserves in-progress forms, filters, and scroll instead of resetting them. */}
-        <div>
+        <div key={accountCurrency}>
           <TabSlot id="dashboard" activeTab={activeTab} visitedTabs={visitedTabs}>
             <DashboardHome
               userName={user?.profile?.full_name || user?.email || ''}

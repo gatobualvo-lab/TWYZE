@@ -57,7 +57,7 @@ export interface CategoryTerminology {
 
 const BASE_ORDER = [
   'dashboard', 'sales', 'inventory-group', 'money', 'customers-group',
-  'documents', 'insights-group', 'settings-group',
+  'documents', 'projects', 'insights-group', 'settings-group',
 ];
 
 export const CATEGORY_CONFIG: Record<BusinessCategory, CategoryTerminology> = {
@@ -69,7 +69,7 @@ export const CATEGORY_CONFIG: Record<BusinessCategory, CategoryTerminology> = {
   services: {
     salesLabel: 'Jobs', addSaleLabel: 'Add Job', viewSalesLabel: 'View Jobs',
     saleNounSingular: 'job', customersLabel: 'Clients', inventoryLabel: 'Supplies',
-    navOrder: ['dashboard', 'sales', 'customers-group', 'money', 'documents', 'insights-group', 'inventory-group', 'settings-group'],
+    navOrder: ['dashboard', 'sales', 'customers-group', 'money', 'documents', 'projects', 'insights-group', 'inventory-group', 'settings-group'],
   },
   food_beverage: {
     salesLabel: 'Orders', addSaleLabel: 'Add Order', viewSalesLabel: 'View Orders',
@@ -79,7 +79,7 @@ export const CATEGORY_CONFIG: Record<BusinessCategory, CategoryTerminology> = {
   fashion_beauty: {
     salesLabel: 'Sales', addSaleLabel: 'Add Sale', viewSalesLabel: 'View Sales',
     saleNounSingular: 'sale', customersLabel: 'Customers', inventoryLabel: 'Stock',
-    navOrder: ['dashboard', 'sales', 'inventory-group', 'customers-group', 'money', 'documents', 'insights-group', 'settings-group'],
+    navOrder: ['dashboard', 'sales', 'inventory-group', 'customers-group', 'money', 'documents', 'projects', 'insights-group', 'settings-group'],
   },
   construction_hardware: {
     salesLabel: 'Sales', addSaleLabel: 'Add Sale', viewSalesLabel: 'View Sales',

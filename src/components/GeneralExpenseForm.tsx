@@ -1,3 +1,4 @@
+import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect } from 'react';
 import { Plus, DollarSign, Calendar, Save, Receipt, ScanLine } from 'lucide-react';
 import { supabase } from '../utils/supabase';
@@ -110,7 +111,7 @@ const GeneralExpenseForm: React.FC = () => {
         date: result.date || prev.date,
         notes: details || prev.notes,
       }));
-      if (result.currency && result.currency !== 'KES') {
+      if (result.currency && result.currency !== getAccountCurrency()) {
         toast(`The receipt is in ${result.currency}. The amount was not converted, so please check it.`, { icon: '⚠️', duration: 6000 });
       } else {
         toast.success('Receipt read. Please check the details, then save.');
@@ -178,7 +179,7 @@ const GeneralExpenseForm: React.FC = () => {
           kind: 'general_expense',
           table: 'general_expenses',
           payload: expenseData,
-          label: `${formData.expense_type} — KES ${toNum(formData.amount)}`,
+          label: `${formData.expense_type} — ${getAccountCurrency()} ${toNum(formData.amount)}`,
         });
         toast.success("Saved offline — will sync when you're back online", { duration: 5000 });
       } else {
@@ -256,7 +257,7 @@ const GeneralExpenseForm: React.FC = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <DollarSign className="w-4 h-4 inline mr-1" />
-              Amount (KES) *
+              Amount ({getAccountCurrency()}) *
             </label>
             <input
               type="number"

@@ -6,12 +6,24 @@
 // different text depending which screen you're on. This is the one
 // definition every screen now renders from.
 
-export function formatCurrency(amount: unknown): string {
+import { getAccountCurrency } from './accountCurrency';
+
+/** Currencies whose everyday amounts have no minor unit worth showing. */
+const WHOLE_UNIT_CURRENCIES = new Set(['KES', 'UGX', 'TZS', 'RWF', 'XOF', 'IDR']);
+
+/** Digits to show for amounts in `code`: whole units for shillings/francs, cents otherwise. */
+export function currencyDigits(code: string): number {
+  return WHOLE_UNIT_CURRENCIES.has(code) ? 0 : 2;
+}
+
+/** Formats an amount in the account's currency (KES unless the user picked another at signup). */
+export function formatCurrency(amount: unknown, currency: string = getAccountCurrency()): string {
   const n = typeof amount === 'number' ? amount : Number(amount);
   const value = Number.isFinite(n) ? n : 0;
-  return `KES ${value.toLocaleString('en-KE', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+  const digits = currencyDigits(currency);
+  return `${currency} ${value.toLocaleString('en-KE', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
   })}`;
 }
 

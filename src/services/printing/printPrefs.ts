@@ -9,10 +9,14 @@ export interface PrintPrefs {
   silent: boolean;
   /** Desktop app only: empty means the system default printer. */
   printerName: string;
+  /** Send receipts to a paired Bluetooth thermal printer instead of the print window. */
+  bluetooth: boolean;
+  /** Name of the last paired Bluetooth printer, for display. */
+  bluetoothName: string;
 }
 
 const KEY = 'trackwyze_print_prefs';
-const DEFAULTS: PrintPrefs = { receiptPaper: 'standard', silent: false, printerName: '' };
+const DEFAULTS: PrintPrefs = { receiptPaper: 'standard', silent: false, printerName: '', bluetooth: false, bluetoothName: '' };
 
 export function getPrintPrefs(): PrintPrefs {
   try {
@@ -25,6 +29,8 @@ export function getPrintPrefs(): PrintPrefs {
         : DEFAULTS.receiptPaper,
       silent: parsed.silent === true,
       printerName: typeof parsed.printerName === 'string' ? parsed.printerName : '',
+      bluetooth: parsed.bluetooth === true,
+      bluetoothName: typeof parsed.bluetoothName === 'string' ? parsed.bluetoothName : '',
     };
   } catch {
     return { ...DEFAULTS };

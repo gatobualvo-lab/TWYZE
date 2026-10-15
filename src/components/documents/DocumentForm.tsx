@@ -6,7 +6,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, Send, Save } from 'lucide-react';
 import { listProjects, type Project } from '../../services/projects/projectService';
-import { COMMON_CURRENCIES, fetchKesPerUnit, formatInCurrency, isValidCurrencyCode } from '../../utils/currency';
+import { useAccountCurrency } from '../../utils/accountCurrency';
+import { COMMON_CURRENCIES, fetchBasePerUnit, formatInCurrency, isValidCurrencyCode } from '../../utils/currency';
 
 interface DocumentItem {
   product_name: string;
@@ -70,6 +71,7 @@ export default function DocumentForm({
 }: DocumentFormProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const base = useAccountCurrency();
   const [isLoading, setIsLoading] = useState(false);
   const [items, setItems] = useState<DocumentItem[]>(
     existingDocument ? [] : [{ product_name: '', description: '', quantity: 1, unit_price: 0, discount_percent: 0, tax_percent: 0, total: 0 }]
@@ -94,7 +96,7 @@ export default function DocumentForm({
   const [terms, setTerms] = useState(existingDocument?.terms || '');
   const [projectId, setProjectId] = useState(existingDocument?.project_id || '');
   const [projects, setProjects] = useState<Project[]>([]);
-  const [currency, setCurrency] = useState((existingDocument?.currency || 'KES').toUpperCase());
+  const [currency, setCurrency] = useState((existingDocument?.currency || base).toUpperCase());
   const [exchangeRate, setExchangeRate] = useState<string>(String(existingDocument?.exchange_rate || 1));
   const [fetchingRate, setFetchingRate] = useState(false);
 
@@ -142,7 +144,7 @@ export default function DocumentForm({
           setNotes(doc.notes || '');
           setTerms(doc.terms || '');
           setProjectId(doc.project_id || '');
-          setCurrency(String((doc as { currency?: string }).currency || 'KES').toUpperCase());
+          setCurrency(String((doc as { currency?: string }).currency || base).toUpperCase());
           setExchangeRate(String((doc as { exchange_rate?: number }).exchange_rate || 1));
         }
         const { data: docItems } = await supabase
@@ -242,7 +244,7 @@ export default function DocumentForm({
 
   const useTodaysRate = async () => {
     setFetchingRate(true);
-    const rate = await fetchKesPerUnit(currency);
+    const rate = await fetchBasePerUnit(currency);
     setFetchingRate(false);
     if (rate) setExchangeRate(String(rate));
     else toast.error("Couldn't fetch today's rate. Please type it in.");
@@ -283,7 +285,7 @@ export default function DocumentForm({
         }
       }
 
-      if (currency !== 'KES') {
+      if (currency !== base) {
         const rate = Number(exchangeRate);
         if (!isValidCurrencyCode(currency) || !Number.isFinite(rate) || rate <= 0) {
           toast.error('Enter a valid currency code and exchange rate');
@@ -317,9 +319,9 @@ export default function DocumentForm({
 
       // Currency is only written when it differs from the KES default, so
       // ordinary documents save exactly as before.
-      if (currency !== 'KES' || (existingDocument?.currency && existingDocument.currency !== 'KES')) {
+      if (currency !== base || (existingDocument?.currency && existingDocument.currency !== base)) {
         documentData.currency = currency;
-        documentData.exchange_rate = currency === 'KES' ? 1 : Number(exchangeRate);
+        documentData.exchange_rate = currency === base ? 1 : Number(exchangeRate);
       }
 
       if (documentType === 'invoice' || documentType === 'quotation') {
@@ -475,6 +477,23 @@ export default function DocumentForm({
                   placeholder="Customer address"
                 />
               </div>
+              {projects.length > 0 && (
+                <div>
+                  <label className={`block text-sm font-medium ${labelClass} mb-2`}>
+                    Project
+                  </label>
+                  <select
+                    value={projectId}
+                    onChange={(e) => setProjectId(e.target.value)}
+                    className={`w-full px-4 py-2 border rounded-lg ${inputClass} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  >
+                    <option value="">No project</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 
@@ -597,7 +616,7 @@ export default function DocumentForm({
                           />
                         </td>
                         <td className="py-3 px-2 text-right font-medium">
-                          KES {total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {base} {total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="py-3 px-2 text-center">
                           <button
@@ -625,13 +644,13 @@ export default function DocumentForm({
                 <div className="flex justify-between">
                   <span className={labelClass}>Subtotal:</span>
                   <span className="font-medium">
-                    KES {totals.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {base} {totals.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className={labelClass}>Tax:</span>
                   <span className="font-medium">
-                    KES {totals.totalTax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {base} {totals.totalTax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -663,7 +682,7 @@ export default function DocumentForm({
                 <div className={`pt-3 border-t ${isDark ? 'border-gray-600' : 'border-gray-300'} flex justify-between`}>
                   <span className="font-semibold">Total:</span>
                   <span className="font-bold text-lg">
-                    KES {totals.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {base} {totals.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
@@ -685,7 +704,7 @@ export default function DocumentForm({
                       const v = e.target.value;
                       if (v === 'OTHER') { setCurrency(''); return; }
                       setCurrency(v);
-                      if (v === 'KES') setExchangeRate('1');
+                      if (v === base) setExchangeRate('1');
                     }}
                     className={`w-full px-4 py-2 border rounded-lg ${inputClass} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                   >
@@ -702,7 +721,7 @@ export default function DocumentForm({
                       className={`mt-2 w-full px-4 py-2 border rounded-lg ${inputClass} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                     />
                   )}
-                  {currency !== 'KES' && (
+                  {currency !== base && (
                     <div className="mt-3 space-y-2">
                       <div className="flex items-center gap-2">
                         <span className={`text-sm ${labelClass}`}>1 {currency || '...'} =</span>
@@ -714,7 +733,7 @@ export default function DocumentForm({
                           onChange={(e) => setExchangeRate(e.target.value)}
                           className={`w-32 px-3 py-2 border rounded-lg ${inputClass} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                         />
-                        <span className={`text-sm ${labelClass}`}>KES</span>
+                        <span className={`text-sm ${labelClass}`}>{base}</span>
                         <button
                           type="button"
                           onClick={useTodaysRate}
@@ -725,7 +744,7 @@ export default function DocumentForm({
                         </button>
                       </div>
                       <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Prices stay in KES in your records. The customer sees this document in {currency || 'their currency'} at this rate (total {formatInCurrency(totals.total, currency, exchangeRate)}).
+                        Prices stay in {base} in your records. The customer sees this document in {currency || 'their currency'} at this rate (total {formatInCurrency(totals.total, currency, exchangeRate)}).
                       </p>
                     </div>
                   )}
@@ -789,24 +808,6 @@ export default function DocumentForm({
                     <option value="other">Other</option>
                   </select>
                 </div>
-
-                {projects.length > 0 && (
-                  <div>
-                    <label className={`block text-sm font-medium ${labelClass} mb-2`}>
-                      Project
-                    </label>
-                    <select
-                      value={projectId}
-                      onChange={(e) => setProjectId(e.target.value)}
-                      className={`w-full px-4 py-2 border rounded-lg ${inputClass} focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                    >
-                      <option value="">No project</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
               </div>
             </div>
           </div>

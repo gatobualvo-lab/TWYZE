@@ -1,3 +1,4 @@
+import { getAccountCurrency } from '../../utils/accountCurrency';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, DollarSign, CheckCircle, Calendar, Package, Filter, ChevronDown, ChevronRight, Search, Plus, Share2, X, Loader2, CreditCard as Edit, Save, Truck, Trash2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../utils/supabase';
@@ -1804,7 +1805,7 @@ const VendorTransactions: React.FC = () => {
               {/* Amount */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount (KES) *
+                  Amount ({getAccountCurrency()}) *
                 </label>
                 <input
                   type="number"

@@ -1,3 +1,4 @@
+import { formatCurrency } from '../utils/format';
 import React, { useState, useEffect } from 'react';
 import { Users, Search, Phone, MapPin, ShoppingCart, DollarSign, ChevronDown, ChevronUp, Calendar, ArrowLeft } from 'lucide-react';
 import { supabase } from '../utils/supabase';
@@ -146,9 +147,6 @@ const ClientManagement: React.FC = () => {
       setSalesLoading(false);
     }
   };
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 0 }).format(amount);
 
   if (loading) return <LoadingScreen />;
 

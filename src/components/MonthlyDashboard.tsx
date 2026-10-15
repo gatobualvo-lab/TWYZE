@@ -1,3 +1,4 @@
+import { formatCurrency as formatAccountCurrency } from '../utils/format';
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Calendar, DollarSign, BarChart3, PieChart, Target, Download } from 'lucide-react';
 import { supabase } from '../utils/supabase';
@@ -128,11 +129,7 @@ const MonthlyDashboard: React.FC = () => {
 
   const formatCurrency = (amount: unknown) => {
     const n = typeof amount === 'number' ? amount : Number(amount);
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 0
-    }).format(Number.isFinite(n) ? n : 0);
+    return formatAccountCurrency(Number.isFinite(n) ? n : 0);
   };
 
   const formatMonth = (monthString: string) => {

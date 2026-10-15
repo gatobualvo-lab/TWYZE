@@ -1,3 +1,4 @@
+import { getAccountCurrency } from '../../utils/accountCurrency';
 import { supabase } from "../../utils/supabase";
 import { checkRateLimit, RATE_LIMIT_MESSAGE } from "../../utils/security";
 import { enqueueWrite, isNetworkError } from "../../services/offline/offlineQueue";
@@ -63,7 +64,7 @@ export async function addAdExpense(input: {
       kind: 'ad_expense',
       table: 'ad_expenses',
       payload: record,
-      label: `${input.adPlatform} — KES ${amount}`,
+      label: `${input.adPlatform} — ${getAccountCurrency()} ${amount}`,
     });
     return { data: null, offline: true };
   }

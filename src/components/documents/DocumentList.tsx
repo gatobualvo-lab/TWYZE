@@ -1,3 +1,4 @@
+import { formatCurrency } from '../../utils/format';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../utils/supabase';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -35,7 +36,7 @@ interface DocumentListProps {
   onEdit: (id: string) => void;
 }
 
-const formatCurrency = (amount: number) => 'KES ' + amount.toLocaleString();
+
 
 const getStatusColor = (status: string) => {
   const statusLower = status.toLowerCase();

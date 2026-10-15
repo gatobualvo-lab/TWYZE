@@ -7,6 +7,7 @@ import { checkRateLimit, RATE_LIMIT_MESSAGE, checkLeakedPassword, LEAKED_PASSWOR
 import { sendWelcomeEmail } from '../services/email/emailService';
 import { trackEvent } from '../lib/analytics';
 import { BUSINESS_CATEGORIES, REFERRAL_SOURCES } from '../constants/businessCategory';
+import { ACCOUNT_CURRENCIES, DEFAULT_CURRENCY } from '../utils/accountCurrency';
 
 type Mode = 'login' | 'signup';
 
@@ -17,6 +18,7 @@ interface FormData {
   confirmPassword: string;
   businessCategory: string;
   referralSource: string;
+  currency: string;
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -32,6 +34,7 @@ const EnhancedAuthScreen: React.FC = () => {
     confirmPassword: '',
     businessCategory: '',
     referralSource: '',
+    currency: DEFAULT_CURRENCY,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -94,6 +97,7 @@ const EnhancedAuthScreen: React.FC = () => {
           data: {
             full_name: formData.name.trim(),
             business_category: formData.businessCategory,
+            currency: formData.currency,
             referral_source: formData.referralSource,
           },
         },
@@ -113,7 +117,7 @@ const EnhancedAuthScreen: React.FC = () => {
         const msg = 'Account created successfully. Please check your email to confirm your account.';
         setSuccess(msg);
         toast.success('Account created. Check your email to confirm.');
-        setFormData({ name: '', email: '', password: '', confirmPassword: '', businessCategory: '', referralSource: '' });
+        setFormData({ name: '', email: '', password: '', confirmPassword: '', businessCategory: '', referralSource: '', currency: DEFAULT_CURRENCY });
         setMode('login');
         return;
       }
@@ -350,6 +354,25 @@ const EnhancedAuthScreen: React.FC = () => {
                   <option key={c.value} value={c.value}>{c.label}</option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {!isLogin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Which currency do you work in?
+              </label>
+              <select
+                value={formData.currency}
+                onChange={e => handleInputChange('currency', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                disabled={isSubmitting}
+              >
+                {ACCOUNT_CURRENCIES.map(c => (
+                  <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">Prices, sales and reports will all use this. You can change it later in Account Settings.</p>
             </div>
           )}
 

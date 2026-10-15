@@ -1,3 +1,4 @@
+import { getAccountCurrency } from '../../utils/accountCurrency';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { loadImageForPdf } from './pdfImages';
 import { pdfText } from './pdfText';
@@ -60,7 +61,7 @@ export interface DocumentPdfInput {
   document: DocumentPdfDocument;
   items: DocumentPdfItem[];
   business: DocumentPdfBusiness | null;
-  /** Defaults to KES formatting. */
+  /** Defaults to account-currency formatting. */
   formatMoney?: (amount: number) => string;
 }
 
@@ -80,6 +81,7 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Blob> {
   const autoTable = (await import('jspdf-autotable')).default;
 
   const { document: d, items, business } = input;
+  const baseCurrency = getAccountCurrency();
   const money = (n: unknown) => pdfText((input.formatMoney ?? formatCurrency)(num(n)));
   const logo = await loadImageForPdf(business?.logo_url);
 
@@ -231,13 +233,13 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Blob> {
   }
   y += 4;
 
-  const shownCurrency = (d.currency || 'KES').toUpperCase();
-  if (shownCurrency !== 'KES') {
+  const shownCurrency = (d.currency || baseCurrency).toUpperCase();
+  if (shownCurrency !== baseCurrency) {
     ensureSpace(8);
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(8.5);
     doc.setTextColor(110);
-    doc.text(pdfText(`Amounts shown in ${shownCurrency} at 1 ${shownCurrency} = ${num(d.exchange_rate)} KES.`), pageW - M, y - 1, { align: 'right' });
+    doc.text(pdfText(`Amounts shown in ${shownCurrency} at 1 ${shownCurrency} = ${num(d.exchange_rate)} ${baseCurrency}.`), pageW - M, y - 1, { align: 'right' });
     doc.setTextColor(0);
     y += 5;
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { formatInCurrency, fetchKesPerUnit, isValidCurrencyCode } from './currency';
+import { formatInCurrency, fetchBasePerUnit, isValidCurrencyCode } from './currency';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -42,23 +42,23 @@ describe('isValidCurrencyCode', () => {
   });
 });
 
-describe('fetchKesPerUnit', () => {
+describe('fetchBasePerUnit', () => {
   it('inverts the API rate (units per KES) into KES per unit', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rates: { USD: 0.0077 } }) }));
-    expect(await fetchKesPerUnit('USD')).toBeCloseTo(129.8701, 3);
+    expect(await fetchBasePerUnit('USD')).toBeCloseTo(129.8701, 3);
   });
 
   it('returns null when the request fails, the currency is missing, or the rate is invalid', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
-    expect(await fetchKesPerUnit('USD')).toBeNull();
+    expect(await fetchBasePerUnit('USD')).toBeNull();
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rates: {} }) }));
-    expect(await fetchKesPerUnit('USD')).toBeNull();
+    expect(await fetchBasePerUnit('USD')).toBeNull();
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rates: { USD: 0 } }) }));
-    expect(await fetchKesPerUnit('USD')).toBeNull();
+    expect(await fetchBasePerUnit('USD')).toBeNull();
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
-    expect(await fetchKesPerUnit('USD')).toBeNull();
+    expect(await fetchBasePerUnit('USD')).toBeNull();
   });
 });

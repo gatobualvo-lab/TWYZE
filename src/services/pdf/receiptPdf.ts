@@ -19,7 +19,7 @@ export interface ReceiptPdfInput {
     email?: string | null;
     logo_url?: string | null;
   } | null;
-  /** Defaults to KES formatting. */
+  /** Defaults to account-currency formatting. */
   formatMoney?: (amount: number) => string;
 }
 

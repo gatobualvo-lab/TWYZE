@@ -1,3 +1,4 @@
+import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, CreditCard as Edit, Trash2, Check, X, ChevronDown, Package, Search, Image as ImageIcon, Briefcase } from 'lucide-react';
 import { supabase } from '../utils/supabase';
@@ -641,7 +642,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Buying Price (per unit)</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">KES</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{getAccountCurrency()}</span>
                   <input
                     type="number"
                     min="0"
@@ -660,7 +661,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                   Selling Price (per unit) <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">KES</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{getAccountCurrency()}</span>
                   <input
                     type="number"
                     min="0"

@@ -1,3 +1,4 @@
+import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, TrendingUp, DollarSign, Users, Receipt, ChevronDown, Check, Trash2, ArrowRight, Settings, ShoppingCart, Truck } from 'lucide-react';
 import { supabase } from '../utils/supabase';
@@ -555,7 +556,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                       grid: { color: isDark ? 'rgba(148,163,184,0.08)' : 'rgba(0,0,0,0.04)' },
                       ticks: {
                         color: isDark ? '#64748b' : '#9ca3af',
-                        callback: (v) => 'KES ' + Number(v).toLocaleString(),
+                        callback: (v) => getAccountCurrency() + ' ' + Number(v).toLocaleString(),
                         font: { size: 11 },
                       },
                       border: { display: false },
@@ -578,7 +579,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                       bodyColor: isDark ? '#cbd5e1' : '#374151',
                       borderColor: isDark ? '#334155' : '#e5e7eb',
                       borderWidth: 1,
-                      callbacks: { label: (ctx) => `${ctx.dataset.label}: KES ${ctx.parsed.y.toLocaleString()}` },
+                      callbacks: { label: (ctx) => `${ctx.dataset.label}: ${getAccountCurrency()} ${ctx.parsed.y.toLocaleString()}` },
                     },
                   },
                 }}

@@ -42,7 +42,7 @@ export function calculateHealthScore(current: BusinessMetrics, previous: Busines
       weight: 0.3,
       explanation:
         marginPct >= 0
-          ? `Your net margin is ${marginPct.toFixed(1)}% — you're keeping ${marginPct.toFixed(0)} cents of profit per KES 1 in revenue.`
+          ? `Your net margin is ${marginPct.toFixed(1)}% — you're keeping ${marginPct.toFixed(0)} of every 100 in revenue as profit.`
           : `You're operating at a ${Math.abs(marginPct).toFixed(1)}% loss this period — costs exceeded revenue.`,
     });
   }

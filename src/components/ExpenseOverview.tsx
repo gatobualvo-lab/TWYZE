@@ -1,3 +1,4 @@
+import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect } from 'react';
 import { DollarSign, TrendingUp, Calendar, PieChart, BarChart3, ChevronDown, ChevronRight, Users, Plus, CreditCard as Edit, Trash2, Save, X, Check, RefreshCw, CheckCircle2, AlertTriangle, Archive } from 'lucide-react';
 import { supabase } from '../utils/supabase';
@@ -1929,7 +1930,7 @@ const ExpenseOverview: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Amount (KES)</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Amount ({getAccountCurrency()})</label>
                   <input
                     type="number"
                     min={0}

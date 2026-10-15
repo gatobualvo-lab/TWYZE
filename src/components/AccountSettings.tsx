@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import LoadingScreen from './LoadingScreen';
 import { getSubscriptionPlanLabel, getSubscriptionStatusLabel, getBillingCycleLabel } from '../utils/subscription';
 import { BUSINESS_CATEGORIES } from '../constants/businessCategory';
+import { ACCOUNT_CURRENCIES, setAccountCurrency } from '../utils/accountCurrency';
 
 interface UserProfile {
   id: string;
@@ -13,6 +14,7 @@ interface UserProfile {
   email?: string;
   phone_number?: string;
   business_category?: string | null;
+  currency?: string;
   subscription_status?: string;
   trial_end_date?: string;
   current_billing_cycle?: string;
@@ -29,6 +31,7 @@ const AccountSettings: React.FC = () => {
     fullName: '',
     phoneNumber: '',
     businessCategory: '',
+    currency: 'KES',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -69,6 +72,7 @@ const AccountSettings: React.FC = () => {
         fullName: profileData.full_name || '',
         phoneNumber: profileData.phone_number || '',
         businessCategory: profileData.business_category || '',
+        currency: profileData.currency || 'KES',
       });
       
     } catch (error: any) {
@@ -125,6 +129,7 @@ const AccountSettings: React.FC = () => {
           full_name: formData.fullName,
           phone_number: formData.phoneNumber,
           business_category: formData.businessCategory || null,
+          currency: formData.currency,
           updated_at: new Date().toISOString()
         })
         .eq('id', user?.id);
@@ -133,6 +138,7 @@ const AccountSettings: React.FC = () => {
         throw error;
       }
       
+      setAccountCurrency(formData.currency);
       toast.success('Profile updated successfully');
       
       // Refresh profile data
@@ -257,6 +263,23 @@ const AccountSettings: React.FC = () => {
               </select>
             </div>
             <p className="mt-1 text-xs text-gray-500">Tailors wording and menu order across the app to your kind of business</p>
+          </div>
+
+          {/* Currency */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Currency
+            </label>
+            <select
+              value={formData.currency}
+              onChange={(e) => handleInputChange('currency', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            >
+              {ACCOUNT_CURRENCIES.map(c => (
+                <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">Used for every price and report. Changing it relabels your existing amounts; it does not convert them.</p>
           </div>
 
           {/* Email (Read-only) */}

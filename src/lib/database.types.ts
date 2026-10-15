@@ -1063,6 +1063,7 @@ export type Database = {
       profiles: {
         Row: {
           business_category: string | null
+          currency: string
           created_at: string | null
           current_billing_cycle: string | null
           email: string | null
@@ -1081,6 +1082,7 @@ export type Database = {
         }
         Insert: {
           business_category?: string | null
+          currency?: string
           created_at?: string | null
           current_billing_cycle?: string | null
           email?: string | null
@@ -1099,6 +1101,7 @@ export type Database = {
         }
         Update: {
           business_category?: string | null
+          currency?: string
           created_at?: string | null
           current_billing_cycle?: string | null
           email?: string | null

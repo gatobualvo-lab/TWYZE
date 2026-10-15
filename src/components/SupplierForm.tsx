@@ -1,3 +1,5 @@
+import { formatCurrency } from '../utils/format';
+import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect } from 'react';
 import { Plus, Calculator, User, DollarSign, Truck, Calendar, Save, Package, ArrowRight, Info, Wallet, Receipt } from 'lucide-react';
 import { supabase } from '../utils/supabase';
@@ -158,8 +160,7 @@ const SupplierForm: React.FC = () => {
     }
   };
 
-  const formatKES = (n: unknown) =>
-    new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 0 }).format(toNum(n));
+  const formatKES = (n: unknown) => formatCurrency(toNum(n));
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -226,7 +227,7 @@ const SupplierForm: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <DollarSign className="w-4 h-4 inline mr-1" />
-                Cost Price (KES) *
+                Cost Price ({getAccountCurrency()}) *
               </label>
               <input
                 type="number"
@@ -244,7 +245,7 @@ const SupplierForm: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <DollarSign className="w-4 h-4 inline mr-1" />
-                Selling Price to Client (KES) *
+                Selling Price to Client ({getAccountCurrency()}) *
               </label>
               <input
                 type="number"
@@ -347,7 +348,7 @@ const SupplierForm: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Amount Paid (KES)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Amount Paid ({getAccountCurrency()})</label>
                 <input
                   type="number"
                   min="0"
@@ -361,7 +362,7 @@ const SupplierForm: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Balance Due (KES)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Balance Due ({getAccountCurrency()})</label>
                 <div
                   className={`w-full px-3 py-2 border rounded-lg font-semibold ${
                     balanceDue > 0

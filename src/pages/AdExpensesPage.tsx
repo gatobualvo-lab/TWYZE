@@ -1,3 +1,5 @@
+import { formatCurrency } from '../utils/format';
+import { getAccountCurrency } from '../utils/accountCurrency';
 import { useEffect, useMemo, useState } from "react";
 import { addAdExpense, listRecentAdExpenses, type AdExpense } from "../features/ad-expenses/api";
 import { listProjects, type Project } from "../services/projects/projectService";
@@ -19,7 +21,7 @@ export default function AdExpensesPage() {
   const [rows, setRows] = useState<AdExpense[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const totalKES = useMemo(() => rows.reduce((s, r) => s + Number(r.amount_kes || 0), 0), [rows]);
-  const fmt = new Intl.NumberFormat(undefined, { style: "currency", currency: "KES", maximumFractionDigits: 2 });
+  const fmt = { format: (n: number) => formatCurrency(n) };
 
   const load = async () => {
     try { setRows(await listRecentAdExpenses(20)); }
@@ -73,7 +75,7 @@ export default function AdExpensesPage() {
         </label>
 
         <label className="grid gap-1">
-          <span className="text-sm">Amount (KES) *</span>
+          <span className="text-sm">Amount ({getAccountCurrency()}) *</span>
           <input
             className="border rounded px-3 py-2"
             inputMode="decimal"

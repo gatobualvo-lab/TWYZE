@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.trackwyze.twa",
+        "sha256_cert_fingerprints": ["34:3B:0E:66:3E:F7:20:25:FF:41:E1:49:7F:1D:A4:FD:72:51:4D:B9:96:03:28:D9:D0:60:93:B3:DA:67:60:01"]
+      }
+    }]

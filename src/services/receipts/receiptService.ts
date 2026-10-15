@@ -6,6 +6,8 @@ import { buildReceiptPdf } from '../pdf/receiptPdf';
 import { downloadBlob, pdfFilename, sharePdf } from '../pdf/pdfShare';
 import { printHtml } from '../printing/printHtml';
 import { getPrintPrefs, receiptPaperCss } from '../printing/printPrefs';
+import { buildReceiptEscPos } from '../printing/escpos';
+import { BluetoothPrintError, writeToBluetoothPrinter } from '../printing/bluetoothPrinter';
 
 // Deliberately NOT a popup — the sale-receipt modal was removed on request
 // because it forced itself in front of every single sale. This is the
@@ -101,6 +103,30 @@ function receiptHTML(receipt: ReceiptData, business: { business_name: string | n
 
 export async function printReceipt(receipt: ReceiptData): Promise<void> {
   const business = await fetchBusinessInfo().catch(() => null);
+  const prefs = getPrintPrefs();
+
+  if (prefs.bluetooth) {
+    try {
+      await writeToBluetoothPrinter(
+        buildReceiptEscPos({
+          businessName: business?.business_name || 'Receipt',
+          phone: business?.phone,
+          date: formatDate(receipt.date),
+          customerName: receipt.customerName,
+          items: receipt.items.map(i => ({ name: i.productName, quantity: i.quantity, unitPrice: i.sellingPrice })),
+          total: receipt.total,
+          columns: prefs.receiptPaper === 'thermal80' ? 48 : 32,
+          formatMoney: formatCurrency,
+        })
+      );
+      toast.success('Sent to the Bluetooth printer');
+      return;
+    } catch (e) {
+      // Fall back to the normal print window so the receipt is never lost.
+      toast.error(e instanceof BluetoothPrintError ? e.message : 'Bluetooth printing failed');
+    }
+  }
+
   await printHtml(receiptHTML(receipt, business));
 }
 
