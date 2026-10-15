@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../utils/supabase';
 import { useTheme } from '../../contexts/ThemeContext';
 import toast from 'react-hot-toast';
+import { uploadPublicImage, ImageUploadError } from '../../services/storage/publicImageUpload';
+import PrintingSettings from './PrintingSettings';
 import {
   Building2,
   Phone,
@@ -164,33 +166,22 @@ export default function BusinessSettings() {
     e.target.value = ''; // allow re-selecting the same file later
     if (!file || !userId) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please choose an image file');
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Logo must be under 2MB');
-      return;
-    }
-
     setUploadingLogo(true);
     try {
-      const ext = file.name.split('.').pop() || 'png';
-      const path = `${userId}/logo.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from('business-assets')
-        .upload(path, file, { upsert: true, cacheControl: '3600' });
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from('business-assets').getPublicUrl(path);
-      // Cache-bust: the path doesn't change on re-upload, so append a
-      // timestamp or the <img> below would keep showing the old cached logo.
-      const bustedUrl = `${data.publicUrl}?t=${Date.now()}`;
-      setSettings((prev) => ({ ...prev, logo_url: bustedUrl }));
+      const url = await uploadPublicImage({
+        bucket: 'business-assets',
+        userId,
+        prefix: 'logo',
+        file,
+        maxDim: 800,
+        maxBytes: 5 * 1024 * 1024,
+        previousUrl: settings.logo_url,
+      });
+      setSettings((prev) => ({ ...prev, logo_url: url }));
       toast.success('Logo uploaded — click Save Settings to keep it');
     } catch (error) {
       console.error('Error uploading logo:', error);
-      toast.error('Failed to upload logo');
+      toast.error(error instanceof ImageUploadError ? error.message : 'Failed to upload logo');
     } finally {
       setUploadingLogo(false);
     }
@@ -441,10 +432,15 @@ export default function BusinessSettings() {
                 </button>
               )}
               <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                PNG or JPG, under 2MB. Square or wide logos work best.
+                PNG, JPG or WebP, under 5MB. Square or wide logos work best.
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Printing (per device) */}
+        <div className={`${sectionClasses} mb-6`}>
+          <PrintingSettings isDark={isDark} />
         </div>
 
         {/* Tax Information Section */}

@@ -2,6 +2,10 @@ import { supabase } from '../../utils/supabase';
 import { escapeHtml } from '../../components/documents/DocumentPreview';
 import { formatCurrency, formatDate } from '../../utils/format';
 import toast from 'react-hot-toast';
+import { buildReceiptPdf } from '../pdf/receiptPdf';
+import { downloadBlob, pdfFilename, sharePdf } from '../pdf/pdfShare';
+import { printHtml } from '../printing/printHtml';
+import { getPrintPrefs, receiptPaperCss } from '../printing/printPrefs';
 
 // Deliberately NOT a popup — the sale-receipt modal was removed on request
 // because it forced itself in front of every single sale. This is the
@@ -18,6 +22,7 @@ export interface ReceiptData {
   items: ReceiptItem[];
   total: number;
   customerName?: string;
+  customerPhone?: string;
   date: string;
 }
 
@@ -26,7 +31,7 @@ async function fetchBusinessInfo() {
   if (!user) return null;
   const { data } = await supabase
     .from('business_settings')
-    .select('business_name, phone, email')
+    .select('business_name, phone, email, logo_url')
     .eq('user_id', user.id)
     .maybeSingle();
   return data;
@@ -45,6 +50,10 @@ function receiptHTML(receipt: ReceiptData, business: { business_name: string | n
     )
     .join('');
 
+  // Thermal printers use narrow rolls: size the page and content to the
+  // paper chosen in Document Settings (per device).
+  const paper = receiptPaperCss(getPrintPrefs().receiptPaper);
+
   return `
     <!DOCTYPE html>
     <html>
@@ -52,9 +61,10 @@ function receiptHTML(receipt: ReceiptData, business: { business_name: string | n
       <meta charset="UTF-8">
       <title>Receipt</title>
       <style>
+        ${paper.page}
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; color: #333; }
-        .container { max-width: 380px; margin: 0 auto; padding: 24px; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; color: #333; font-size: ${paper.baseFont}; }
+        .container { max-width: ${paper.containerWidth}; margin: 0 auto; padding: ${paper.page ? '6px' : '24px'}; }
         .header { text-align: center; margin-bottom: 16px; border-bottom: 2px dashed #ccc; padding-bottom: 12px; }
         .header h1 { font-size: 16px; margin-bottom: 4px; }
         .header p { font-size: 11px; color: #666; margin: 1px 0; }
@@ -90,31 +100,56 @@ function receiptHTML(receipt: ReceiptData, business: { business_name: string | n
 }
 
 export async function printReceipt(receipt: ReceiptData): Promise<void> {
-  const printWindow = window.open('', '_blank', 'noopener,noreferrer');
-  if (!printWindow) {
-    toast.error('Could not open print window. Check your popup blocker.');
-    return;
-  }
-  const business = await fetchBusinessInfo();
-  printWindow.document.write(receiptHTML(receipt, business));
-  printWindow.document.close();
-  setTimeout(() => printWindow.print(), 250);
+  const business = await fetchBusinessInfo().catch(() => null);
+  await printHtml(receiptHTML(receipt, business));
 }
 
-export async function shareReceiptWhatsApp(receipt: ReceiptData): Promise<void> {
-  const business = await fetchBusinessInfo();
-  const lines = receipt.items.map(item => `${item.productName} x${item.quantity} = ${formatCurrency(item.sellingPrice * item.quantity)}`).join('\n');
-  const message = `
-*${business?.business_name || 'Receipt'}*
-${formatDate(receipt.date)}
-${receipt.customerName ? `Customer: ${receipt.customerName}\n` : ''}
-${lines}
+async function buildReceiptFile(receipt: ReceiptData) {
+  const business = await fetchBusinessInfo().catch(() => null);
+  const blob = await buildReceiptPdf({
+    items: receipt.items,
+    total: receipt.total,
+    customerName: receipt.customerName,
+    date: receipt.date,
+    business,
+  });
+  return {
+    blob,
+    filename: pdfFilename(`Receipt_${receipt.customerName || 'sale'}_${receipt.date}`),
+    business,
+  };
+}
 
-*TOTAL: ${formatCurrency(receipt.total)}*
+/** Sends the receipt as a PDF document (WhatsApp via the share sheet on phones). */
+export async function shareReceiptPdf(receipt: ReceiptData): Promise<void> {
+  const loading = toast.loading('Preparing receipt...');
+  try {
+    const { blob, filename, business } = await buildReceiptFile(receipt);
+    toast.dismiss(loading);
+    await sharePdf({
+      blob,
+      filename,
+      title: `Receipt from ${business?.business_name || 'your supplier'}`,
+      text: `Receipt from ${business?.business_name || 'us'} - ${formatCurrency(receipt.total)}. Thank you for your business!`,
+      phone: receipt.customerPhone,
+    });
+  } catch (error) {
+    toast.dismiss(loading);
+    console.error('Receipt PDF failed:', error);
+    toast.error('Could not create the receipt PDF');
+  }
+}
 
-Thank you for your business!
-  `.trim();
-
-  window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
-  toast.success('Opening WhatsApp — pick who to send the receipt to');
+export async function downloadReceiptPdf(receipt: ReceiptData): Promise<void> {
+  const loading = toast.loading('Preparing receipt...');
+  try {
+    const { blob, filename } = await buildReceiptFile(receipt);
+    toast.dismiss(loading);
+    downloadBlob(blob, filename);
+    toast.success('Receipt PDF downloaded');
+  } catch (error) {
+    toast.dismiss(loading);
+    console.error('Receipt PDF failed:', error);
+    toast.error('Could not create the receipt PDF');
+  }
 }

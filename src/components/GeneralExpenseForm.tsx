@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, DollarSign, Calendar, Save, Receipt } from 'lucide-react';
+import { Plus, DollarSign, Calendar, Save, Receipt, ScanLine } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import { toNum, parseInput, NumericInput } from '../utils/numberInput';
 import { listProjects, type Project } from '../services/projects/projectService';
 import { enqueueWrite, isNetworkError } from '../services/offline/offlineQueue';
+import { scanReceiptImage, ReceiptScanError } from '../services/receipts/scanReceipt';
 
 interface GeneralExpenseFormData {
   expense_type: string;
@@ -42,6 +43,7 @@ const GeneralExpenseForm: React.FC = () => {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const [userExpenseTypes, setUserExpenseTypes] = useState<string[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
 
@@ -86,6 +88,37 @@ const GeneralExpenseForm: React.FC = () => {
       }
     } catch (error) {
       console.error('Error adding expense type:', error);
+    }
+  };
+
+  const handleScanReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setIsScanning(true);
+    try {
+      const result = await scanReceiptImage(file);
+      if (!result.isReceipt) {
+        toast.error("Couldn't read a receipt in that photo. Try again closer, flat, and in good light.");
+        return;
+      }
+      const details = [result.vendor, result.items.length ? result.items.join(', ') : ''].filter(Boolean).join(' — ');
+      setFormData(prev => ({
+        ...prev,
+        expense_type: result.expenseType || prev.expense_type,
+        amount: result.total,
+        date: result.date || prev.date,
+        notes: details || prev.notes,
+      }));
+      if (result.currency && result.currency !== 'KES') {
+        toast(`The receipt is in ${result.currency}. The amount was not converted, so please check it.`, { icon: '⚠️', duration: 6000 });
+      } else {
+        toast.success('Receipt read. Please check the details, then save.');
+      }
+    } catch (error) {
+      toast.error(error instanceof ReceiptScanError ? error.message : 'Could not read the receipt');
+    } finally {
+      setIsScanning(false);
     }
   };
 
@@ -185,6 +218,18 @@ const GeneralExpenseForm: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Scan receipt */}
+          <label className={`flex items-center justify-between gap-3 p-4 rounded-lg border-2 border-dashed border-orange-300 bg-orange-50 cursor-pointer hover:bg-orange-100 transition ${isScanning ? 'opacity-70 pointer-events-none' : ''}`}>
+            <span className="flex items-center gap-3">
+              <ScanLine className="w-6 h-6 text-orange-600" />
+              <span>
+                <span className="block text-sm font-semibold text-gray-800">{isScanning ? 'Reading receipt...' : 'Scan a receipt'}</span>
+                <span className="block text-xs text-gray-600">Take a photo and the form fills itself in. You check it before saving.</span>
+              </span>
+            </span>
+            <input type="file" accept="image/*" className="hidden" onChange={handleScanReceipt} disabled={isScanning} />
+          </label>
+
           {/* Expense Type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -31,7 +31,9 @@ export async function fetchInventoryWithMeta(): Promise<InventoryRow[]> {
   const { data, error } = await supabase
     .from('inventory_items')
     .select('product_name, current_stock, reorder_level, created_at')
-    .eq('is_deleted', false);
+    .eq('is_deleted', false)
+    // Services have no stock, so they must never show up as running out.
+    .neq('item_type', 'service');
   if (error) throw new Error(error.message);
   return data ?? [];
 }

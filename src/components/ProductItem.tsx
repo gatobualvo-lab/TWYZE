@@ -138,13 +138,17 @@ const ProductItem: React.FC<ProductItemProps> = ({
             onChange={(value) => handleInputChange('product', value)}
             onProductSelect={(selected) => {
               const colors = selected.colors ?? [];
+              // Picking a catalog service switches this line to a service
+              // (no vendor / stock), like pressing the Service button.
+              const pickedService = selected.item_type === 'service';
               onChange({
                 ...product,
                 product: selected.name,
-                buyingPrice: selected.buying_price || product.buyingPrice,
+                buyingPrice: pickedService ? 0 : selected.buying_price || product.buyingPrice,
                 sellingPrice: selected.price || product.sellingPrice,
                 availableColors: colors,
                 color: colors.includes(product.color ?? '') ? product.color : '',
+                ...(pickedService ? { itemType: 'service' as const, vendor: '', vendorPaymentStatus: 'Unpaid' as const } : {}),
               });
             }}
             required

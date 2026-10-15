@@ -11,7 +11,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['icons/apple-touch-icon.png'],
       manifest: {
         id: '/trackwyze',
         name: 'Trackwyze - Track Smart. Profit Wise.',
@@ -31,24 +31,9 @@ export default defineConfig({
         },
         scope_extensions: ['https://trackwyze.com/'],
         icons: [
-          {
-            src: '/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: '/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: '/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'maskable'
-          }
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ],
         shortcuts: [
           {
@@ -57,10 +42,7 @@ export default defineConfig({
             description: 'Quickly add a new sale',
             url: '/?tab=add-sale',
             icons: [
-              {
-                src: '/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png',
-                sizes: '96x96'
-              }
+              { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }
             ]
           },
           {
@@ -69,27 +51,17 @@ export default defineConfig({
             description: 'View business dashboard',
             url: '/?tab=dashboard',
             icons: [
-              {
-                src: '/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png',
-                sizes: '96x96'
-              }
+              { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }
             ]
           }
         ],
         screenshots: [
           {
-            src: '/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png',
-            sizes: '1280x720',
+            src: '/screenshots/dashboard-hero.png',
+            sizes: '1752x879',
             type: 'image/png',
             form_factor: 'wide',
-            label: 'Trackwyze Dashboard'
-          },
-          {
-            src: '/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png',
-            sizes: '750x1334',
-            type: 'image/png',
-            form_factor: 'narrow',
-            label: 'Trackwyze Mobile View'
+            label: 'Trackwyze dashboard'
           }
         ],
         prefer_related_applications: false,
@@ -97,6 +69,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // Parts of the PDF library that Trackwyze never uses (HTML-to-canvas and
+        // an HTML sanitiser) — no point making every install download them.
+        globIgnores: ['**/html2canvas*.js', '**/purify*.js'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/functions\//, /^\/auth\//],
         cleanupOutdatedCaches: true,

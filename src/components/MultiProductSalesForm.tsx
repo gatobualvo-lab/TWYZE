@@ -6,7 +6,7 @@ import EnhancedDropdown from './EnhancedDropdown';
 import ProductItem from './ProductItem';
 import { checkRateLimit, RATE_LIMIT_MESSAGE } from '../utils/security';
 import { trackEvent } from '../lib/analytics';
-import { printReceipt, shareReceiptWhatsApp, type ReceiptData } from '../services/receipts/receiptService';
+import { printReceipt, shareReceiptPdf, downloadReceiptPdf, type ReceiptData } from '../services/receipts/receiptService';
 import { enqueueSale, isNetworkError } from '../services/offline/offlineSalesQueue';
 import { toNum, displayNumber } from '../utils/number';
 import { calculateSaleTotals } from '../utils/saleMath';
@@ -381,25 +381,32 @@ const MultiProductSalesForm: React.FC = () => {
           items: validProducts.map(p => ({ productName: p.product, quantity: p.quantity, sellingPrice: p.sellingPrice })),
           total: totalSellingPrice,
           customerName: formData.clientName || undefined,
+          customerPhone: formData.customerPhone || undefined,
           date: formData.date,
         };
         toast.custom((t) => (
-          <div className={`bg-white rounded-lg shadow-lg border border-gray-200 px-4 py-3 flex items-center gap-3 ${t.visible ? 'animate-fade-in' : 'opacity-0'}`}>
+          <div className={`bg-white rounded-lg shadow-lg border border-gray-200 px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1 ${t.visible ? 'animate-fade-in' : 'opacity-0'}`}>
             <span className="text-sm text-gray-800 font-medium">Sale recorded successfully!</span>
             <button
               onClick={() => { printReceipt(receiptData); toast.dismiss(t.id); }}
               className="text-xs font-medium text-blue-600 hover:text-blue-800"
             >
-              Print receipt
+              Print
             </button>
             <button
-              onClick={() => { shareReceiptWhatsApp(receiptData); toast.dismiss(t.id); }}
+              onClick={() => { shareReceiptPdf(receiptData); toast.dismiss(t.id); }}
               className="text-xs font-medium text-green-600 hover:text-green-800"
             >
-              Share on WhatsApp
+              Send PDF (WhatsApp)
+            </button>
+            <button
+              onClick={() => { downloadReceiptPdf(receiptData); toast.dismiss(t.id); }}
+              className="text-xs font-medium text-gray-600 hover:text-gray-800"
+            >
+              Download PDF
             </button>
           </div>
-        ), { duration: 6000 });
+        ), { duration: 8000 });
       }
 
       // Reset form

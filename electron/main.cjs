@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu } = require('electron');
+const { app, BrowserWindow, shell, Menu, ipcMain } = require('electron');
 const path = require('path');
 
 const isDev = !app.isPackaged;
@@ -73,6 +73,47 @@ async function createWindow() {
     await loadURL(win);
   }
 }
+
+// --- Direct printing -------------------------------------------------------
+// Only the app's own pages may use these (not any page that happens to load
+// in a window). The HTML is printed from a hidden window with JavaScript
+// disabled, so even unexpected markup can't run code.
+function assertTrustedSender(event) {
+  const url = (event.senderFrame && event.senderFrame.url) || '';
+  const ok = isDev ? url.startsWith(new URL(DEV_URL).origin) : url.startsWith('app://');
+  if (!ok) throw new Error('Untrusted sender');
+}
+
+ipcMain.handle('trackwyze:list-printers', async (event) => {
+  assertTrustedSender(event);
+  const printers = await event.sender.getPrintersAsync();
+  return printers.map((p) => ({ name: p.name, displayName: p.displayName || p.name, isDefault: !!p.isDefault }));
+});
+
+ipcMain.handle('trackwyze:print-html', async (event, html, options) => {
+  assertTrustedSender(event);
+  if (typeof html !== 'string' || html.length === 0 || html.length > 5000000) {
+    return { success: false, reason: 'invalid document' };
+  }
+  const silent = !!(options && options.silent);
+  const deviceName = options && typeof options.deviceName === 'string' ? options.deviceName : '';
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: { javascript: false, sandbox: true, contextIsolation: true, nodeIntegration: false },
+  });
+  try {
+    await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    return await new Promise((resolve) => {
+      win.webContents.print({ silent, printBackground: true, deviceName }, (success, reason) => {
+        resolve({ success, reason: success ? undefined : reason });
+      });
+    });
+  } catch (err) {
+    return { success: false, reason: err && err.message ? err.message : 'print failed' };
+  } finally {
+    if (!win.isDestroyed()) win.destroy();
+  }
+});
 
 app.whenReady().then(() => {
   if (process.platform === 'win32') {

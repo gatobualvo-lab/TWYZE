@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
       supabase.rpc('get_profit_by_product', { p_start: currentRange.start, p_end: currentRange.end, p_limit: 50 }),
       supabase.from('sales').select('client_name, selling_price, date').eq('payment_status', 'Unpaid').eq('is_deleted', false).eq('is_archived', false),
       supabase.from('documents').select('document_number, customer_name, total, date, status').eq('document_type', 'quotation'),
-      supabase.from('inventory_items').select('product_name, current_stock, reorder_level, created_at').eq('is_deleted', false),
+      supabase.from('inventory_items').select('product_name, current_stock, reorder_level, created_at').eq('is_deleted', false).neq('item_type', 'service'),
     ]);
 
     const currentMetrics = toBusinessMetrics(currentMetricsRows?.[0]);

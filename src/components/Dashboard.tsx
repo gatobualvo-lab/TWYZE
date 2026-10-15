@@ -237,6 +237,27 @@ function readStoredTab(): string {
   }
 }
 
+// Lets links like /?tab=add-sale (the installed app's home-screen shortcuts)
+// open a specific page. Only ids that are real nav destinations are accepted.
+const KNOWN_TAB_IDS = new Set<string>(['account', 'payment-management']);
+for (const entry of NAV_ITEMS) {
+  if (entry.kind === 'leaf') KNOWN_TAB_IDS.add(entry.id);
+  else for (const item of entry.items) KNOWN_TAB_IDS.add(item.id);
+}
+
+function tabFromUrl(): string | null {
+  try {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return tab && KNOWN_TAB_IDS.has(tab) ? tab : null;
+  } catch {
+    return null;
+  }
+}
+
+function getLandingTab(explicitTab?: string): string {
+  return explicitTab || tabFromUrl() || readStoredTab();
+}
+
 // Once a tab has been visited this session it stays mounted (just hidden)
 // instead of being torn down — switching tabs used to fully unmount the
 // previous page via `{activeTab === id && <X/>}`, so an in-progress form,
@@ -308,8 +329,8 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   // A route that names an explicit tab (e.g. /account) always wins; otherwise
   // restore whichever tab was last active so reopening the app (or reloading
   // the page) doesn't dump the user back on Dashboard.
-  const [activeTab, setActiveTab] = useState<string>(() => initialActiveTab || readStoredTab());
-  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([initialActiveTab || readStoredTab()]));
+  const [activeTab, setActiveTab] = useState<string>(() => getLandingTab(initialActiveTab));
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([getLandingTab(initialActiveTab)]));
   useEffect(() => {
     setVisitedTabs(prev => (prev.has(activeTab) ? prev : new Set(prev).add(activeTab)));
     try { sessionStorage.setItem(LAST_TAB_STORAGE_KEY, activeTab); } catch { /* ignore */ }
@@ -319,7 +340,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   // Groups start collapsed — except whichever one contains the page we're
   // actually landing on, so a deep link never opens onto a hidden nav item.
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(() => {
-    const landingTab = initialActiveTab || readStoredTab();
+    const landingTab = getLandingTab(initialActiveTab);
     const state: Record<string, boolean> = {};
     for (const entry of NAV_ITEMS) {
       if (entry.kind !== 'group') continue;

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, CreditCard as Edit, Trash2, AlertTriangle, TrendingDown, Search, Filter, Receipt, X, Palette } from 'lucide-react';
+import { Package, Plus, CreditCard as Edit, Trash2, AlertTriangle, TrendingDown, Search, Filter, Receipt, X, Palette, Image as ImageIcon, Briefcase } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
 import { toNum, parseInput, NumericInput } from '../utils/numberInput';
 import { formatCurrency } from '../utils/format';
 import { enqueueWrite, isNetworkError } from '../services/offline/offlineQueue';
+import { uploadPublicImage, ImageUploadError } from '../services/storage/publicImageUpload';
 
 interface InventoryItem {
   id: string;
@@ -19,6 +20,8 @@ interface InventoryItem {
   unit: string | null;
   description: string | null;
   colors: string[] | null;
+  item_type?: 'goods' | 'service' | null;
+  image_url?: string | null;
   created_at: string;
 }
 
@@ -67,6 +70,8 @@ const InventoryManagement: React.FC = () => {
     unit: string;
     description: string;
     colors: string[];
+    item_type: 'goods' | 'service';
+    image_url: string;
   }>({
     product_name: '',
     sku: '',
@@ -77,9 +82,12 @@ const InventoryManagement: React.FC = () => {
     selling_price: '',
     unit: '',
     description: '',
-    colors: []
+    colors: [],
+    item_type: 'goods',
+    image_url: ''
   });
 
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [colorInput, setColorInput] = useState('');
 
   useEffect(() => {
@@ -90,7 +98,13 @@ const InventoryManagement: React.FC = () => {
     filterItems();
   }, [items, searchTerm, filterCategory, showLowStock]);
 
-  const syncProductCatalog = async (userId: string, name: string, buyingPrice: number, sellingPrice: number) => {
+  const syncProductCatalog = async (
+    userId: string,
+    name: string,
+    buyingPrice: number,
+    sellingPrice: number,
+    extras: { item_type?: 'goods' | 'service'; image_url?: string | null } = {}
+  ) => {
     const trimmed = name.trim();
     if (!trimmed) return;
 
@@ -108,6 +122,7 @@ const InventoryManagement: React.FC = () => {
           .update({
             buying_price: buyingPrice,
             price: sellingPrice,
+            ...extras,
             updated_at: new Date().toISOString(),
           })
           .eq('id', existing.id);
@@ -120,6 +135,7 @@ const InventoryManagement: React.FC = () => {
             name: trimmed,
             price: sellingPrice,
             buying_price: buyingPrice,
+            ...extras,
           });
       }
     } catch (err) {
@@ -177,10 +193,36 @@ const InventoryManagement: React.FC = () => {
 
     // Low stock filter
     if (showLowStock) {
-      filtered = filtered.filter(item => item.current_stock <= item.reorder_level);
+      filtered = filtered.filter(item => item.item_type !== 'service' && item.current_stock <= item.reorder_level);
     }
 
     setFilteredItems(filtered);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingImage(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id;
+      if (!uid) throw new Error('You must be logged in');
+      const url = await uploadPublicImage({
+        bucket: 'product-images',
+        userId: uid,
+        prefix: 'product',
+        file,
+        maxDim: 900,
+        previousUrl: formData.image_url,
+      });
+      setFormData(prev => ({ ...prev, image_url: url }));
+    } catch (error) {
+      console.error('Error uploading product image:', error);
+      toast.error(error instanceof ImageUploadError ? error.message : 'Could not upload the photo');
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -211,10 +253,20 @@ const InventoryManagement: React.FC = () => {
         return;
       }
 
+      const isService = formData.item_type === 'service';
+      // item_type / image_url are only sent when they carry information, so
+      // a plain goods item saves exactly as it always did.
+      const { item_type: _itemType, image_url: _imageUrl, ...baseFields } = formData;
+      const typeFields: { item_type?: 'goods' | 'service'; image_url?: string | null } = {};
+      if (isService || editingItem?.item_type === 'service') typeFields.item_type = formData.item_type;
+      if (formData.image_url) typeFields.image_url = formData.image_url;
+      else if (editingItem?.image_url) typeFields.image_url = null;
+
       const itemData = {
-        ...formData,
-        current_stock: toNum(formData.current_stock),
-        reorder_level: toNum(formData.reorder_level),
+        ...baseFields,
+        ...typeFields,
+        current_stock: isService ? 0 : toNum(formData.current_stock),
+        reorder_level: isService ? 0 : toNum(formData.reorder_level),
         cost_price: toNum(formData.cost_price),
         selling_price: toNum(formData.selling_price),
         colors: formData.colors,
@@ -241,7 +293,7 @@ const InventoryManagement: React.FC = () => {
       }
 
       // Sync with user_products so the sales form auto-fills buying/selling prices
-      await syncProductCatalog(userId, formData.product_name, toNum(formData.cost_price), toNum(formData.selling_price));
+      await syncProductCatalog(userId, formData.product_name, toNum(formData.cost_price), toNum(formData.selling_price), typeFields);
 
       toast.success(`Item ${editingItem ? 'updated' : 'added'} successfully!`);
       resetForm();
@@ -282,7 +334,9 @@ const InventoryManagement: React.FC = () => {
       selling_price: '',
       unit: '',
       description: '',
-      colors: []
+      colors: [],
+      item_type: 'goods',
+      image_url: ''
     });
     setColorInput('');
     setEditingItem(null);
@@ -316,7 +370,9 @@ const InventoryManagement: React.FC = () => {
       selling_price: item.selling_price,
       unit: item.unit || '',
       description: item.description || '',
-      colors: item.colors ?? []
+      colors: item.colors ?? [],
+      item_type: item.item_type === 'service' ? 'service' : 'goods',
+      image_url: item.image_url || ''
     });
     setColorInput('');
     setEditingItem(item);
@@ -365,8 +421,8 @@ const InventoryManagement: React.FC = () => {
   };
 
   const categories = [...new Set(items.map(item => item.category).filter(Boolean))];
-  const lowStockItems = items.filter(item => item.current_stock <= item.reorder_level);
-  const totalValue = items.reduce((sum, item) => sum + (item.current_stock * item.cost_price), 0);
+  const lowStockItems = items.filter(item => item.item_type !== 'service' && item.current_stock <= item.reorder_level);
+  const totalValue = items.reduce((sum, item) => sum + (item.item_type === 'service' ? 0 : item.current_stock * item.cost_price), 0);
 
   if (loading) {
     return <LoadingScreen />;
@@ -468,6 +524,43 @@ const InventoryManagement: React.FC = () => {
               {editingItem ? 'Edit Item' : 'Add New Item'}
             </h3>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">What are you adding?</label>
+                <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+                  {(['goods', 'service'] as const).map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, item_type: type }))}
+                      className={`px-4 py-2 text-sm font-medium transition ${formData.item_type === type ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                    >
+                      {type === 'goods' ? 'Product (tracked stock)' : 'Service (no stock)'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Photo (optional)</label>
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 rounded-lg border border-dashed border-gray-300 bg-white flex items-center justify-center overflow-hidden">
+                    {formData.image_url
+                      ? <img src={formData.image_url} alt="" className="w-full h-full object-cover" />
+                      : <ImageIcon className="w-7 h-7 text-gray-300" />}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
+                      {uploadingImage ? 'Uploading...' : formData.image_url ? 'Replace photo' : 'Add photo'}
+                      <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleImageUpload} disabled={uploadingImage} />
+                    </label>
+                    {formData.image_url && (
+                      <button type="button" onClick={() => setFormData(prev => ({ ...prev, image_url: '' }))} className="block text-xs text-red-600 hover:text-red-700">
+                        Remove photo
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Product Name <span className="text-red-500">*</span>
@@ -515,6 +608,8 @@ const InventoryManagement: React.FC = () => {
                 />
               </div>
 
+              {formData.item_type !== 'service' && (
+              <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Current Stock</label>
                 <input
@@ -539,6 +634,8 @@ const InventoryManagement: React.FC = () => {
                 />
                 <p className="text-xs text-gray-500 mt-1">Alert when stock falls to this level</p>
               </div>
+              </>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -683,8 +780,19 @@ const InventoryManagement: React.FC = () => {
                 filteredItems.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-start gap-3">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt="" className="w-10 h-10 rounded-md object-cover border border-gray-200 flex-shrink-0" loading="lazy" />
+                      ) : null}
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{item.product_name}</div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {item.product_name}
+                          {item.item_type === 'service' && (
+                            <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-xs font-medium text-sky-700">
+                              <Briefcase className="w-3 h-3" /> Service
+                            </span>
+                          )}
+                        </div>
                         {item.sku && <div className="text-sm text-gray-500">SKU: {item.sku}</div>}
                         {item.category && <div className="text-sm text-gray-500">{item.category}</div>}
                         {item.colors && item.colors.length > 0 && (
@@ -700,24 +808,33 @@ const InventoryManagement: React.FC = () => {
                           </div>
                         )}
                       </div>
+                      </div>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
+                      {item.item_type === 'service' ? (
+                        <div className="text-sm text-gray-400">Not tracked</div>
+                      ) : (<>
                       <div className="text-sm text-gray-900">
                         {item.current_stock} {item.unit}
                       </div>
                       <div className="text-sm text-gray-500">
                         Reorder: {item.reorder_level}
                       </div>
+                      </>)}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div>Cost: {formatCurrency(item.cost_price)}</div>
                       <div>Sell: {formatCurrency(item.selling_price)}</div>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-extrabold text-gray-900 text-right">
-                      {formatCurrency(item.current_stock * item.cost_price)}
+                      {item.item_type === 'service' ? '—' : formatCurrency(item.current_stock * item.cost_price)}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
-                      {item.current_stock <= item.reorder_level ? (
+                      {item.item_type === 'service' ? (
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-sky-100 text-sky-800">
+                          Service
+                        </span>
+                      ) : item.current_stock <= item.reorder_level ? (
                         <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
                           Low Stock
                         </span>

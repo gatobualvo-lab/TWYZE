@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, Printer, MessageCircle, X, Package, DollarSign, User, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { printHtml } from '../../services/printing/printHtml';
 import { supabase } from '../../utils/supabase';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatDate } from '../../utils/format';
@@ -392,22 +393,7 @@ const VendorStatement: React.FC<VendorStatementProps> = ({
   };
 
   const handlePrint = () => {
-    // No noopener/noreferrer here — window.open() returns null whenever
-    // those are set (per spec, regardless of whether a popup blocker is
-    // even involved), which broke this every time. Safe to omit: we're
-    // writing our own trusted HTML into a blank window, not an external URL.
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Could not open print window. Check your popup blocker.');
-      return;
-    }
-
-    printWindow.document.write(generateStatementHTML());
-    printWindow.document.close();
-
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
+    printHtml(generateStatementHTML());
   };
 
   // Capped at a handful of the most recent lines — a vendor with a long

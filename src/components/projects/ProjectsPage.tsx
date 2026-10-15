@@ -1,14 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { Briefcase, Plus, X, Trash2, Check, CheckCircle2, Archive } from 'lucide-react';
+import { Briefcase, Plus, X, Trash2, Check, CheckCircle2, Archive, FolderOpen, ChevronUp, FileText, Receipt } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { fetchProjectSummaries, type ProjectSummary } from '../../services/projects/projectRollupService';
 import { createProject, updateProjectStatus, deleteProject } from '../../services/projects/projectService';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, formatDate } from '../../utils/format';
+import { fetchProjectContents, type ProjectContents } from '../../services/projects/projectContentsService';
 import { toNum } from '../../utils/number';
 import { PageHeader, EmptyState, SkeletonList } from '../ui';
 
 const ProjectRow: React.FC<{ project: ProjectSummary; onChanged: () => void }> = ({ project, onChanged }) => {
   const [pendingDelete, setPendingDelete] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [contents, setContents] = useState<ProjectContents | null>(null);
+  const [loadingContents, setLoadingContents] = useState(false);
+
+  const toggleFolder = async () => {
+    const next = !open;
+    setOpen(next);
+    if (next) {
+      // Always refetch on open: invoices/expenses are added from other pages.
+      setLoadingContents(true);
+      try {
+        setContents(await fetchProjectContents(project.id));
+      } catch {
+        toast.error('Could not load this project');
+      } finally {
+        setLoadingContents(false);
+      }
+    }
+  };
 
   const handleDelete = async () => {
     try {
@@ -84,6 +104,66 @@ const ProjectRow: React.FC<{ project: ProjectSummary; onChanged: () => void }> =
           </p>
         </div>
       </div>
+
+      <button
+        onClick={toggleFolder}
+        className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800"
+      >
+        {open ? <ChevronUp className="w-4 h-4" /> : <FolderOpen className="w-4 h-4" />}
+        {open ? 'Close folder' : 'Open folder'}
+      </button>
+
+      {open && (
+        <div className="mt-3 pt-3 border-t border-gray-100 space-y-4">
+          {loadingContents && <p className="text-sm text-gray-400">Loading...</p>}
+          {contents && (
+            <>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Documents ({contents.documents.length})</p>
+                {contents.documents.length === 0 ? (
+                  <p className="text-sm text-gray-400">No invoices or quotations yet. Pick this project when you create one.</p>
+                ) : (
+                  <ul className="divide-y divide-gray-100">
+                    {contents.documents.map(d => (
+                      <li key={d.id} className="py-2 flex items-center justify-between gap-3 text-sm">
+                        <span className="flex items-center gap-2 min-w-0">
+                          <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                          <span className="truncate"><span className="font-medium">{d.number}</span> <span className="text-gray-400 capitalize">{d.type}{d.customer ? ` · ${d.customer}` : ''}</span></span>
+                        </span>
+                        <span className="text-right flex-shrink-0">
+                          <span className="block font-medium tabular-nums">{formatCurrency(d.total)}</span>
+                          <span className="block text-xs text-gray-400">{formatDate(d.date)}{d.status ? ` · ${d.status}` : ''}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Expenses ({contents.expenses.length})</p>
+                {contents.expenses.length === 0 ? (
+                  <p className="text-sm text-gray-400">No expenses yet. Pick this project when you record one.</p>
+                ) : (
+                  <ul className="divide-y divide-gray-100">
+                    {contents.expenses.map(e => (
+                      <li key={`${e.kind}-${e.id}`} className="py-2 flex items-center justify-between gap-3 text-sm">
+                        <span className="flex items-center gap-2 min-w-0">
+                          <Receipt className="w-4 h-4 text-red-400 flex-shrink-0" />
+                          <span className="truncate">{e.label} <span className="text-gray-400">· {e.kind}</span></span>
+                        </span>
+                        <span className="text-right flex-shrink-0">
+                          <span className="block font-medium tabular-nums text-red-600">{formatCurrency(e.amount)}</span>
+                          <span className="block text-xs text-gray-400">{formatDate(e.date)}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };

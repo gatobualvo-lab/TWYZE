@@ -228,7 +228,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
         .from('inventory_items')
         .select('current_stock, reorder_level')
         .eq('user_id', user.id)
-        .eq('is_deleted', false);
+        .eq('is_deleted', false)
+        .neq('item_type', 'service');
       const lowCount = (stockData || []).filter(item => safeNum(item.current_stock) <= safeNum(item.reorder_level)).length;
       setLowStockItems(lowCount);
 

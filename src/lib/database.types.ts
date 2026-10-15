@@ -541,6 +541,7 @@ export type Database = {
           amount_paid: number | null
           balance_due: number | null
           created_at: string | null
+          currency: string
           customer_address: string | null
           customer_email: string | null
           customer_id: string | null
@@ -553,6 +554,7 @@ export type Database = {
           document_type: string
           due_date: string | null
           entered_by: string | null
+          exchange_rate: number
           expiry_date: string | null
           id: string
           notes: string | null
@@ -573,6 +575,7 @@ export type Database = {
           amount_paid?: number | null
           balance_due?: number | null
           created_at?: string | null
+          currency?: string
           customer_address?: string | null
           customer_email?: string | null
           customer_id?: string | null
@@ -585,6 +588,7 @@ export type Database = {
           document_type: string
           due_date?: string | null
           entered_by?: string | null
+          exchange_rate?: number
           expiry_date?: string | null
           id?: string
           notes?: string | null
@@ -605,6 +609,7 @@ export type Database = {
           amount_paid?: number | null
           balance_due?: number | null
           created_at?: string | null
+          currency?: string
           customer_address?: string | null
           customer_email?: string | null
           customer_id?: string | null
@@ -617,6 +622,7 @@ export type Database = {
           document_type?: string
           due_date?: string | null
           entered_by?: string | null
+          exchange_rate?: number
           expiry_date?: string | null
           id?: string
           notes?: string | null
@@ -816,7 +822,9 @@ export type Database = {
           description: string | null
           entered_by: string | null
           id: string
+          image_url: string | null
           is_deleted: boolean | null
+          item_type: string
           name: string | null
           notes: string | null
           product_name: string | null
@@ -838,7 +846,9 @@ export type Database = {
           description?: string | null
           entered_by?: string | null
           id?: string
+          image_url?: string | null
           is_deleted?: boolean | null
+          item_type?: string
           name?: string | null
           notes?: string | null
           product_name?: string | null
@@ -860,7 +870,9 @@ export type Database = {
           description?: string | null
           entered_by?: string | null
           id?: string
+          image_url?: string | null
           is_deleted?: boolean | null
+          item_type?: string
           name?: string | null
           notes?: string | null
           product_name?: string | null
@@ -1612,6 +1624,8 @@ export type Database = {
           colors: string[] | null
           created_at: string | null
           id: string
+          image_url: string | null
+          item_type: string
           name: string
           price: number
           updated_at: string | null
@@ -1622,6 +1636,8 @@ export type Database = {
           colors?: string[] | null
           created_at?: string | null
           id?: string
+          image_url?: string | null
+          item_type?: string
           name: string
           price?: number
           updated_at?: string | null
@@ -1632,6 +1648,8 @@ export type Database = {
           colors?: string[] | null
           created_at?: string | null
           id?: string
+          image_url?: string | null
+          item_type?: string
           name?: string
           price?: number
           updated_at?: string | null

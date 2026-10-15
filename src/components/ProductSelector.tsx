@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, CreditCard as Edit, Trash2, Check, X, ChevronDown, Package, Search } from 'lucide-react';
+import { Plus, CreditCard as Edit, Trash2, Check, X, ChevronDown, Package, Search, Image as ImageIcon, Briefcase } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
+import { uploadPublicImage, ImageUploadError } from '../services/storage/publicImageUpload';
 import { toNum, parseInput, NumericInput } from '../utils/numberInput';
 
 interface NewProductDetails {
@@ -13,6 +14,8 @@ interface NewProductDetails {
   cost_price: NumericInput;
   selling_price: NumericInput;
   description: string;
+  item_type: 'goods' | 'service';
+  image_url: string;
 }
 
 const BLANK_DETAILS: NewProductDetails = {
@@ -24,6 +27,8 @@ const BLANK_DETAILS: NewProductDetails = {
   cost_price: '',
   selling_price: '',
   description: '',
+  item_type: 'goods',
+  image_url: '',
 };
 
 // Escape LIKE wildcards so a product literally named "50%_off" doesn't match others.
@@ -32,7 +37,7 @@ const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&');
 interface ProductSelectorProps {
   value: string;
   onChange: (value: string) => void;
-  onProductSelect?: (product: { name: string; price: number; buying_price: number; colors: string[] }) => void;
+  onProductSelect?: (product: { name: string; price: number; buying_price: number; colors: string[]; item_type?: 'goods' | 'service'; image_url?: string | null }) => void;
   required?: boolean;
   error?: string;
 }
@@ -43,6 +48,8 @@ interface Product {
   price?: number;
   buying_price?: number;
   colors?: string[] | null;
+  item_type?: string | null;
+  image_url?: string | null;
 }
 
 const ProductSelector: React.FC<ProductSelectorProps> = ({
@@ -60,6 +67,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
   const [newColorInput, setNewColorInput] = useState('');
   const [newDetails, setNewDetails] = useState<NewProductDetails>(BLANK_DETAILS);
   const [isSavingNew, setIsSavingNew] = useState(false);
+  const [uploadingNewImage, setUploadingNewImage] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editColors, setEditColors] = useState<string[]>([]);
@@ -109,6 +117,8 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
         price: Number(match.price) || 0,
         buying_price: Number(match.buying_price) || 0,
         colors: match.colors ?? [],
+        item_type: match.item_type === 'service' ? 'service' : 'goods',
+        image_url: match.image_url ?? null,
       });
     }
   }, [products, value]);
@@ -121,7 +131,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
 
       const { data, error } = await supabase
         .from('user_products')
-        .select('id, name, price, buying_price, colors')
+        .select('*')
         .eq('user_id', user.id)
         .order('name');
 
@@ -163,6 +173,32 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
       console.error('Error fetching products:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleNewImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingNewImage(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id;
+      if (!uid) throw new Error('You must be logged in');
+      const url = await uploadPublicImage({
+        bucket: 'product-images',
+        userId: uid,
+        prefix: 'product',
+        file,
+        maxDim: 900,
+        previousUrl: newDetails.image_url,
+      });
+      setNewDetails(prev => ({ ...prev, image_url: url }));
+    } catch (error) {
+      console.error('Error uploading product image:', error);
+      toast.error(error instanceof ImageUploadError ? error.message : 'Could not upload the photo');
+    } finally {
+      setUploadingNewImage(false);
     }
   };
 
@@ -211,6 +247,11 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
       }
 
       const costPrice = toNum(newDetails.cost_price);
+      const isService = newDetails.item_type === 'service';
+      // Only sent when they carry information, so plain goods save as before.
+      const typeFields: { item_type?: 'service'; image_url?: string } = {};
+      if (isService) typeFields.item_type = 'service';
+      if (newDetails.image_url) typeFields.image_url = newDetails.image_url;
 
       const { error: inventoryError } = await supabase.from('inventory_items').insert({
         id: crypto.randomUUID(),
@@ -219,8 +260,9 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
         sku: newDetails.sku.trim(),
         category: newDetails.category.trim(),
         unit: newDetails.unit.trim(),
-        current_stock: toNum(newDetails.current_stock),
-        reorder_level: toNum(newDetails.reorder_level),
+        current_stock: isService ? 0 : toNum(newDetails.current_stock),
+        reorder_level: isService ? 0 : toNum(newDetails.reorder_level),
+        ...typeFields,
         cost_price: costPrice,
         selling_price: sellingPrice,
         description: newDetails.description.trim(),
@@ -239,6 +281,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
         price: sellingPrice,
         buying_price: costPrice,
         colors: newProductColors,
+        ...typeFields,
       };
 
       const catalogQuery = existingCatalog && existingCatalog.length > 0
@@ -261,6 +304,8 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
           price: sellingPrice,
           buying_price: costPrice,
           colors: newProductColors,
+          item_type: isService ? 'service' : 'goods',
+          image_url: newDetails.image_url || null,
         });
       }
       resetNewProductForm();
@@ -428,12 +473,24 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                             price: Number(product.price) || 0,
                             buying_price: Number(product.buying_price) || 0,
                             colors: product.colors ?? [],
+                            item_type: product.item_type === 'service' ? 'service' : 'goods',
+                            image_url: product.image_url ?? null,
                           });
                         }
                         setIsDropdownOpen(false);
                       }}
                     >
-                      {product.name}
+                      <div className="flex items-center gap-2">
+                        {product.image_url ? (
+                          <img src={product.image_url} alt="" className="w-7 h-7 rounded object-cover border border-gray-200" loading="lazy" />
+                        ) : null}
+                        <span>{product.name}</span>
+                        {product.item_type === 'service' && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-[10px] font-medium text-sky-700">
+                            <Briefcase className="w-3 h-3" /> Service
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))
                 )}
@@ -473,6 +530,38 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
             <h3 className="text-lg font-bold mb-1">Add New Product</h3>
             <p className="text-sm text-gray-500 mb-4">Saved to your inventory, so stock and prices are tracked from the start.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+                  {(['goods', 'service'] as const).map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setNewDetails(prev => ({ ...prev, item_type: type }))}
+                      className={`px-4 py-2 text-sm font-medium transition ${newDetails.item_type === type ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                    >
+                      {type === 'goods' ? 'Product (tracked stock)' : 'Service (no stock)'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="sm:col-span-2 flex items-center gap-4">
+                <div className="w-16 h-16 rounded-lg border border-dashed border-gray-300 bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {newDetails.image_url
+                    ? <img src={newDetails.image_url} alt="" className="w-full h-full object-cover" />
+                    : <ImageIcon className="w-6 h-6 text-gray-300" />}
+                </div>
+                <div className="space-y-1">
+                  <label className="inline-flex items-center px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
+                    {uploadingNewImage ? 'Uploading...' : newDetails.image_url ? 'Replace photo' : 'Add photo (optional)'}
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleNewImageUpload} disabled={uploadingNewImage} />
+                  </label>
+                  {newDetails.image_url && (
+                    <button type="button" onClick={() => setNewDetails(prev => ({ ...prev, image_url: '' }))} className="block text-xs text-red-600 hover:text-red-700">Remove photo</button>
+                  )}
+                </div>
+              </div>
+
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Product Name <span className="text-red-500">*</span>
@@ -520,6 +609,8 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                 />
               </div>
 
+              {newDetails.item_type !== 'service' && (
+              <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Current Stock</label>
                 <input
@@ -544,6 +635,8 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                 />
                 <p className="text-xs text-gray-500 mt-1">Alert when stock falls to this level</p>
               </div>
+              </>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Buying Price (per unit)</label>

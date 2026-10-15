@@ -6,6 +6,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, Send, Save } from 'lucide-react';
 import { listProjects, type Project } from '../../services/projects/projectService';
+import { COMMON_CURRENCIES, fetchKesPerUnit, formatInCurrency, isValidCurrencyCode } from '../../utils/currency';
 
 interface DocumentItem {
   product_name: string;
@@ -43,6 +44,8 @@ interface DocumentData {
   related_document_id?: string;
   related_sale_id?: string;
   project_id?: string | null;
+  currency?: string | null;
+  exchange_rate?: number | null;
 }
 
 interface DocumentFormProps {
@@ -91,6 +94,9 @@ export default function DocumentForm({
   const [terms, setTerms] = useState(existingDocument?.terms || '');
   const [projectId, setProjectId] = useState(existingDocument?.project_id || '');
   const [projects, setProjects] = useState<Project[]>([]);
+  const [currency, setCurrency] = useState((existingDocument?.currency || 'KES').toUpperCase());
+  const [exchangeRate, setExchangeRate] = useState<string>(String(existingDocument?.exchange_rate || 1));
+  const [fetchingRate, setFetchingRate] = useState(false);
 
   useEffect(() => {
     listProjects().then(setProjects).catch(() => setProjects([]));
@@ -136,6 +142,8 @@ export default function DocumentForm({
           setNotes(doc.notes || '');
           setTerms(doc.terms || '');
           setProjectId(doc.project_id || '');
+          setCurrency(String((doc as { currency?: string }).currency || 'KES').toUpperCase());
+          setExchangeRate(String((doc as { exchange_rate?: number }).exchange_rate || 1));
         }
         const { data: docItems } = await supabase
           .from('document_items')
@@ -232,6 +240,14 @@ export default function DocumentForm({
     }
   };
 
+  const useTodaysRate = async () => {
+    setFetchingRate(true);
+    const rate = await fetchKesPerUnit(currency);
+    setFetchingRate(false);
+    if (rate) setExchangeRate(String(rate));
+    else toast.error("Couldn't fetch today's rate. Please type it in.");
+  };
+
   const handleSave = async (status: 'draft' | 'sent') => {
     if (!customerName.trim()) {
       toast.error('Customer name is required');
@@ -267,6 +283,15 @@ export default function DocumentForm({
         }
       }
 
+      if (currency !== 'KES') {
+        const rate = Number(exchangeRate);
+        if (!isValidCurrencyCode(currency) || !Number.isFinite(rate) || rate <= 0) {
+          toast.error('Enter a valid currency code and exchange rate');
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const documentData: any = {
         user_id: user.id,
         document_type: documentType,
@@ -289,6 +314,13 @@ export default function DocumentForm({
         terms,
         project_id: projectId || null,
       };
+
+      // Currency is only written when it differs from the KES default, so
+      // ordinary documents save exactly as before.
+      if (currency !== 'KES' || (existingDocument?.currency && existingDocument.currency !== 'KES')) {
+        documentData.currency = currency;
+        documentData.exchange_rate = currency === 'KES' ? 1 : Number(exchangeRate);
+      }
 
       if (documentType === 'invoice' || documentType === 'quotation') {
         documentData.due_date = dueDate;
@@ -643,6 +675,62 @@ export default function DocumentForm({
                 Additional Information
               </h2>
               <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium ${labelClass} mb-2`}>
+                    Customer's currency
+                  </label>
+                  <select
+                    value={COMMON_CURRENCIES.some(c => c.code === currency) ? currency : 'OTHER'}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === 'OTHER') { setCurrency(''); return; }
+                      setCurrency(v);
+                      if (v === 'KES') setExchangeRate('1');
+                    }}
+                    className={`w-full px-4 py-2 border rounded-lg ${inputClass} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  >
+                    {COMMON_CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code} - {c.name}</option>)}
+                    <option value="OTHER">Other currency...</option>
+                  </select>
+                  {!COMMON_CURRENCIES.some(c => c.code === currency) && (
+                    <input
+                      type="text"
+                      maxLength={3}
+                      value={currency}
+                      onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+                      placeholder="3-letter code, e.g. CAD"
+                      className={`mt-2 w-full px-4 py-2 border rounded-lg ${inputClass} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                    />
+                  )}
+                  {currency !== 'KES' && (
+                    <div className="mt-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm ${labelClass}`}>1 {currency || '...'} =</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.0001"
+                          value={exchangeRate}
+                          onChange={(e) => setExchangeRate(e.target.value)}
+                          className={`w-32 px-3 py-2 border rounded-lg ${inputClass} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                        />
+                        <span className={`text-sm ${labelClass}`}>KES</span>
+                        <button
+                          type="button"
+                          onClick={useTodaysRate}
+                          disabled={fetchingRate || !isValidCurrencyCode(currency)}
+                          className="px-3 py-2 text-sm rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                        >
+                          {fetchingRate ? 'Fetching...' : "Use today's rate"}
+                        </button>
+                      </div>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Prices stay in KES in your records. The customer sees this document in {currency || 'their currency'} at this rate (total {formatInCurrency(totals.total, currency, exchangeRate)}).
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className={`block text-sm font-medium ${labelClass} mb-2`}>
                     Document Date

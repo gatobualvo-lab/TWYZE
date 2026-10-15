@@ -3,6 +3,10 @@ import { supabase } from '../../utils/supabase';
 import { useTheme } from '../../contexts/ThemeContext';
 import toast from 'react-hot-toast';
 import { Printer, Share2, Download, X, CreditCard as Edit2, CheckCircle, Clock, FileText } from 'lucide-react';
+import { buildDocumentPdf } from '../../services/pdf/documentPdf';
+import { downloadBlob, pdfFilename, sharePdf } from '../../services/pdf/pdfShare';
+import { formatInCurrency } from '../../utils/currency';
+import { printHtml } from '../../services/printing/printHtml';
 
 interface DocumentItem {
   id: string;
@@ -41,6 +45,8 @@ interface Document {
   terms?: string;
   template: string;
   related_document_id?: string;
+  currency?: string | null;
+  exchange_rate?: number | null;
 }
 
 interface BusinessSettings {
@@ -75,8 +81,6 @@ const safeNum = (v: any) => {
   return isNaN(n) ? 0 : n;
 };
 
-const formatCurrency = (amount: number) => 'KES ' + amount.toLocaleString();
-
 // generatePrintHTML() below builds a full HTML document from user-entered
 // business/customer/document fields and injects it via document.write() in a
 // new window. Every dynamic string must go through this before interpolation,
@@ -101,6 +105,9 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   const [document, setDocument] = useState<Document | null>(null);
   const [items, setItems] = useState<DocumentItem[]>([]);
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null);
+  // Shadows the module-level KES formatter: amounts are stored in KES but
+  // shown in the customer's currency when the document has one.
+  const formatCurrency = (amount: number) => formatInCurrency(amount, document?.currency, document?.exchange_rate);
   const [loading, setLoading] = useState(true);
   const [marking, setMarking] = useState(false);
 
@@ -173,23 +180,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   const handlePrint = () => {
     if (!document || !businessSettings) return;
 
-    // No noopener/noreferrer — window.open() returns null whenever those are
-    // set (per spec), which made this fail every time regardless of any
-    // actual popup blocker. Safe to omit: we write our own trusted HTML into
-    // a blank window, not an external URL.
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Could not open print window');
-      return;
-    }
-
-    const htmlContent = generatePrintHTML();
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
+    printHtml(generatePrintHTML());
   };
 
   const generatePrintHTML = (): string => {
@@ -552,62 +543,50 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     `;
   };
 
-  const handleShareWhatsApp = () => {
-    if (!document || !businessSettings) return;
-
-    const itemsSummary = items
-      .map(
-        (item) =>
-          `${item.product_name} x${safeNum(item.quantity)} = ${formatCurrency(safeNum(item.total))}`
-      )
-      .join('\n');
-
-    const message = `
-*${document.document_number}*
-
-${businessSettings.business_name}
-
-*Items:*
-${itemsSummary}
-
-*Subtotal:* ${formatCurrency(safeNum(document.subtotal))}
-${safeNum(document.discount_amount) > 0 ? `*Discount:* -${formatCurrency(safeNum(document.discount_amount))}\n` : ''}
-${safeNum(document.delivery_charge) > 0 ? `*Delivery:* ${formatCurrency(safeNum(document.delivery_charge))}\n` : ''}
-${safeNum(document.tax_amount) > 0 ? `*Tax:* ${formatCurrency(safeNum(document.tax_amount))}\n` : ''}
-
-*TOTAL: ${formatCurrency(safeNum(document.total))}*
-
-${document.document_type === 'invoice' ? `*Amount Paid:* ${formatCurrency(safeNum(document.amount_paid))}\n*Balance Due:* ${formatCurrency(safeNum(document.balance_due))}` : ''}
-
-Phone: ${businessSettings.phone}
-    `.trim();
-
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
-    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
-    toast.success('Opening WhatsApp...');
+  // Builds a real PDF (not a print-to-PDF dialog or pasted text) so it can be
+  // sent as a document on WhatsApp or saved straight to the device.
+  const buildPdfFile = async () => {
+    if (!document || !businessSettings) return null;
+    const blob = await buildDocumentPdf({ document, items, business: businessSettings, formatMoney: formatCurrency });
+    return { blob, filename: pdfFilename(document.document_number) };
   };
 
-  const handleDownloadPDF = () => {
-    if (!document) return;
-
-    // Same fix as handlePrint above — noopener/noreferrer forces window.open()
-    // to return null, which always looked like a blocked popup.
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Could not open print window');
-      return;
+  const handleShareWhatsApp = async () => {
+    if (!document || !businessSettings) return;
+    const loading = toast.loading('Preparing PDF...');
+    try {
+      const file = await buildPdfFile();
+      toast.dismiss(loading);
+      if (!file) return;
+      const label = document.document_type.charAt(0).toUpperCase() + document.document_type.slice(1);
+      await sharePdf({
+        blob: file.blob,
+        filename: file.filename,
+        title: `${label} ${document.document_number}`,
+        text: `${label} ${document.document_number} from ${businessSettings.business_name} - ${formatCurrency(safeNum(document.total))}`,
+        phone: document.customer_phone,
+      });
+    } catch (error) {
+      toast.dismiss(loading);
+      console.error('Document PDF failed:', error);
+      toast.error('Could not create the PDF');
     }
+  };
 
-    const htmlContent = generatePrintHTML();
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
-
-    toast.success('Print dialog opened. Select "Save as PDF"');
+  const handleDownloadPDF = async () => {
+    if (!document || !businessSettings) return;
+    const loading = toast.loading('Preparing PDF...');
+    try {
+      const file = await buildPdfFile();
+      toast.dismiss(loading);
+      if (!file) return;
+      downloadBlob(file.blob, file.filename);
+      toast.success('PDF downloaded');
+    } catch (error) {
+      toast.dismiss(loading);
+      console.error('Document PDF failed:', error);
+      toast.error('Could not create the PDF');
+    }
   };
 
   const handleMarkAsPaid = async () => {
@@ -754,16 +733,16 @@ Phone: ${businessSettings.phone}
           <button
             onClick={handleShareWhatsApp}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition"
-            title="Share via WhatsApp"
+            title="Send as a PDF (WhatsApp, email and more)"
           >
             <Share2 className="w-4 h-4" />
-            <span className="hidden sm:inline">WhatsApp</span>
+            <span className="hidden sm:inline">Send PDF</span>
           </button>
 
           <button
             onClick={handleDownloadPDF}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition"
-            title="Download PDF"
+            title="Download PDF file"
           >
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">PDF</span>
