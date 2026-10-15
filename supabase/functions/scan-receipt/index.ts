@@ -4,7 +4,14 @@
 // to the database here. Reuses the same ANTHROPIC_API_KEY secret as
 // ai-business-assistant, so the key never reaches the browser.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+
+// Inlined (same values as _shared/cors.ts) so this file works on its own when
+// pasted into the Supabase dashboard editor, which has no shared folder.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
