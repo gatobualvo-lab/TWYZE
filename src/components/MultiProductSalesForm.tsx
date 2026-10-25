@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, User, DollarSign, Truck, MapPin, Calendar, CreditCard, Save, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, DollarSign, Truck, MapPin, Calendar, CreditCard, Save, ChevronDown, ChevronRight, ScanLine } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import EnhancedDropdown from './EnhancedDropdown';
@@ -13,6 +13,10 @@ import { calculateSaleTotals } from '../utils/saleMath';
 import { formatCurrency } from '../utils/format';
 import { useBusinessRole } from '../services/team/useBusinessRole';
 import { PageHeader, Card, Button } from './ui';
+import CustomerPicker from './customers/CustomerPicker';
+import CameraBarcodeScanner, { isCameraScanSupported } from './CameraBarcodeScanner';
+import { createCustomer } from '../services/customers/customerService';
+import { addScannedProduct, findProductByCode } from '../services/inventory/barcodeLookup';
 
 interface ProductData {
   id: string;
@@ -57,6 +61,7 @@ interface SaleFormData {
   date: string;
   clientName: string;
   customerPhone: string;
+  customerId: string | null;
   paymentMethod: 'Cash' | 'M-Pesa' | 'Bank' | 'Other';
   deliveryStatus: 'Pending' | 'Delivered';
   deliveryDate: string;
@@ -92,10 +97,15 @@ const MultiProductSalesForm: React.FC = () => {
     date: new Date().toISOString().split('T')[0],
     clientName: '',
     customerPhone: '',
+    customerId: null,
     paymentMethod: 'Bank',
     deliveryStatus: 'Delivered',
     deliveryDate: ''
   });
+
+  const [scanCode, setScanCode] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+  const [showCameraScan, setShowCameraScan] = useState(false);
 
   const [products, setProducts] = useState<ProductData[]>([blankProduct()]);
 
@@ -125,6 +135,29 @@ const MultiProductSalesForm: React.FC = () => {
     setTotalBuyingPrice(buyingPriceTotal);
     setTotalTaxes(taxesTotal);
     setTotalProfit(profit);
+  };
+
+  const handleScan = async (raw: string) => {
+    const code = raw.trim();
+    if (!code) return;
+    setIsScanning(true);
+    try {
+      const found = await findProductByCode(code);
+      if (!found) {
+        toast.error(`No product with barcode or SKU "${code}". Add it in Inventory first.`);
+        return;
+      }
+      setProducts(prev => addScannedProduct(prev, found, blankProduct));
+      if (found.inStock <= 0) toast(`${found.name} shows no stock left`, { icon: '⚠️' });
+      else toast.success(`Added ${found.name}`, { duration: 1500 });
+    } catch (error) {
+      toast.error(typeof navigator !== 'undefined' && navigator.onLine === false
+        ? "You're offline, so the barcode can't be looked up. Pick the product by name instead."
+        : 'Could not look up that barcode');
+    } finally {
+      setScanCode('');
+      setIsScanning(false);
+    }
   };
 
   const addProduct = () => {
@@ -265,6 +298,19 @@ const MultiProductSalesForm: React.FC = () => {
         return sum + (product.vendorPaymentStatus === 'Unpaid' ? product.buyingPrice * product.quantity : 0);
       }, 0);
       
+      // Link the sale to a customer record, creating one for a new name so the
+      // Customers page and Add Sale stay in step. Offline (or on any failure)
+      // the sale still saves by name, exactly as before.
+      let customerId = formData.customerId;
+      if (!customerId && formData.clientName.trim()) {
+        try {
+          const customer = await createCustomer({ name: formData.clientName, phone: formData.customerPhone });
+          customerId = customer.id;
+        } catch {
+          customerId = null;
+        }
+      }
+
       const saleData = {
         id: saleId,
         user_id: user.id,
@@ -286,6 +332,7 @@ const MultiProductSalesForm: React.FC = () => {
         profit: totalProfit,
         amount_owed_to_vendor: amountOwedToVendors,
         client_name: formData.clientName || null,
+        customer_id: customerId,
         customer_phone: formData.customerPhone || null,
         payment_method: formData.paymentMethod,
         delivery_status: formData.deliveryStatus,
@@ -419,6 +466,7 @@ const MultiProductSalesForm: React.FC = () => {
         date: new Date().toISOString().split('T')[0],
         clientName: '',
         customerPhone: '',
+        customerId: null,
         paymentMethod: 'Bank',
         deliveryStatus: 'Delivered',
         deliveryDate: ''
@@ -440,6 +488,38 @@ const MultiProductSalesForm: React.FC = () => {
       <PageHeader icon={Plus} title="Record New Sale" description="Add a sale with one or multiple products" />
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Barcode scan — a USB/Bluetooth scanner types the code and presses Enter,
+            so this one box works for both. Each scan adds the product (or +1 qty). */}
+        <Card>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            <ScanLine className="w-4 h-4 inline mr-1" />
+            Scan a barcode
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={scanCode}
+              onChange={(e) => setScanCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleScan(scanCode);
+                }
+              }}
+              disabled={isScanning}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Click here, then scan with your barcode reader (or type the code and press Enter)"
+              autoComplete="off"
+              inputMode="text"
+            />
+            {isCameraScanSupported() && (
+              <Button type="button" variant="secondary" onClick={() => setShowCameraScan(true)}>
+                Camera
+              </Button>
+            )}
+          </div>
+        </Card>
+
         {/* Products Section */}
         <Card>
           <div className="flex items-center justify-between mb-4">
@@ -493,20 +573,12 @@ const MultiProductSalesForm: React.FC = () => {
               )}
             </div>
 
-            {/* Customer Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <User className="w-4 h-4 inline mr-1" />
-                Customer Name
-              </label>
-              <input
-                type="text"
-                value={formData.clientName}
-                onChange={(e) => handleInputChange('clientName', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="e.g., Jane Doe"
-              />
-            </div>
+            {/* Customer — pick an existing one, or add them on the spot */}
+            <CustomerPicker
+              name={formData.clientName}
+              phone={formData.customerPhone}
+              onChange={(c) => setFormData(prev => ({ ...prev, clientName: c.name, customerPhone: c.phone || prev.customerPhone, customerId: c.customerId }))}
+            />
 
             {/* Customer Phone */}
             <div>
@@ -712,6 +784,16 @@ const MultiProductSalesForm: React.FC = () => {
           </Button>
         </div>
       </form>
+
+      {showCameraScan && (
+        <CameraBarcodeScanner
+          onDetected={(code) => {
+            setShowCameraScan(false);
+            handleScan(code);
+          }}
+          onClose={() => setShowCameraScan(false)}
+        />
+      )}
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import type { DailyMetric } from '../metrics/metricsService';
 import type { DueDocument } from './calendarService';
 import { formatCurrency } from '../../utils/format';
+import { formatDueTime } from '../tasks/reminders';
 
 // The calendar never stores its own events — everything here is derived,
 // on read, from records that already exist elsewhere (sales/expenses via
@@ -32,6 +33,9 @@ export interface TaskInput {
   id: string;
   title: string;
   dueDate: string | null;
+  dueTime?: string | null;
+  /** True when a reminder is set. */
+  hasReminder?: boolean;
   completed: boolean;
 }
 
@@ -102,7 +106,7 @@ export function buildCalendarEvents(inputs: CalendarEventInputs): Map<string, Ca
       date: task.dueDate,
       type: 'task',
       title: task.title,
-      subtitle: null,
+      subtitle: [task.dueTime ? formatDueTime(task.dueTime) : '', task.hasReminder ? 'Reminder set' : ''].filter(Boolean).join(' · ') || null,
       actionTab: 'dashboard',
       severity: 'info',
     });

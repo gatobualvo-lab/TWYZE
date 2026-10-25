@@ -375,6 +375,9 @@ export type Database = {
           task_type: string | null
           title: string
           user_id: string
+          due_time: string | null
+          remind_at: string | null
+          reminder_sent_at: string | null
         }
         Insert: {
           completed?: boolean | null
@@ -384,6 +387,9 @@ export type Database = {
           task_type?: string | null
           title: string
           user_id?: string
+          due_time?: string | null
+          remind_at?: string | null
+          reminder_sent_at?: string | null
         }
         Update: {
           completed?: boolean | null
@@ -393,6 +399,9 @@ export type Database = {
           task_type?: string | null
           title?: string
           user_id?: string
+          due_time?: string | null
+          remind_at?: string | null
+          reminder_sent_at?: string | null
         }
         Relationships: []
       }
@@ -495,6 +504,7 @@ export type Database = {
           total: number | null
           unit_price: number | null
           user_id: string
+          image_url: string | null
         }
         Insert: {
           created_at?: string | null
@@ -510,6 +520,7 @@ export type Database = {
           total?: number | null
           unit_price?: number | null
           user_id?: string
+          image_url?: string | null
         }
         Update: {
           created_at?: string | null
@@ -525,6 +536,7 @@ export type Database = {
           total?: number | null
           unit_price?: number | null
           user_id?: string
+          image_url?: string | null
         }
         Relationships: [
           {
@@ -836,6 +848,11 @@ export type Database = {
           unit_price: number | null
           updated_at: string | null
           user_id: string
+          barcode: string | null
+          service_type: string | null
+          duration_minutes: number | null
+          staff_name: string | null
+          is_active: boolean
         }
         Insert: {
           category?: string | null
@@ -860,6 +877,11 @@ export type Database = {
           unit_price?: number | null
           updated_at?: string | null
           user_id: string
+          barcode?: string | null
+          service_type?: string | null
+          duration_minutes?: number | null
+          staff_name?: string | null
+          is_active?: boolean
         }
         Update: {
           category?: string | null
@@ -884,6 +906,11 @@ export type Database = {
           unit_price?: number | null
           updated_at?: string | null
           user_id?: string
+          barcode?: string | null
+          service_type?: string | null
+          duration_minutes?: number | null
+          staff_name?: string | null
+          is_active?: boolean
         }
         Relationships: []
       }
@@ -894,6 +921,8 @@ export type Database = {
           muted_types: string[]
           updated_at: string
           user_id: string
+          period_reports_enabled: boolean
+          task_reminders_enabled: boolean
         }
         Insert: {
           email_enabled?: boolean
@@ -901,6 +930,8 @@ export type Database = {
           muted_types?: string[]
           updated_at?: string
           user_id: string
+          period_reports_enabled?: boolean
+          task_reminders_enabled?: boolean
         }
         Update: {
           email_enabled?: boolean
@@ -908,6 +939,8 @@ export type Database = {
           muted_types?: string[]
           updated_at?: string
           user_id?: string
+          period_reports_enabled?: boolean
+          task_reminders_enabled?: boolean
         }
         Relationships: []
       }
@@ -1633,6 +1666,7 @@ export type Database = {
           price: number
           updated_at: string | null
           user_id: string
+          is_active: boolean
         }
         Insert: {
           buying_price?: number | null
@@ -1645,6 +1679,7 @@ export type Database = {
           price?: number
           updated_at?: string | null
           user_id: string
+          is_active?: boolean
         }
         Update: {
           buying_price?: number | null
@@ -1657,6 +1692,7 @@ export type Database = {
           price?: number
           updated_at?: string | null
           user_id?: string
+          is_active?: boolean
         }
         Relationships: []
       }

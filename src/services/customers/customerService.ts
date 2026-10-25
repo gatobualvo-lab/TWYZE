@@ -109,3 +109,71 @@ export async function fetchCustomerTimeline(customerName: string): Promise<Timel
 
   return entries.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 }
+
+export interface NewCustomerInput {
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+}
+
+const CUSTOMER_COLUMNS = 'id, name, phone, email, address, status, notes';
+
+/** All of the user's active customers, A to Z, for pickers. */
+export async function listCustomers(): Promise<Customer[]> {
+  const { data, error } = await supabase
+    .from('customers')
+    .select(CUSTOMER_COLUMNS)
+    .neq('status', 'archived')
+    .order('name')
+    .limit(2000);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Customer[];
+}
+
+/**
+ * Adds a customer. If one with the same name already exists (names are unique
+ * per account, ignoring case) that customer is returned, with any missing
+ * phone/email/address filled in, instead of failing.
+ */
+export async function createCustomer(input: NewCustomerInput): Promise<Customer> {
+  const name = input.name.trim();
+  if (!name) throw new Error('Customer name is required');
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('You must be logged in to add a customer');
+
+  const details = {
+    phone: input.phone?.trim() || null,
+    email: input.email?.trim() || null,
+    address: input.address?.trim() || null,
+  };
+
+  const { data: existing, error: lookupError } = await supabase
+    .from('customers')
+    .select(CUSTOMER_COLUMNS)
+    .eq('user_id', user.id)
+    .ilike('name', name.replace(/[%_\\]/g, '\\$&'))
+    .maybeSingle();
+  if (lookupError) throw new Error(lookupError.message);
+
+  if (existing) {
+    const fill: Partial<Pick<Customer, 'phone' | 'email' | 'address'>> = {};
+    if (!existing.phone && details.phone) fill.phone = details.phone;
+    if (!existing.email && details.email) fill.email = details.email;
+    if (!existing.address && details.address) fill.address = details.address;
+    if (Object.keys(fill).length > 0) {
+      await updateCustomer(existing.id, fill);
+      return { ...(existing as Customer), ...fill };
+    }
+    return existing as Customer;
+  }
+
+  const { data, error } = await supabase
+    .from('customers')
+    .insert({ user_id: user.id, name, ...details })
+    .select(CUSTOMER_COLUMNS)
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Customer;
+}

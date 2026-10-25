@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { LayoutGrid, Table2, List } from 'lucide-react';
+import ReceiptActions from './ReceiptActions';
 import { supabase } from '../utils/supabase';
 import { Search, Filter, ChevronDown, ChevronUp, Calendar, User, Truck, Package, Trash2, MapPin, ChevronRight, CreditCard as Edit, Check, DollarSign, Info, CreditCard, TrendingUp, AlertCircle, BarChart3, Undo, AlertTriangle, Archive } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -6,6 +8,23 @@ import LoadingScreen from './LoadingScreen';
 import { formatCurrency } from '../utils/format';
 import { useBusinessRole } from '../services/team/useBusinessRole';
 import { listTeamMembers } from '../services/team/teamService';
+
+type ViewMode = 'cards' | 'table' | 'compact';
+const VIEW_KEY = 'trackwyze_sales_view';
+const VIEW_OPTIONS: Array<{ id: ViewMode; label: string; Icon: React.ComponentType<{ className?: string }> }> = [
+  { id: 'cards', label: 'Cards', Icon: LayoutGrid },
+  { id: 'table', label: 'Table', Icon: Table2 },
+  { id: 'compact', label: 'Compact', Icon: List },
+];
+
+function readViewMode(): ViewMode {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return v === 'table' || v === 'compact' ? v : 'cards';
+  } catch {
+    return 'cards';
+  }
+}
 
 interface EditItem {
   id: string;
@@ -46,6 +65,15 @@ const SalesList: React.FC = () => {
   const [memberEmails, setMemberEmails] = useState<Record<string, string>>({});
   const [sales, setSales] = useState<Sale[]>([]);
   const [filteredSales, setFilteredSales] = useState<Sale[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>(readViewMode);
+  const changeViewMode = (mode: ViewMode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem(VIEW_KEY, mode);
+    } catch {
+      // The choice just won't be remembered.
+    }
+  };
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
@@ -920,6 +948,188 @@ const SalesList: React.FC = () => {
     return <LoadingScreen />;
   }
 
+  const renderSaleDetails = (sale: Sale) => (
+                  <div 
+                    id={`sale-details-${sale.id}`}
+                    className="p-4 border-t border-gray-100 bg-gray-50 animate-fade-in"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Left Column - Financial Details */}
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-gray-700 flex items-center gap-1">
+                          <DollarSign className="w-4 h-4 text-blue-500" />
+                          Financial Details
+                        </h4>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          {canSeeCosts && (
+                            <div>
+                              <p className="text-xs text-gray-500">Buying Price</p>
+                              <p className="font-medium">{formatCurrency(sale.buying_price)}</p>
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-xs text-gray-500">Selling Price</p>
+                            <p className="font-medium">{formatCurrency(sale.selling_price)}</p>
+                          </div>
+                          {canSeeCosts && (
+                            <div>
+                              <p className="text-xs text-gray-500">Profit</p>
+                              <p className="font-medium text-green-600">{formatCurrency(sale.profit)}</p>
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-xs text-gray-500">Delivery Fee</p>
+                            <p className="font-medium">{formatCurrency(sale.delivery_fee)}</p>
+                          </div>
+                          
+                          {sale.tax_type && sale.tax_type !== 'none' && (
+                            <div>
+                              <p className="text-xs text-gray-500">Tax Type</p>
+                              <p className="font-medium capitalize">{sale.tax_type}</p>
+                            </div>
+                          )}
+                          
+                          {sale.tax_type === 'vat' && sale.vat_amount && (
+                            <div>
+                              <p className="text-xs text-gray-500">VAT Amount</p>
+                              <p className="font-medium">{formatCurrency(sale.vat_amount)}</p>
+                            </div>
+                          )}
+                          
+                          {sale.tax_type === 'turnover' && sale.turnover_tax_amount && (
+                            <div>
+                              <p className="text-xs text-gray-500">Turnover Tax</p>
+                              <p className="font-medium">{formatCurrency(sale.turnover_tax_amount)}</p>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="pt-2 text-xs text-gray-500">
+                          <p>Created: {new Date(sale.created_at).toLocaleString()}</p>
+                          {!businessRole.isStaff && enteredByLabel(sale) && (
+                            <p className="mt-0.5">Entered by: <span className="font-medium text-gray-600">{enteredByLabel(sale)}</span></p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Right Column - Vendor & Delivery */}
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-gray-700 flex items-center gap-1">
+                          <Info className="w-4 h-4 text-blue-500" />
+                          Vendor & Delivery Details
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 gap-4">
+                          <div>
+                            <p className="text-xs text-gray-500">Vendor</p>
+                            <p className="font-medium">{sale.seller}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Delivery Person</p>
+                            <p className="font-medium">{sale.delivery_guy}</p>
+                          </div>
+                          
+                          {/* Vendor Toggle */}
+                          <div className="flex items-center gap-2 pt-2">
+                            <div className="relative inline-block w-10 mr-2 align-middle select-none">
+                              <input 
+                                type="checkbox" 
+                                name={`vendor-toggle-${sale.id}`}
+                                id={`vendor-toggle-${sale.id}`}
+                                checked={sale.amount_owed_to_vendor === 0}
+                                onChange={() => toggleVendorPaymentStatus(sale.id)}
+                                disabled={updatingSaleId === sale.id}
+                                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                              />
+                              <label 
+                                htmlFor={`vendor-toggle-${sale.id}`}
+                                className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${
+                                  sale.amount_owed_to_vendor === 0 ? 'bg-green-400' : 'bg-red-400'
+                                }`}
+                              ></label>
+                            </div>
+                            <div className="flex items-center">
+                              <User className="w-4 h-4 text-gray-500 mr-1" />
+                              <span className="text-sm text-gray-700">Vendor Paid</span>
+                              {sale.amount_owed_to_vendor === 0 && (
+                                <Check className="w-3 h-3 text-green-500 ml-1" />
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Delivery Toggle */}
+                          <div className="flex items-center gap-2">
+                            <div className="relative inline-block w-10 mr-2 align-middle select-none">
+                              <input 
+                                type="checkbox" 
+                                name={`delivery-toggle-${sale.id}`}
+                                id={`delivery-toggle-${sale.id}`}
+                                checked={sale.delivery_fee_paid}
+                                onChange={() => toggleDeliveryPaymentStatus(sale.id, sale.delivery_fee_paid)}
+                                disabled={updatingSaleId === sale.id}
+                                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                              />
+                              <label 
+                                htmlFor={`delivery-toggle-${sale.id}`}
+                                className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${
+                                  sale.delivery_fee_paid ? 'bg-green-400' : 'bg-red-400'
+                                }`}
+                              ></label>
+                            </div>
+                            <div className="flex items-center">
+                              <Truck className="w-4 h-4 text-gray-500 mr-1" />
+                              <span className="text-sm text-gray-700">Delivery Paid</span>
+                              {sale.delivery_fee_paid && (
+                                <Check className="w-3 h-3 text-green-500 ml-1" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end mt-4 pt-3 border-t border-gray-200">
+                      <div className="flex gap-2">
+                        <ReceiptActions saleId={sale.id} />
+                        <button
+                          className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditSale(sale);
+                          }}
+                        >
+                          <Edit className="w-3 h-3" />
+                          Edit
+                        </button>
+                        
+                        {canDelete && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteSale(sale.id);
+                            }}
+                            disabled={deletingSaleId === sale.id}
+                            className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded flex items-center gap-1"
+                          >
+                            {deletingSaleId === sale.id ? (
+                              <>
+                                <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                                Deleting...
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="w-3 h-3" />
+                                Delete
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* Dashboard Overview */}
@@ -1261,7 +1471,27 @@ const SalesList: React.FC = () => {
         </div>
       )}
 
-      {/* Mobile Card View */}
+      {/* Display type — cards, table or compact list; remembered on this device */}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-gray-500">{filteredSales.length} {filteredSales.length === 1 ? 'sale' : 'sales'}</p>
+        <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5" role="group" aria-label="Display type">
+          {VIEW_OPTIONS.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => changeViewMode(id)}
+              aria-pressed={viewMode === id}
+              title={label}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${viewMode === id ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              <Icon className="w-4 h-4" />
+              <span className="hidden sm:inline">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Sales list: cards, table or compact */}
       <div className="space-y-2">
         {filteredSales.length === 0 ? (
           <div className="bg-white rounded-lg shadow-md p-6 text-center">
@@ -1272,6 +1502,100 @@ const SalesList: React.FC = () => {
                 ? 'Try adjusting your filters'
                 : 'Get started by adding your first sale'}
             </p>
+          </div>
+        ) : viewMode === 'table' ? (
+          <div className="bg-white rounded-lg shadow-sm border overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="w-10 px-3 py-2" />
+                  <th className="px-3 py-2 text-left font-medium">Date</th>
+                  <th className="px-3 py-2 text-left font-medium">Customer</th>
+                  <th className="px-3 py-2 text-left font-medium">Items</th>
+                  <th className="px-3 py-2 text-right font-medium">Amount</th>
+                  {canSeeCosts && <th className="px-3 py-2 text-right font-medium">Profit</th>}
+                  <th className="px-3 py-2 text-left font-medium">Status</th>
+                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredSales.map((sale, index) => (
+                  <React.Fragment key={sale.id}>
+                    <tr
+                      ref={index === filteredSales.length - 1 ? lastSaleElementRef : undefined}
+                      onClick={() => toggleExpandSale(sale.id)}
+                      className={`cursor-pointer hover:bg-gray-50 ${expandedSaleId === sale.id ? 'bg-gray-50' : ''}`}
+                    >
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedSaleIds.has(sale.id)}
+                          onChange={() => toggleSelectSale(sale.id)}
+                          className="w-4 h-4 text-blue-600 rounded border-gray-300"
+                        />
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-gray-600">{new Date(sale.date).toLocaleDateString()}</td>
+                      <td className="px-3 py-2 text-gray-700">{(sale as Sale & { client_name?: string | null }).client_name || '—'}</td>
+                      <td className="px-3 py-2 text-gray-900 max-w-xs truncate" title={sale.product_name}>{sale.product_name}</td>
+                      <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{formatCurrency(sale.selling_price)}</td>
+                      {canSeeCosts && <td className="px-3 py-2 text-right text-green-600 whitespace-nowrap">{formatCurrency(sale.profit)}</td>}
+                      <td className="px-3 py-2">
+                        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${sale.payment_status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {sale.payment_status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <ReceiptActions saleId={sale.id} compact />
+                        <button
+                          type="button"
+                          onClick={() => openEditSale(sale)}
+                          className="ml-1 p-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white"
+                          title="Edit"
+                          aria-label="Edit sale"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedSaleId === sale.id && (
+                      <tr>
+                        <td colSpan={canSeeCosts ? 8 : 7} className="p-0">{renderSaleDetails(sale)}</td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : viewMode === 'compact' ? (
+          <div className="bg-white rounded-lg shadow-sm border divide-y divide-gray-100">
+            {filteredSales.map((sale, index) => (
+              <div key={sale.id} ref={index === filteredSales.length - 1 ? lastSaleElementRef : undefined}>
+                <div
+                  onClick={() => toggleExpandSale(sale.id)}
+                  className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 ${expandedSaleId === sale.id ? 'bg-gray-50' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedSaleIds.has(sale.id)}
+                    onChange={() => toggleSelectSale(sale.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4 text-blue-600 rounded border-gray-300 flex-shrink-0"
+                  />
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${sale.payment_status === 'Paid' ? 'bg-green-500' : 'bg-red-500'}`} title={sale.payment_status} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-gray-900 truncate">{sale.product_name}</p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {new Date(sale.date).toLocaleDateString()}
+                      {(sale as Sale & { client_name?: string | null }).client_name ? ` · ${(sale as Sale & { client_name?: string | null }).client_name}` : ''}
+                    </p>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900 whitespace-nowrap">{formatCurrency(sale.selling_price)}</span>
+                  <ReceiptActions saleId={sale.id} compact />
+                </div>
+                {expandedSaleId === sale.id && renderSaleDetails(sale)}
+              </div>
+            ))}
           </div>
         ) : (
           filteredSales.map((sale, index) => (
@@ -1355,186 +1679,7 @@ const SalesList: React.FC = () => {
                 </div>
                 
                 {/* Expanded Content */}
-                {expandedSaleId === sale.id && (
-                  <div 
-                    id={`sale-details-${sale.id}`}
-                    className="p-4 border-t border-gray-100 bg-gray-50 animate-fade-in"
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Left Column - Financial Details */}
-                      <div className="space-y-4">
-                        <h4 className="font-medium text-gray-700 flex items-center gap-1">
-                          <DollarSign className="w-4 h-4 text-blue-500" />
-                          Financial Details
-                        </h4>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          {canSeeCosts && (
-                            <div>
-                              <p className="text-xs text-gray-500">Buying Price</p>
-                              <p className="font-medium">{formatCurrency(sale.buying_price)}</p>
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-xs text-gray-500">Selling Price</p>
-                            <p className="font-medium">{formatCurrency(sale.selling_price)}</p>
-                          </div>
-                          {canSeeCosts && (
-                            <div>
-                              <p className="text-xs text-gray-500">Profit</p>
-                              <p className="font-medium text-green-600">{formatCurrency(sale.profit)}</p>
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-xs text-gray-500">Delivery Fee</p>
-                            <p className="font-medium">{formatCurrency(sale.delivery_fee)}</p>
-                          </div>
-                          
-                          {sale.tax_type && sale.tax_type !== 'none' && (
-                            <div>
-                              <p className="text-xs text-gray-500">Tax Type</p>
-                              <p className="font-medium capitalize">{sale.tax_type}</p>
-                            </div>
-                          )}
-                          
-                          {sale.tax_type === 'vat' && sale.vat_amount && (
-                            <div>
-                              <p className="text-xs text-gray-500">VAT Amount</p>
-                              <p className="font-medium">{formatCurrency(sale.vat_amount)}</p>
-                            </div>
-                          )}
-                          
-                          {sale.tax_type === 'turnover' && sale.turnover_tax_amount && (
-                            <div>
-                              <p className="text-xs text-gray-500">Turnover Tax</p>
-                              <p className="font-medium">{formatCurrency(sale.turnover_tax_amount)}</p>
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="pt-2 text-xs text-gray-500">
-                          <p>Created: {new Date(sale.created_at).toLocaleString()}</p>
-                          {!businessRole.isStaff && enteredByLabel(sale) && (
-                            <p className="mt-0.5">Entered by: <span className="font-medium text-gray-600">{enteredByLabel(sale)}</span></p>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Right Column - Vendor & Delivery */}
-                      <div className="space-y-4">
-                        <h4 className="font-medium text-gray-700 flex items-center gap-1">
-                          <Info className="w-4 h-4 text-blue-500" />
-                          Vendor & Delivery Details
-                        </h4>
-                        
-                        <div className="grid grid-cols-1 gap-4">
-                          <div>
-                            <p className="text-xs text-gray-500">Vendor</p>
-                            <p className="font-medium">{sale.seller}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500">Delivery Person</p>
-                            <p className="font-medium">{sale.delivery_guy}</p>
-                          </div>
-                          
-                          {/* Vendor Toggle */}
-                          <div className="flex items-center gap-2 pt-2">
-                            <div className="relative inline-block w-10 mr-2 align-middle select-none">
-                              <input 
-                                type="checkbox" 
-                                name={`vendor-toggle-${sale.id}`}
-                                id={`vendor-toggle-${sale.id}`}
-                                checked={sale.amount_owed_to_vendor === 0}
-                                onChange={() => toggleVendorPaymentStatus(sale.id)}
-                                disabled={updatingSaleId === sale.id}
-                                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                              />
-                              <label 
-                                htmlFor={`vendor-toggle-${sale.id}`}
-                                className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${
-                                  sale.amount_owed_to_vendor === 0 ? 'bg-green-400' : 'bg-red-400'
-                                }`}
-                              ></label>
-                            </div>
-                            <div className="flex items-center">
-                              <User className="w-4 h-4 text-gray-500 mr-1" />
-                              <span className="text-sm text-gray-700">Vendor Paid</span>
-                              {sale.amount_owed_to_vendor === 0 && (
-                                <Check className="w-3 h-3 text-green-500 ml-1" />
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Delivery Toggle */}
-                          <div className="flex items-center gap-2">
-                            <div className="relative inline-block w-10 mr-2 align-middle select-none">
-                              <input 
-                                type="checkbox" 
-                                name={`delivery-toggle-${sale.id}`}
-                                id={`delivery-toggle-${sale.id}`}
-                                checked={sale.delivery_fee_paid}
-                                onChange={() => toggleDeliveryPaymentStatus(sale.id, sale.delivery_fee_paid)}
-                                disabled={updatingSaleId === sale.id}
-                                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                              />
-                              <label 
-                                htmlFor={`delivery-toggle-${sale.id}`}
-                                className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${
-                                  sale.delivery_fee_paid ? 'bg-green-400' : 'bg-red-400'
-                                }`}
-                              ></label>
-                            </div>
-                            <div className="flex items-center">
-                              <Truck className="w-4 h-4 text-gray-500 mr-1" />
-                              <span className="text-sm text-gray-700">Delivery Paid</span>
-                              {sale.delivery_fee_paid && (
-                                <Check className="w-3 h-3 text-green-500 ml-1" />
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-end mt-4 pt-3 border-t border-gray-200">
-                      <div className="flex gap-2">
-                        <button
-                          className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditSale(sale);
-                          }}
-                        >
-                          <Edit className="w-3 h-3" />
-                          Edit
-                        </button>
-                        
-                        {canDelete && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteSale(sale.id);
-                            }}
-                            disabled={deletingSaleId === sale.id}
-                            className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded flex items-center gap-1"
-                          >
-                            {deletingSaleId === sale.id ? (
-                              <>
-                                <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-                                Deleting...
-                              </>
-                            ) : (
-                              <>
-                                <Trash2 className="w-3 h-3" />
-                                Delete
-                              </>
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {expandedSaleId === sale.id && renderSaleDetails(sale)}
               </div>
             </div>
           ))

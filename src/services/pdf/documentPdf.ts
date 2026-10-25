@@ -11,6 +11,8 @@ export interface DocumentPdfItem {
   discount_percent?: number | string | null;
   tax_percent?: number | string | null;
   total: number | string;
+  /** Optional photo drawn beside the item name. */
+  image_url?: string | null;
 }
 
 export interface DocumentPdfDocument {
@@ -175,6 +177,10 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Blob> {
   doc.setTextColor(0);
   y += 4;
 
+  // Item photos are optional; one that fails to load simply leaves its row text-only.
+  const itemImages = await Promise.all(items.map(item => loadImageForPdf(item.image_url)));
+  const IMAGE_BOX = 10;
+
   // Items
   autoTable(doc, {
     startY: y,
@@ -193,6 +199,18 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Blob> {
     alternateRowStyles: { fillColor: [247, 249, 252] },
     didParseCell: (data) => {
       if (data.section === 'head' && data.column.index > 0) data.cell.styles.halign = 'right';
+      if (data.section === 'body' && data.column.index === 0 && itemImages[data.row.index]) {
+        data.cell.styles.cellPadding = { top: 2.4, right: 2.4, bottom: 2.4, left: IMAGE_BOX + 5 };
+        data.cell.styles.minCellHeight = IMAGE_BOX + 4;
+      }
+    },
+    didDrawCell: (data) => {
+      const image = data.section === 'body' && data.column.index === 0 ? itemImages[data.row.index] : null;
+      if (!image) return;
+      const scale = Math.min(IMAGE_BOX / image.width, IMAGE_BOX / image.height);
+      const w = image.width * scale;
+      const h = image.height * scale;
+      doc.addImage(image.dataUrl, image.format, data.cell.x + 2 + (IMAGE_BOX - w) / 2, data.cell.y + 2 + (IMAGE_BOX - h) / 2, w, h);
     },
     columnStyles: {
       1: { halign: 'right', cellWidth: 16 },

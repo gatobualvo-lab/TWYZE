@@ -28,7 +28,7 @@ function monthRange(year: number, month: number): DateRange {
  * pull through MetricsProvider, and the same forecastStock() math Smart
  * Inventory Predictions and the Opportunity Center use.
  */
-export function useCalendarEvents(year: number, month: number): { events: Map<string, CalendarEvent[]>; loading: boolean } {
+export function useCalendarEvents(year: number, month: number): { events: Map<string, CalendarEvent[]>; loading: boolean; reloadTasks: () => void } {
   const ctx = useMetricsContext();
   const range = useMemo(() => monthRange(year, month), [year, month]);
   const velocityRange = useMemo(() => {
@@ -85,12 +85,16 @@ export function useCalendarEvents(year: number, month: number): { events: Map<st
     return buildCalendarEvents({
       dailySeries: dailySeriesEntry.data!,
       goals: goals!.map(g => ({ id: g.id, name: g.name, periodEnd: g.periodEnd, status: g.status })),
-      tasks: tasks!.map(t => ({ id: t.id, title: t.title, dueDate: t.dueDate, completed: t.completed })),
+      tasks: tasks!.map(t => ({ id: t.id, title: t.title, dueDate: t.dueDate, dueTime: t.dueTime, hasReminder: !!t.remindAt, completed: t.completed })),
       dueDocuments: dueDocuments!,
       stockoutForecasts: stockoutForecasts!,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  }, [loading, tasks]);
 
-  return { events, loading };
+  const reloadTasks = () => {
+    listTasks().then(setTasks).catch(() => {});
+  };
+
+  return { events, loading, reloadTasks };
 }

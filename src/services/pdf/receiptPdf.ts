@@ -120,7 +120,15 @@ export async function buildReceiptPdf(input: ReceiptPdfInput): Promise<Blob> {
   const scratch = new jsPDF({ unit: 'mm', format: [PAGE_WIDTH, 2000] });
   const height = Math.max(draw(scratch, input, logo), 60);
 
-  const doc = new jsPDF({ unit: 'mm', format: [PAGE_WIDTH, height] });
+  // jsPDF swaps width and height of a "portrait" page whose width is larger
+  // than its height. A short receipt (one or two items is under 80mm tall)
+  // would silently become 60mm wide and have its right-hand side cut off, so
+  // such a page must be declared landscape to keep the 80mm width.
+  const doc = new jsPDF({
+    unit: 'mm',
+    orientation: height < PAGE_WIDTH ? 'landscape' : 'portrait',
+    format: [PAGE_WIDTH, height],
+  });
   draw(doc, input, logo);
   return doc.output('blob');
 }

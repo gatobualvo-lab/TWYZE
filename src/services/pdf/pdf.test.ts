@@ -48,6 +48,31 @@ describe('PDF generation', () => {
     expect(await header(blob)).toMatch(/^%PDF-/);
   });
 
+  it('keeps the receipt 80mm wide however short it is', async () => {
+    const pageSize = async (itemCount: number) => {
+      const blob = await buildReceiptPdf({
+        items: Array.from({ length: itemCount }, (_, i) => ({ productName: `Item ${i + 1}`, quantity: 1, sellingPrice: 100 })),
+        total: 100 * itemCount,
+        date: '2026-10-15',
+        business: { business_name: 'Furniture Homeland', phone: null, email: null, logo_url: null },
+      });
+      const text = await blob.text();
+      const box = /\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/.exec(text);
+      expect(box).not.toBeNull();
+      return { width: Number(box![1]) / 2.83465, height: Number(box![2]) / 2.83465 };
+    };
+
+    // One item makes a receipt shorter than it is wide: the case that used to
+    // be swapped into a 60mm-wide page with the right-hand side cut off.
+    const short = await pageSize(1);
+    expect(short.width).toBeCloseTo(80, 0);
+    expect(short.height).toBeGreaterThan(59);
+
+    const long = await pageSize(30);
+    expect(long.width).toBeCloseTo(80, 0);
+    expect(long.height).toBeGreaterThan(80);
+  });
+
   it('builds an invoice PDF in a foreign currency', async () => {
     const blob = await buildDocumentPdf({
       document: {
@@ -70,6 +95,15 @@ describe('PDF generation', () => {
       formatMoney: (n) => `USD ${(n / 129.5).toFixed(2)}`,
     });
     expect(blob.size).toBeGreaterThan(1000);
+    expect(await header(blob)).toMatch(/^%PDF-/);
+  });
+
+  it('still builds when an item photo cannot be loaded', async () => {
+    const blob = await buildDocumentPdf({
+      document: { document_type: 'quotation', document_number: 'QUO-2', subtotal: 100, total: 100 },
+      items: [{ product_name: 'Desk', quantity: 1, unit_price: 100, total: 100, image_url: 'https://example.invalid/missing.png' }],
+      business: null,
+    });
     expect(await header(blob)).toMatch(/^%PDF-/);
   });
 

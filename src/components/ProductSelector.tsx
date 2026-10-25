@@ -41,6 +41,8 @@ interface ProductSelectorProps {
   onProductSelect?: (product: { name: string; price: number; buying_price: number; colors: string[]; item_type?: 'goods' | 'service'; image_url?: string | null }) => void;
   required?: boolean;
   error?: string;
+  /** A service line says "service" everywhere and only offers services. Defaults to goods. */
+  itemType?: 'goods' | 'service';
 }
 
 interface Product {
@@ -58,7 +60,8 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
   onChange,
   onProductSelect,
   required = false,
-  error
+  error,
+  itemType
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -169,7 +172,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
         return { ...p, colors: combined };
       });
 
-      setProducts(merged);
+      setProducts(merged.filter((p: { is_active?: boolean | null }) => p.is_active !== false));
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {
@@ -406,14 +409,18 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
     setInput('');
   };
 
+  const isServiceLine = itemType === 'service';
+  const noun = isServiceLine ? 'service' : 'product';
+  const Noun = isServiceLine ? 'Service' : 'Product';
+  const offered = isServiceLine ? products.filter(p => p.item_type === 'service') : products;
   const filteredProducts = searchTerm
-    ? products.filter(product => product.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    : products;
+    ? offered.filter(product => product.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    : offered;
 
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium text-gray-700">
-        <Package className="w-4 h-4 inline mr-1" /> Product Name {required && <span className="text-red-500">*</span>}
+        <Package className="w-4 h-4 inline mr-1" /> {Noun} Name {required && <span className="text-red-500">*</span>}
       </label>
       
       <div className="flex gap-2">
@@ -434,7 +441,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                 if (!isDropdownOpen) setIsDropdownOpen(true);
               }}
               className="w-full border-none focus:outline-none bg-transparent"
-              placeholder="Select or enter product name"
+              placeholder={`Select or enter ${noun} name`}
               required={required}
               onClick={(e) => e.stopPropagation()}
             />
@@ -451,7 +458,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-8 pr-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Search products..."
+                    placeholder={`Search ${noun}s...`}
                     onClick={(e) => e.stopPropagation()}
                     autoFocus
                   />
@@ -459,7 +466,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
               </div>
               <div className="p-1">
                 {filteredProducts.length === 0 ? (
-                  <div className="p-2 text-gray-500 text-center">No products found</div>
+                  <div className="p-2 text-gray-500 text-center">{isServiceLine ? (offered.length === 0 ? 'No services yet. Add them in Inventory → Services' : 'No services found') : 'No products found'}</div>
                 ) : (
                   filteredProducts.map(product => (
                     <div 
@@ -504,9 +511,12 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
         {/* Add Button */}
         <button
           type="button"
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => {
+            if (isServiceLine) setNewDetails(prev => ({ ...prev, item_type: 'service' }));
+            setIsAddModalOpen(true);
+          }}
           className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-1"
-          title="Add Product"
+          title={`Add ${Noun}`}
         >
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">Add</span>
@@ -517,7 +527,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
           type="button"
           onClick={() => setIsEditListOpen(true)}
           className="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg flex items-center gap-1"
-          title="Edit Product List"
+          title={`Edit ${Noun} List`}
         >
           <Edit className="w-4 h-4" />
           <span className="hidden sm:inline">Edit List</span>
@@ -528,7 +538,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div ref={modalRef} className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold mb-1">Add New Product</h3>
+            <h3 className="text-lg font-bold mb-1">Add New {Noun}</h3>
             <p className="text-sm text-gray-500 mb-4">Saved to your inventory, so stock and prices are tracked from the start.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
@@ -565,7 +575,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
 
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Product Name <span className="text-red-500">*</span>
+                  {Noun} Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"

@@ -8,11 +8,14 @@ import { toNum, parseInput, NumericInput } from '../utils/numberInput';
 import { formatCurrency } from '../utils/format';
 import { enqueueWrite, isNetworkError } from '../services/offline/offlineQueue';
 import { uploadPublicImage, ImageUploadError } from '../services/storage/publicImageUpload';
+import { syncProductCatalog } from '../services/inventory/productCatalog';
+import CameraBarcodeScanner, { isCameraScanSupported } from './CameraBarcodeScanner';
 
 interface InventoryItem {
   id: string;
   product_name: string;
   sku: string | null;
+  barcode?: string | null;
   category: string | null;
   current_stock: number;
   reorder_level: number;
@@ -63,6 +66,7 @@ const InventoryManagement: React.FC = () => {
   const [formData, setFormData] = useState<{
     product_name: string;
     sku: string;
+    barcode: string;
     category: string;
     current_stock: NumericInput;
     reorder_level: NumericInput;
@@ -76,6 +80,7 @@ const InventoryManagement: React.FC = () => {
   }>({
     product_name: '',
     sku: '',
+    barcode: '',
     category: '',
     current_stock: '',
     reorder_level: '',
@@ -88,6 +93,7 @@ const InventoryManagement: React.FC = () => {
     image_url: ''
   });
 
+  const [showCameraScan, setShowCameraScan] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [colorInput, setColorInput] = useState('');
 
@@ -98,51 +104,6 @@ const InventoryManagement: React.FC = () => {
   useEffect(() => {
     filterItems();
   }, [items, searchTerm, filterCategory, showLowStock]);
-
-  const syncProductCatalog = async (
-    userId: string,
-    name: string,
-    buyingPrice: number,
-    sellingPrice: number,
-    extras: { item_type?: 'goods' | 'service'; image_url?: string | null } = {}
-  ) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-
-    try {
-      const { data: existing } = await supabase
-        .from('user_products')
-        .select('id')
-        .eq('user_id', userId)
-        .ilike('name', trimmed)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase
-          .from('user_products')
-          .update({
-            buying_price: buyingPrice,
-            price: sellingPrice,
-            ...extras,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', existing.id);
-      } else {
-        await supabase
-          .from('user_products')
-          .insert({
-            id: crypto.randomUUID(),
-            user_id: userId,
-            name: trimmed,
-            price: sellingPrice,
-            buying_price: buyingPrice,
-            ...extras,
-          });
-      }
-    } catch (err) {
-      console.error('Failed to sync product catalog:', err);
-    }
-  };
 
   const fetchInventory = async () => {
     try {
@@ -165,7 +126,8 @@ const InventoryManagement: React.FC = () => {
         throw error;
       }
 
-      setItems(data || []);
+      // Services live on their own page (Inventory > Services).
+      setItems((data || []).filter(row => row.item_type !== 'service'));
     } catch (error: any) {
       console.error('Error fetching inventory:', error);
       toast.error(error.message || 'Failed to load inventory data');
@@ -266,6 +228,7 @@ const InventoryManagement: React.FC = () => {
       const itemData = {
         ...baseFields,
         ...typeFields,
+        barcode: formData.barcode.trim() || null,
         current_stock: isService ? 0 : toNum(formData.current_stock),
         reorder_level: isService ? 0 : toNum(formData.reorder_level),
         cost_price: toNum(formData.cost_price),
@@ -301,7 +264,11 @@ const InventoryManagement: React.FC = () => {
       fetchInventory();
     } catch (error: any) {
       console.error('Error saving item:', error);
-      toast.error(error.message || 'Failed to save item');
+      toast.error(
+        /idx_inventory_items_user_barcode|duplicate key/i.test(error.message || '')
+          ? 'Another item already uses this barcode'
+          : error.message || 'Failed to save item'
+      );
     }
   };
 
@@ -328,6 +295,7 @@ const InventoryManagement: React.FC = () => {
     setFormData({
       product_name: '',
       sku: '',
+      barcode: '',
       category: '',
       current_stock: '',
       reorder_level: '',
@@ -364,6 +332,7 @@ const InventoryManagement: React.FC = () => {
     setFormData({
       product_name: item.product_name,
       sku: item.sku || '',
+      barcode: item.barcode || '',
       category: item.category || '',
       current_stock: item.current_stock,
       reorder_level: item.reorder_level,
@@ -526,22 +495,6 @@ const InventoryManagement: React.FC = () => {
             </h3>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">What are you adding?</label>
-                <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
-                  {(['goods', 'service'] as const).map(type => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, item_type: type }))}
-                      className={`px-4 py-2 text-sm font-medium transition ${formData.item_type === type ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-                    >
-                      {type === 'goods' ? 'Product (tracked stock)' : 'Service (no stock)'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Photo (optional)</label>
                 <div className="flex items-center gap-4">
                   <div className="w-20 h-20 rounded-lg border border-dashed border-gray-300 bg-white flex items-center justify-center overflow-hidden">
@@ -585,6 +538,24 @@ const InventoryManagement: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   placeholder="e.g., TSH-BLU-001"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Barcode</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formData.barcode}
+                    onChange={(e) => setFormData(prev => ({ ...prev, barcode: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="Scan with a barcode reader, or type it"
+                  />
+                  {isCameraScanSupported() && (
+                    <button type="button" onClick={() => setShowCameraScan(true)} className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
+                      Camera
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -982,6 +953,16 @@ const InventoryManagement: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showCameraScan && (
+        <CameraBarcodeScanner
+          onDetected={(code) => {
+            setFormData(prev => ({ ...prev, barcode: code }));
+            setShowCameraScan(false);
+          }}
+          onClose={() => setShowCameraScan(false)}
+        />
       )}
     </div>
   );

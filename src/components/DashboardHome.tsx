@@ -10,6 +10,8 @@ import { formatCurrency as formatKES, formatDate } from '../utils/format';
 import { getPeriodRange } from '../utils/dateRange';
 import BusinessHealthScore from './analytics/BusinessHealthScore';
 import { listTasks, createTask, toggleTaskCompleted, deleteTask as deleteTaskRecord } from '../services/tasks/taskService';
+import { REMINDER_OPTIONS, formatDueTime } from '../services/tasks/reminders';
+import { ensureNotificationPermission } from '../services/tasks/useTaskReminders';
 import type { BusinessTask } from '../services/tasks/taskService';
 import { Skeleton, SkeletonStatGrid, SkeletonList } from './ui';
 import OnboardingChecklist from './onboarding/OnboardingChecklist';
@@ -87,6 +89,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskType, setNewTaskType] = useState('general');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
+  const [newTaskDueTime, setNewTaskDueTime] = useState('');
+  const [newTaskRemind, setNewTaskRemind] = useState<number | null>(null);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -321,11 +325,21 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
   const addTask = async () => {
     if (!newTaskTitle.trim()) return;
     try {
-      const created = await createTask({ title: newTaskTitle.trim(), taskType: newTaskType, dueDate: newTaskDueDate || null });
+      const wantsReminder = newTaskRemind !== null && !!newTaskDueDate;
+      const created = await createTask({
+        title: newTaskTitle.trim(),
+        taskType: newTaskType,
+        dueDate: newTaskDueDate || null,
+        dueTime: newTaskDueTime || null,
+        remindMinutesBefore: wantsReminder ? newTaskRemind : null,
+      });
       setTasks(prev => [created, ...prev]);
       setNewTaskTitle('');
       setNewTaskDueDate('');
-      toast.success('Task added');
+      setNewTaskDueTime('');
+      setNewTaskRemind(null);
+      toast.success(wantsReminder ? 'Task added. You will be reminded' : 'Task added');
+      if (wantsReminder) ensureNotificationPermission();
     } catch {
       toast.error('Failed to add task');
     }
@@ -714,6 +728,29 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                   isDark ? 'bg-slate-700 border-slate-600 text-gray-300' : 'border-gray-200 text-gray-600'
                 }`}
               />
+              <input
+                type="time"
+                value={newTaskDueTime}
+                onChange={(e) => setNewTaskDueTime(e.target.value)}
+                disabled={!newTaskDueDate}
+                title="Time (optional)"
+                className={`text-xs px-2 py-2 rounded-lg border disabled:opacity-50 ${
+                  isDark ? 'bg-slate-700 border-slate-600 text-gray-300' : 'border-gray-200 text-gray-600'
+                }`}
+              />
+              <select
+                value={newTaskRemind === null ? '' : String(newTaskRemind)}
+                onChange={(e) => setNewTaskRemind(e.target.value === '' ? null : Number(e.target.value))}
+                disabled={!newTaskDueDate}
+                title="Remind me (needs a due date)"
+                className={`text-xs px-2 py-2 rounded-lg border disabled:opacity-50 ${
+                  isDark ? 'bg-slate-700 border-slate-600 text-gray-300' : 'border-gray-200 text-gray-600'
+                }`}
+              >
+                {REMINDER_OPTIONS.map(o => (
+                  <option key={String(o.value)} value={o.value === null ? '' : String(o.value)}>{o.value === null ? 'No reminder' : `Remind: ${o.label.toLowerCase()}`}</option>
+                ))}
+              </select>
             </div>
             <div className="mt-3 space-y-1 max-h-48 overflow-y-auto">
               {tasks.length === 0 ? (
@@ -731,7 +768,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                     </span>
                     {task.dueDate && (
                       <span className={`text-xs px-1.5 py-0.5 rounded ${isDark ? 'bg-slate-600 text-gray-400' : 'bg-gray-100 text-gray-400'}`}>
-                        {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{task.dueTime ? ` · ${formatDueTime(task.dueTime)}` : ''}{task.remindAt && !task.completed ? ' ⏰' : ''}
                       </span>
                     )}
                     <span className={`text-xs px-1.5 py-0.5 rounded ${isDark ? 'bg-slate-600 text-gray-400' : 'bg-gray-100 text-gray-400'}`}>

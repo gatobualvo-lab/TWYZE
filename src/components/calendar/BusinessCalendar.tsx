@@ -5,6 +5,11 @@ import { useCalendarEvents } from '../../services/calendar/useCalendarEvents';
 import type { CalendarEvent, CalendarEventType } from '../../services/calendar/calendarEvents';
 import { formatDate } from '../../utils/format';
 import { PageHeader } from '../ui';
+import toast from 'react-hot-toast';
+import { Bell } from 'lucide-react';
+import { createTask } from '../../services/tasks/taskService';
+import { REMINDER_OPTIONS } from '../../services/tasks/reminders';
+import { ensureNotificationPermission } from '../../services/tasks/useTaskReminders';
 
 interface BusinessCalendarProps {
   onNavigate: (tab: string) => void;
@@ -52,7 +57,35 @@ const BusinessCalendar: React.FC<BusinessCalendarProps> = ({ onNavigate }) => {
   const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  const { events, loading } = useCalendarEvents(cursor.year, cursor.month);
+  const { events, loading, reloadTasks } = useCalendarEvents(cursor.year, cursor.month);
+  const [reminderTitle, setReminderTitle] = useState('');
+  const [reminderTime, setReminderTime] = useState('');
+  const [reminderLead, setReminderLead] = useState<number>(15);
+  const [savingReminder, setSavingReminder] = useState(false);
+
+  const addReminder = async () => {
+    if (!selectedDate) return;
+    if (!reminderTitle.trim()) return toast.error('What should we remind you about?');
+    setSavingReminder(true);
+    try {
+      await createTask({
+        title: reminderTitle.trim(),
+        taskType: 'general',
+        dueDate: selectedDate,
+        dueTime: reminderTime || null,
+        remindMinutesBefore: reminderLead,
+      });
+      setReminderTitle('');
+      setReminderTime('');
+      reloadTasks();
+      toast.success('Reminder added');
+      ensureNotificationPermission();
+    } catch {
+      toast.error('Could not add the reminder');
+    } finally {
+      setSavingReminder(false);
+    }
+  };
   const grid = useMemo(() => getMonthGrid(cursor.year, cursor.month), [cursor]);
 
   const goToMonth = (delta: number) => {
@@ -154,6 +187,48 @@ const BusinessCalendar: React.FC<BusinessCalendarProps> = ({ onNavigate }) => {
                 {selectedEvents.map(event => (
                   <EventRow key={event.id} event={event} onNavigate={onNavigate} />
                 ))}
+              </div>
+            )}
+
+            {selectedDate && (
+              <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
+                <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                  <Bell className="w-4 h-4 text-blue-500" /> Add a reminder for this day
+                </p>
+                <input
+                  type="text"
+                  value={reminderTitle}
+                  onChange={e => setReminderTitle(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addReminder()}
+                  placeholder="e.g., Call the supplier"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="time"
+                    value={reminderTime}
+                    onChange={e => setReminderTime(e.target.value)}
+                    title="Time (optional, 9:00 am if empty)"
+                    className="px-2 py-2 border border-gray-200 rounded-lg text-sm"
+                  />
+                  <select
+                    value={String(reminderLead)}
+                    onChange={e => setReminderLead(Number(e.target.value))}
+                    className="flex-1 px-2 py-2 border border-gray-200 rounded-lg text-sm"
+                  >
+                    {REMINDER_OPTIONS.filter(o => o.value !== null).map(o => (
+                      <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={addReminder}
+                  disabled={savingReminder}
+                  className="w-full px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {savingReminder ? 'Saving...' : 'Add reminder'}
+                </button>
               </div>
             )}
           </div>

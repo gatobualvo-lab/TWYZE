@@ -6,6 +6,7 @@ import { User, CreditCard } from 'lucide-react';
 import { toNum, displayNumber } from '../utils/number';
 import { calculateLineItemTotals } from '../utils/saleMath';
 import { formatCurrency } from '../utils/format';
+import { supabase } from '../utils/supabase';
 
 const SERVICE_RATE_LABEL: Record<'flat' | 'hourly' | 'per_session', string> = {
   flat: 'Flat Fee',
@@ -95,13 +96,13 @@ const ProductItem: React.FC<ProductItemProps> = ({
   return (
     <div className="p-4 border border-gray-200 rounded-xl bg-gray-50 transition-colors duration-150">
       <div className="flex justify-between items-center mb-3">
-        <h4 className="text-sm font-semibold text-gray-800">Product {index + 1}</h4>
+        <h4 className="text-sm font-semibold text-gray-800">{isService ? 'Service' : 'Product'} {index + 1}</h4>
         {canRemove && (
           <button
             type="button"
             onClick={onRemove}
             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-150 active:scale-90"
-            title="Remove product"
+            title={isService ? 'Remove service' : 'Remove product'}
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -150,9 +151,38 @@ const ProductItem: React.FC<ProductItemProps> = ({
                 color: colors.includes(product.color ?? '') ? product.color : '',
                 ...(pickedService ? { itemType: 'service' as const, vendor: '', vendorPaymentStatus: 'Unpaid' as const } : {}),
               });
+              if (pickedService) {
+                // Fill in how this service is charged and who usually does it.
+                // The line is already updated above, so a failed lookup costs nothing.
+                supabase
+                  .from('inventory_items')
+                  .select('service_type, staff_name')
+                  .ilike('product_name', selected.name)
+                  .eq('item_type', 'service')
+                  .eq('is_deleted', false)
+                  .limit(1)
+                  .maybeSingle()
+                  .then(({ data }) => {
+                    if (!data) return;
+                    onChange({
+                      ...product,
+                      product: selected.name,
+                      buyingPrice: 0,
+                      sellingPrice: selected.price || product.sellingPrice,
+                      availableColors: colors,
+                      color: '',
+                      itemType: 'service' as const,
+                      vendor: '',
+                      vendorPaymentStatus: 'Unpaid' as const,
+                      serviceType: (data.service_type as 'flat' | 'hourly' | 'per_session' | null) ?? product.serviceType,
+                      staffName: data.staff_name || product.staffName,
+                    });
+                  });
+              }
             }}
             required
             error={error}
+            itemType={product.itemType}
           />
         </div>
 

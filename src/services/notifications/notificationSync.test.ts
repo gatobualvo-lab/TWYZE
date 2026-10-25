@@ -30,7 +30,7 @@ function opportunity(overrides: Partial<Opportunity> = {}): Opportunity {
 }
 
 function prefs(overrides: Partial<NotificationPreferences> = {}): NotificationPreferences {
-  return { mutedTypes: [], minPriority: 'low', emailEnabled: true, ...overrides };
+  return { mutedTypes: [], minPriority: 'low', emailEnabled: true, periodReportsEnabled: true, taskRemindersEnabled: true, ...overrides };
 }
 
 beforeEach(() => {

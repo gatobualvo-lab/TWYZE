@@ -1,9 +1,10 @@
 import { formatCurrency } from '../utils/format';
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Phone, MapPin, ShoppingCart, DollarSign, ChevronDown, ChevronUp, Calendar, ArrowLeft } from 'lucide-react';
+import { Users, Search, Phone, MapPin, ShoppingCart, DollarSign, ChevronDown, ChevronUp, Calendar, ArrowLeft, UserPlus, X } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
+import { createCustomer, listCustomers } from '../services/customers/customerService';
 
 interface ClientSummary {
   name: string;
@@ -35,6 +36,9 @@ const ClientManagement: React.FC = () => {
   const [clientSales, setClientSales] = useState<ClientSale[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'orders' | 'spent' | 'recent'>('recent');
+  const [showAdd, setShowAdd] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ name: '', phone: '', email: '', address: '' });
 
   useEffect(() => {
     fetchClients();
@@ -61,7 +65,7 @@ const ClientManagement: React.FC = () => {
         filtered = [...filtered].sort((a, b) => b.totalSpent - a.totalSpent);
         break;
       case 'recent':
-        filtered = [...filtered].sort((a, b) => new Date(b.lastOrderDate).getTime() - new Date(a.lastOrderDate).getTime());
+        filtered = [...filtered].sort((a, b) => (b.lastOrderDate || '').localeCompare(a.lastOrderDate || ''));
         break;
     }
     setFilteredClients(filtered);
@@ -114,6 +118,30 @@ const ClientManagement: React.FC = () => {
         }
       }
 
+      // Customers added by hand (no sale yet) belong in the list too, and
+      // supply a phone number for anyone whose sales never had one.
+      try {
+        for (const customer of await listCustomers()) {
+          const key = customer.name.trim().toLowerCase();
+          if (!key) continue;
+          if (clientMap[key]) {
+            if (!clientMap[key].phone && customer.phone) clientMap[key].phone = customer.phone;
+          } else {
+            clientMap[key] = {
+              name: customer.name.trim(),
+              phone: customer.phone || '',
+              totalOrders: 0,
+              totalSpent: 0,
+              totalOwed: 0,
+              lastOrderDate: '',
+              locations: customer.address ? [customer.address] : [],
+            };
+          }
+        }
+      } catch {
+        // The sales-based list still works if the customers table can't be read.
+      }
+
       setClients(Object.values(clientMap));
     } catch (err: any) {
       toast.error('Failed to load clients');
@@ -145,6 +173,22 @@ const ClientManagement: React.FC = () => {
       toast.error('Failed to load client history');
     } finally {
       setSalesLoading(false);
+    }
+  };
+
+  const addCustomer = async () => {
+    if (!draft.name.trim()) return toast.error('Enter the customer name');
+    setAdding(true);
+    try {
+      const created = await createCustomer(draft);
+      toast.success(`${created.name} added`);
+      setShowAdd(false);
+      setDraft({ name: '', phone: '', email: '', address: '' });
+      await fetchClients();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not add the customer');
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -243,10 +287,17 @@ const ClientManagement: React.FC = () => {
           <div className="p-3 rounded-lg bg-blue-100">
             <Users className="w-6 h-6 text-blue-600" />
           </div>
-          <div>
+          <div className="flex-1">
             <h2 className="text-xl font-semibold text-gray-800">Client Management</h2>
-            <p className="text-gray-600">{clients.length} clients with purchase history</p>
+            <p className="text-gray-600">{clients.length} clients</p>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowAdd(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 active:scale-[0.97] transition-all"
+          >
+            <UserPlus className="w-4 h-4" /> Add Customer
+          </button>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
@@ -276,7 +327,7 @@ const ClientManagement: React.FC = () => {
       {filteredClients.length === 0 ? (
         <div className="bg-white rounded-xl shadow-md border border-gray-200 p-12 text-center">
           <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">No clients found. Record sales with client names to build your client list.</p>
+          <p className="text-gray-500">No clients yet. Add a customer, or record a sale with a customer name.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -320,6 +371,41 @@ const ClientManagement: React.FC = () => {
               )}
             </div>
           ))}
+        </div>
+      )}
+      {showAdd && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-sm p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800">New customer</h3>
+              <button type="button" onClick={() => setShowAdd(false)} className="p-1.5 rounded-lg hover:bg-gray-100" aria-label="Close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {([
+              ['name', 'Name *', 'text'],
+              ['phone', 'Phone', 'tel'],
+              ['email', 'Email', 'email'],
+              ['address', 'Address / location', 'text'],
+            ] as const).map(([field, placeholder, type]) => (
+              <input
+                key={field}
+                type={type}
+                value={draft[field]}
+                onChange={(e) => setDraft(d => ({ ...d, [field]: e.target.value }))}
+                placeholder={placeholder}
+                autoFocus={field === 'name'}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            ))}
+            <p className="text-xs text-gray-400">You can pick this customer when you record a sale.</p>
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={() => setShowAdd(false)} className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button type="button" onClick={addCustomer} disabled={adding} className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-60">
+                {adding ? 'Saving...' : 'Add customer'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

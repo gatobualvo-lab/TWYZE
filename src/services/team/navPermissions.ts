@@ -16,6 +16,7 @@ export const SECTION_BY_NAV_ID: Partial<Record<string, PermissionSection>> = {
   'recurring-expenses': 'expenses',
   'expense-overview': 'expenses',
   inventory: 'inventory',
+  services: 'inventory',
   'inventory-predictions': 'inventory',
   clients: 'customers',
   'customer-timeline': 'customers',

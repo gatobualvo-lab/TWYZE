@@ -13,6 +13,7 @@ import ExpenseOverview from './ExpenseOverview';
 import AdExpensesPage from '../pages/AdExpensesPage';
 import GeneralExpenseForm from './GeneralExpenseForm';
 import InventoryManagement from './InventoryManagement';
+import ServicesManagement from './services/ServicesManagement';
 import MonthlyDashboard from './MonthlyDashboard';
 import ReportsAnalytics from './ReportsAnalytics';
 import DeliveryPayments from './payments/DeliveryPayments';
@@ -55,6 +56,7 @@ import { SubscriptionBanner, RestrictedFeatureGate } from './SubscriptionGate';
 import toast from 'react-hot-toast';
 import { useTheme } from '../contexts/ThemeContext';
 import { setAccountCurrency, useAccountCurrency } from '../utils/accountCurrency';
+import { useTaskReminders } from '../services/tasks/useTaskReminders';
 
 interface UserProfile {
   id: string;
@@ -149,6 +151,7 @@ const NAV_ITEMS: NavTopItem[] = [
     kind: 'group', id: 'inventory-group', label: 'Inventory', icon: Package, iconClassName: 'text-cyan-600',
     items: [
       { id: 'inventory', label: 'Inventory', title: 'Inventory Management', icon: Package },
+      { id: 'services', label: 'Services', icon: Briefcase },
       { id: 'inventory-predictions', label: 'Smart Inventory', icon: Zap },
     ],
   },
@@ -286,6 +289,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   const { theme, toggleTheme } = useTheme();
   // Re-key the content area when the account currency changes so every screen re-renders in it.
   const accountCurrency = useAccountCurrency();
+  useTaskReminders();
   const navigate = useNavigate();
   const { showModal, handleCloseModal } = useDownloadReminder();
   useNotificationSync();
@@ -855,6 +859,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
           </TabSlot>
           <TabSlot id="expense-overview" activeTab={activeTab} visitedTabs={visitedTabs}><ExpenseOverview /></TabSlot>
           <TabSlot id="inventory" activeTab={activeTab} visitedTabs={visitedTabs}><InventoryManagement /></TabSlot>
+          <TabSlot id="services" activeTab={activeTab} visitedTabs={visitedTabs}><ServicesManagement /></TabSlot>
           <TabSlot id="inventory-predictions" activeTab={activeTab} visitedTabs={visitedTabs}><SmartInventoryPredictions /></TabSlot>
           <TabSlot id="clients" activeTab={activeTab} visitedTabs={visitedTabs}><ClientManagement /></TabSlot>
           <TabSlot id="customer-timeline" activeTab={activeTab} visitedTabs={visitedTabs}><CustomerTimeline /></TabSlot>

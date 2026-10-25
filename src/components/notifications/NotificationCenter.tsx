@@ -19,6 +19,7 @@ type FilterTab = 'unread' | 'all' | 'archived';
 const TYPE_META: Record<string, { icon: React.ComponentType<{ className?: string }>; label: string }> = {
   opportunity: { icon: Lightbulb, label: 'Opportunities' },
   goal_at_risk: { icon: Trophy, label: 'Goal Progress' },
+  task_reminder: { icon: Bell, label: 'Task reminders' },
 };
 
 const PRIORITY_STYLE: Record<NotificationPriority, string> = {
@@ -102,6 +103,26 @@ const PreferencesPanel: React.FC<{ prefs: NotificationPreferences; onChange: (p:
         />
       </label>
 
+      <label className="flex items-center justify-between gap-2 cursor-pointer mb-4">
+        <span className="text-sm text-gray-700">Email my quarterly, half-year and yearly business report</span>
+        <input
+          type="checkbox"
+          checked={prefs.periodReportsEnabled}
+          onChange={() => onChange({ ...prefs, periodReportsEnabled: !prefs.periodReportsEnabled })}
+          className="w-4 h-4"
+        />
+      </label>
+
+      <label className="flex items-center justify-between gap-2 cursor-pointer mb-4">
+        <span className="text-sm text-gray-700">Email me task reminders</span>
+        <input
+          type="checkbox"
+          checked={prefs.taskRemindersEnabled}
+          onChange={() => onChange({ ...prefs, taskRemindersEnabled: !prefs.taskRemindersEnabled })}
+          className="w-4 h-4"
+        />
+      </label>
+
       <p className="text-xs text-gray-500 mb-2">Notification types</p>
       <div className="space-y-2">
         {KNOWN_TYPES.map(type => {
@@ -132,7 +153,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNavigate }) =
     listNotifications({ includeArchived: true }).then(setNotifications).catch(() => setNotifications([]));
   };
   useEffect(refresh, []);
-  useEffect(() => { getPreferences().then(setPrefs).catch(() => setPrefs({ mutedTypes: [], minPriority: 'low', emailEnabled: true })); }, []);
+  useEffect(() => { getPreferences().then(setPrefs).catch(() => setPrefs({ mutedTypes: [], minPriority: 'low', emailEnabled: true, periodReportsEnabled: true, taskRemindersEnabled: true })); }, []);
 
   const filtered = useMemo(() => {
     if (!notifications) return [];

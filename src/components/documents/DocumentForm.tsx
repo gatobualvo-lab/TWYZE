@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { Plus, Trash2, Send, Save } from 'lucide-react';
 import { listProjects, type Project } from '../../services/projects/projectService';
 import { useAccountCurrency } from '../../utils/accountCurrency';
+import { uploadPublicImage, ImageUploadError } from '../../services/storage/publicImageUpload';
 import { COMMON_CURRENCIES, fetchBasePerUnit, formatInCurrency, isValidCurrencyCode } from '../../utils/currency';
 
 interface DocumentItem {
@@ -17,6 +18,8 @@ interface DocumentItem {
   discount_percent: number;
   tax_percent: number;
   total: number;
+  /** Optional photo shown next to the line on the document. */
+  image_url?: string;
 }
 
 interface DocumentData {
@@ -161,6 +164,7 @@ export default function DocumentForm({
             discount_percent: safeNum(i.discount_percent),
             tax_percent: safeNum(i.tax_percent),
             total: safeNum(i.total),
+            image_url: (i as { image_url?: string | null }).image_url || undefined,
           })));
         }
       })();
@@ -197,6 +201,52 @@ export default function DocumentForm({
   };
 
   const totals = calculateTotals();
+
+  const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(null);
+
+  const handleItemImage = async (index: number, file: File | undefined) => {
+    if (!file) return;
+    setUploadingImageIndex(index);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id;
+      if (!uid) throw new Error('You must be logged in');
+      const url = await uploadPublicImage({
+        bucket: 'product-images',
+        userId: uid,
+        prefix: 'document-item',
+        file,
+        maxDim: 600,
+        previousUrl: items[index]?.image_url,
+      });
+      setItems(prev => prev.map((it, i) => (i === index ? { ...it, image_url: url } : it)));
+    } catch (error) {
+      toast.error(error instanceof ImageUploadError ? error.message : 'Could not upload the photo');
+    } finally {
+      setUploadingImageIndex(null);
+    }
+  };
+
+  // When a line's name matches a product that already has a photo, offer that photo
+  // instead of making the user upload it again.
+  const autofillItemImage = async (index: number) => {
+    const name = items[index]?.product_name.trim();
+    if (!name || items[index]?.image_url) return;
+    try {
+      const { data } = await supabase
+        .from('user_products')
+        .select('image_url')
+        .ilike('name', name)
+        .not('image_url', 'is', null)
+        .limit(1)
+        .maybeSingle();
+      if (data?.image_url) {
+        setItems(prev => prev.map((it, i) => (i === index && !it.image_url ? { ...it, image_url: data.image_url as string } : it)));
+      }
+    } catch {
+      // Purely a convenience.
+    }
+  };
 
   const updateItem = (index: number, field: keyof DocumentItem, value: any) => {
     const newItems = [...items];
@@ -380,6 +430,7 @@ export default function DocumentForm({
             unit_price: unitPrice,
             discount_percent: discountPercent,
             tax_percent: taxPercent,
+            image_url: item.image_url || null,
             total,
             sort_order: index,
           };
@@ -551,9 +602,34 @@ export default function DocumentForm({
                             onChange={(e) =>
                               updateItem(index, 'product_name', e.target.value)
                             }
+                            onBlur={() => autofillItemImage(index)}
                             className={`w-full px-2 py-1 border rounded ${inputClass} text-sm focus:outline-none focus:ring-1 focus:ring-blue-500`}
                             placeholder="Product name"
                           />
+                          <div className="mt-1 flex items-center gap-2">
+                            {item.image_url && (
+                              <img src={item.image_url} alt="" className="w-8 h-8 rounded object-cover border border-gray-200" />
+                            )}
+                            <label className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer">
+                              {uploadingImageIndex === index ? 'Uploading...' : item.image_url ? 'Change photo' : '+ Add photo'}
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                className="hidden"
+                                disabled={uploadingImageIndex === index}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  e.target.value = '';
+                                  handleItemImage(index, file);
+                                }}
+                              />
+                            </label>
+                            {item.image_url && (
+                              <button type="button" onClick={() => updateItem(index, 'image_url', undefined)} className="text-xs text-red-500 hover:text-red-600">
+                                Remove
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-2">
                           <input

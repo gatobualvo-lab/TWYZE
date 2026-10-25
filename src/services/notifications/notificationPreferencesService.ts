@@ -6,9 +6,19 @@ export interface NotificationPreferences {
   minPriority: NotificationPriority;
   /** Also email high-priority opportunity alerts (low stock, overdue invoices) as they're published. */
   emailEnabled: boolean;
+  /** Email a business summary every quarter, half-year and year. */
+  periodReportsEnabled: boolean;
+  /** Email task reminders (in addition to the in-app pop-up). */
+  taskRemindersEnabled: boolean;
 }
 
-const DEFAULT_PREFERENCES: NotificationPreferences = { mutedTypes: [], minPriority: 'low', emailEnabled: true };
+const DEFAULT_PREFERENCES: NotificationPreferences = {
+  mutedTypes: [],
+  minPriority: 'low',
+  emailEnabled: true,
+  periodReportsEnabled: true,
+  taskRemindersEnabled: true,
+};
 
 export async function getPreferences(): Promise<NotificationPreferences> {
   const { data, error } = await supabase.from('notification_preferences').select('*').maybeSingle();
@@ -18,6 +28,8 @@ export async function getPreferences(): Promise<NotificationPreferences> {
     mutedTypes: data.muted_types ?? [],
     minPriority: (data.min_priority as NotificationPriority) ?? 'low',
     emailEnabled: data.email_enabled ?? true,
+    periodReportsEnabled: data.period_reports_enabled ?? true,
+    taskRemindersEnabled: data.task_reminders_enabled ?? true,
   };
 }
 
@@ -32,6 +44,8 @@ export async function updatePreferences(prefs: NotificationPreferences): Promise
       muted_types: prefs.mutedTypes,
       min_priority: prefs.minPriority,
       email_enabled: prefs.emailEnabled,
+      period_reports_enabled: prefs.periodReportsEnabled,
+      task_reminders_enabled: prefs.taskRemindersEnabled,
       updated_at: new Date().toISOString(),
     });
   if (error) throw new Error(error.message);
