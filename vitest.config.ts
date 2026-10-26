@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      // Edge functions import this Deno-only specifier; tests get a stub.
+      'jsr:@supabase/supabase-js@2': new URL('./src/test/stubs/supabaseJsStub.ts', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

@@ -606,7 +606,7 @@ export default function DocumentForm({
                             className={`w-full px-2 py-1 border rounded ${inputClass} text-sm focus:outline-none focus:ring-1 focus:ring-blue-500`}
                             placeholder="Product name"
                           />
-                          <div className="mt-1 flex items-center gap-2">
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                             {item.image_url && (
                               <img src={item.image_url} alt="" className="w-8 h-8 rounded object-cover border border-gray-200" />
                             )}

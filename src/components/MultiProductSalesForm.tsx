@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, DollarSign, Truck, MapPin, Calendar, CreditCard, Save, ChevronDown, ChevronRight, ScanLine } from 'lucide-react';
+import { Plus, DollarSign, Truck, MapPin, Calendar, CreditCard, Save, ChevronDown, ChevronRight, ScanLine, X } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import EnhancedDropdown from './EnhancedDropdown';
@@ -14,6 +14,8 @@ import { formatCurrency } from '../utils/format';
 import { useBusinessRole } from '../services/team/useBusinessRole';
 import { PageHeader, Card, Button } from './ui';
 import CustomerPicker from './customers/CustomerPicker';
+import ScanOrderCard from './orders/ScanOrderCard';
+import type { OrderDraft, ScannedOrder } from '../services/orders/orderToSale';
 import CameraBarcodeScanner, { isCameraScanSupported } from './CameraBarcodeScanner';
 import { createCustomer } from '../services/customers/customerService';
 import { addScannedProduct, findProductByCode } from '../services/inventory/barcodeLookup';
@@ -103,6 +105,7 @@ const MultiProductSalesForm: React.FC = () => {
     deliveryDate: ''
   });
 
+  const [scanNotes, setScanNotes] = useState<string[]>([]);
   const [scanCode, setScanCode] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [showCameraScan, setShowCameraScan] = useState(false);
@@ -135,6 +138,39 @@ const MultiProductSalesForm: React.FC = () => {
     setTotalBuyingPrice(buyingPriceTotal);
     setTotalTaxes(taxesTotal);
     setTotalProfit(profit);
+  };
+
+  // Fill the form from an order read out of a chat message. Nothing is saved:
+  // the user checks the lines (and any buying price that could not be found).
+  const applyScannedOrder = (order: ScannedOrder, draft: OrderDraft) => {
+    setProducts(
+      draft.lines.map(line => ({
+        ...blankProduct(),
+        product: line.name,
+        quantity: line.quantity,
+        sellingPrice: line.unitPrice,
+        buyingPrice: line.buyingPrice,
+        itemType: line.itemType,
+        availableColors: line.colors,
+      }))
+    );
+    setFormData(prev => ({
+      ...prev,
+      clientName: order.customerName || prev.clientName,
+      customerPhone: order.customerPhone || prev.customerPhone,
+      customerId: order.customerName ? null : prev.customerId,
+      location: order.location || prev.location,
+      deliveryGuy: order.deliveryPerson || prev.deliveryGuy,
+      date: order.date || prev.date,
+    }));
+    if (order.location || order.deliveryPerson) setShowDeliveryDetails(true);
+    setErrors({});
+
+    const notes = [...draft.warnings];
+    if (draft.splitNote) notes.unshift(draft.splitNote);
+    if (order.notes) notes.push(`Message note: ${order.notes}`);
+    setScanNotes(notes);
+    toast.success('Order read. Check the details, then record the sale.');
   };
 
   const handleScan = async (raw: string) => {
@@ -488,6 +524,23 @@ const MultiProductSalesForm: React.FC = () => {
       <PageHeader icon={Plus} title="Record New Sale" description="Add a sale with one or multiple products" />
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <ScanOrderCard onApply={applyScannedOrder} />
+
+        {/* What the scanned order needs checking */}
+        {scanNotes.length > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-semibold text-amber-900">Order read. Please check:</p>
+              <button type="button" onClick={() => setScanNotes([])} className="p-1 rounded hover:bg-amber-100" aria-label="Dismiss">
+                <X className="w-4 h-4 text-amber-700" />
+              </button>
+            </div>
+            <ul className="mt-1 list-disc pl-5 text-sm text-amber-900 space-y-0.5">
+              {scanNotes.map((note, i) => <li key={i}>{note}</li>)}
+            </ul>
+          </div>
+        )}
+
         {/* Barcode scan — a USB/Bluetooth scanner types the code and presses Enter,
             so this one box works for both. Each scan adds the product (or +1 qty). */}
         <Card>
