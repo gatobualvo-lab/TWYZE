@@ -271,6 +271,7 @@ export type Database = {
           default_currency: string | null
           default_notes: string | null
           default_template: string | null
+          document_style: Json
           default_terms: string | null
           email: string | null
           id: string
@@ -305,6 +306,7 @@ export type Database = {
           default_currency?: string | null
           default_notes?: string | null
           default_template?: string | null
+          document_style?: Json
           default_terms?: string | null
           email?: string | null
           id?: string
@@ -339,6 +341,7 @@ export type Database = {
           default_currency?: string | null
           default_notes?: string | null
           default_template?: string | null
+          document_style?: Json
           default_terms?: string | null
           email?: string | null
           id?: string

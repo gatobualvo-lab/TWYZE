@@ -447,7 +447,9 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
       <OnboardingChecklist onNavigate={onNavigate} />
 
       {/* Hero: greeting, today's headline number, and the main action */}
-      <div className="relative rounded-3xl mesh-brand text-white shadow-xl animate-reveal-up">
+      {/* z-10: each section below animates in and so forms its own layer; without this the
+          Quick Add menu (inside the hero) would be painted underneath the cards that follow. */}
+      <div className="relative z-10 rounded-3xl mesh-brand text-white shadow-xl animate-reveal-up">
         <div aria-hidden="true" className="absolute inset-0 rounded-3xl overflow-hidden">
           <div className="absolute inset-0 bg-dots opacity-60" />
           <div className="absolute -right-8 -top-12 w-64 h-64 rounded-full bg-accent-400/25 blur-3xl" />

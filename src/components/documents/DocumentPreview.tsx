@@ -7,6 +7,8 @@ import { buildDocumentPdf } from '../../services/pdf/documentPdf';
 import { downloadBlob, pdfFilename, sharePdf } from '../../services/pdf/pdfShare';
 import { formatInCurrency } from '../../utils/currency';
 import { printHtml } from '../../services/printing/printHtml';
+import { FONT_STACKS, documentColors, documentTitle, resolveDocumentStyle } from '../../utils/documentTheme';
+import { documentPrintCss } from './documentPrintCss';
 
 interface DocumentItem {
   id: string;
@@ -69,6 +71,8 @@ interface BusinessSettings {
   receipt_footer?: string;
   signature_url?: string;
   stamp_url?: string;
+  document_style?: unknown;
+  default_template?: string;
 }
 
 interface DocumentPreviewProps {
@@ -204,7 +208,16 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       .join('');
 
     const footerText = getFooterText();
-    const docTypeLabel = document.document_type.toUpperCase();
+    const docStyle = resolveDocumentStyle(businessSettings);
+    const docTypeLabel = documentTitle(docStyle, document.document_type).toUpperCase();
+    const signatureHTML =
+      docStyle.showSignature && (businessSettings.signature_url || businessSettings.stamp_url)
+        ? `
+          <div class="signatures">
+            <div class="signature-block">${businessSettings.signature_url ? `<img src="${escapeHtml(businessSettings.signature_url)}" alt="" /><div class="signature-line">Authorised signature</div>` : ''}</div>
+            ${businessSettings.stamp_url ? `<img class="stamp" src="${escapeHtml(businessSettings.stamp_url)}" alt="" />` : ''}
+          </div>`
+        : '';
 
     return `
       <!DOCTYPE html>
@@ -213,217 +226,21 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>${escapeHtml(document.document_number)}</title>
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-          }
-          .container {
-            max-width: 850px;
-            margin: 0 auto;
-            padding: 40px;
-            background: white;
-          }
-          .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 40px;
-            border-bottom: 2px solid #333;
-            padding-bottom: 20px;
-          }
-          .logo {
-            max-height: 60px;
-            max-width: 200px;
-            object-fit: contain;
-            margin-bottom: 10px;
-            display: block;
-          }
-          .header-left h1 {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 5px;
-          }
-          .header-left p {
-            font-size: 13px;
-            color: #666;
-            margin: 3px 0;
-          }
-          .header-right {
-            text-align: right;
-          }
-          .doc-type {
-            font-size: 28px;
-            font-weight: 700;
-            color: #086646;
-            margin-bottom: 10px;
-          }
-          .doc-number {
-            font-size: 13px;
-            color: #666;
-          }
-          .doc-date {
-            font-size: 13px;
-            color: #666;
-            margin-top: 5px;
-          }
-          .section {
-            margin-bottom: 30px;
-          }
-          .section-title {
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            color: #333;
-            margin-bottom: 10px;
-            border-bottom: 1px solid #e5e7eb;
-            padding-bottom: 8px;
-          }
-          .two-columns {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-          }
-          .info-block p {
-            font-size: 13px;
-            margin: 4px 0;
-            color: #333;
-          }
-          .info-block .label {
-            font-weight: 600;
-            color: #666;
-            font-size: 12px;
-          }
-          table {
-            width: 100%;
-            margin: 20px 0;
-            border-collapse: collapse;
-          }
-          thead {
-            background-color: #f3f4f6;
-          }
-          thead th {
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            padding: 10px 4px;
-            text-align: left;
-            color: #333;
-            border-bottom: 2px solid #d1d5db;
-          }
-          tbody td {
-            font-size: 13px;
-            padding: 10px 4px;
-          }
-          .summary-table {
-            width: 100%;
-            margin-top: 20px;
-          }
-          .summary-row {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            padding: 10px 0;
-            border-bottom: 1px solid #e5e7eb;
-            font-size: 13px;
-          }
-          .summary-row.total {
-            border-bottom: 2px solid #333;
-            border-top: 2px solid #333;
-            font-weight: 700;
-            font-size: 16px;
-            padding: 15px 0;
-            background-color: #f9fafb;
-          }
-          .summary-row.highlight {
-            background-color: #f9fafb;
-            font-weight: 500;
-          }
-          .summary-label {
-            text-align: left;
-            color: #333;
-          }
-          .summary-value {
-            text-align: right;
-            font-weight: 500;
-          }
-          .notes {
-            background-color: #f9fafb;
-            border-left: 3px solid #086646;
-            padding: 15px;
-            margin-top: 20px;
-            font-size: 13px;
-            color: #555;
-          }
-          .payment-info {
-            background-color: #f0fdf4;
-            border: 1px solid #dcfce7;
-            border-radius: 4px;
-            padding: 15px;
-            margin-top: 20px;
-            font-size: 13px;
-          }
-          .payment-info-title {
-            font-weight: 600;
-            color: #166534;
-            margin-bottom: 10px;
-          }
-          .payment-info p {
-            margin: 5px 0;
-            color: #166534;
-          }
-          .footer {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #d1d5db;
-            font-size: 12px;
-            color: #666;
-            text-align: center;
-          }
-          .terms {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #fef2f2;
-            border-left: 3px solid #dc2626;
-            font-size: 12px;
-            color: #555;
-          }
-          .terms-title {
-            font-weight: 600;
-            color: #991b1b;
-            margin-bottom: 10px;
-          }
-          @media print {
-            body {
-              margin: 0;
-              padding: 0;
-            }
-            .container {
-              max-width: 100%;
-              padding: 20px;
-            }
-          }
-        </style>
+        <style>${documentPrintCss(docStyle)}</style>
       </head>
       <body>
         <div class="container">
           <!-- Header -->
           <div class="header">
             <div class="header-left">
-              ${businessSettings.logo_url ? `<img class="logo" src="${escapeHtml(businessSettings.logo_url)}" alt="" />` : ''}
+              ${docStyle.showLogo && businessSettings.logo_url ? `<img class="logo" src="${escapeHtml(businessSettings.logo_url)}" alt="" />` : ''}
               <h1>${escapeHtml(businessSettings.business_name)}</h1>
               <p>${escapeHtml(businessSettings.physical_address)}</p>
               <p>${escapeHtml(businessSettings.city)}, ${escapeHtml(businessSettings.country)}</p>
               <p>Phone: ${escapeHtml(businessSettings.phone)}</p>
               <p>Email: ${escapeHtml(businessSettings.email)}</p>
-              ${businessSettings.kra_pin ? `<p>KRA PIN: ${escapeHtml(businessSettings.kra_pin)}</p>` : ''}
-              ${businessSettings.vat_number ? `<p>VAT: ${escapeHtml(businessSettings.vat_number)}</p>` : ''}
+              ${docStyle.showTaxIds && businessSettings.kra_pin ? `<p>KRA PIN: ${escapeHtml(businessSettings.kra_pin)}</p>` : ''}
+              ${docStyle.showTaxIds && businessSettings.vat_number ? `<p>VAT: ${escapeHtml(businessSettings.vat_number)}</p>` : ''}
             </div>
             <div class="header-right">
               <div class="doc-type">${docTypeLabel}</div>
@@ -533,10 +350,12 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           </div>
           ` : ''}
 
+          ${signatureHTML}
+
           <!-- Footer -->
           <div class="footer">
             ${escapeHtml(footerText)}
-            <p style="margin-top: 20px; font-size: 11px; color: #999;">Generated on ${new Date().toLocaleString()}</p>
+            ${docStyle.showGeneratedLine ? `<p style="margin-top: 20px; font-size: 11px; color: #999;">Generated on ${new Date().toLocaleString()}</p>` : ''}
           </div>
         </div>
       </body>
@@ -689,7 +508,14 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     );
   }
 
-  const docTypeLabel = document.document_type.charAt(0).toUpperCase() + document.document_type.slice(1);
+  const docStyle = resolveDocumentStyle(businessSettings);
+  const colors = documentColors(docStyle);
+  const docTitle = documentTitle(docStyle, document.document_type);
+  const band = docStyle.headerStyle === 'band';
+  // The sheet is dark in dark mode, so the brand colour is lightened to stay readable on it.
+  const accentText = isDark ? colors.accentTextOnDark : colors.accentText;
+  const headMuted = band ? { color: colors.onAccent } : undefined;
+  const mutedClass = `text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`;
 
   return (
     <div
@@ -789,51 +615,57 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
         className={`flex-1 overflow-auto p-6 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}
       >
         <div
-          className={`max-w-4xl mx-auto rounded-lg shadow-lg ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+          className={`max-w-4xl mx-auto rounded-lg shadow-lg overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+          style={{ fontFamily: FONT_STACKS[docStyle.font] }}
         >
           {/* Header */}
-          <div className="flex justify-between items-start p-8 border-b border-gray-200">
+          <div
+            className={`flex justify-between items-start p-8 ${band ? '' : 'border-b-2'}`}
+            style={band ? { backgroundColor: colors.accent, color: colors.onAccent } : { borderColor: colors.accent }}
+          >
             <div>
-              {businessSettings.logo_url && (
-                <img src={businessSettings.logo_url} alt="" className="max-h-16 max-w-[200px] object-contain mb-3" />
+              {docStyle.showLogo && businessSettings.logo_url && (
+                <img
+                  src={businessSettings.logo_url}
+                  alt=""
+                  className={`max-h-16 max-w-[200px] object-contain mb-3 ${band ? 'bg-white p-1.5 rounded-md' : ''}`}
+                />
               )}
-              <h1 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              <h1
+                className={`text-2xl font-bold mb-2 ${band ? '' : isDark ? 'text-white' : 'text-gray-900'}`}
+                style={headMuted}
+              >
                 {businessSettings.business_name}
               </h1>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                {businessSettings.physical_address}
-              </p>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              <p className={mutedClass} style={headMuted}>{businessSettings.physical_address}</p>
+              <p className={mutedClass} style={headMuted}>
                 {businessSettings.city}, {businessSettings.country}
               </p>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Phone: {businessSettings.phone}
-              </p>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Email: {businessSettings.email}
-              </p>
-              {businessSettings.kra_pin && (
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  KRA PIN: {businessSettings.kra_pin}
-                </p>
+              <p className={mutedClass} style={headMuted}>Phone: {businessSettings.phone}</p>
+              <p className={mutedClass} style={headMuted}>Email: {businessSettings.email}</p>
+              {docStyle.showTaxIds && businessSettings.kra_pin && (
+                <p className={mutedClass} style={headMuted}>KRA PIN: {businessSettings.kra_pin}</p>
               )}
-              {businessSettings.vat_number && (
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  VAT: {businessSettings.vat_number}
-                </p>
+              {docStyle.showTaxIds && businessSettings.vat_number && (
+                <p className={mutedClass} style={headMuted}>VAT: {businessSettings.vat_number}</p>
               )}
             </div>
 
             <div className="text-right">
-              <h2 className="text-3xl font-bold text-blue-600 mb-2">{docTypeLabel}</h2>
-              <p className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              <h2 className="text-3xl font-bold mb-2" style={{ color: band ? colors.onAccent : accentText }}>
+                {docTitle}
+              </h2>
+              <p
+                className={`text-sm font-semibold ${band ? '' : isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                style={headMuted}
+              >
                 {document.document_number}
               </p>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`} style={headMuted}>
                 Date: {new Date(document.date).toLocaleDateString()}
               </p>
               {document.due_date && (
-                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`} style={headMuted}>
                   Due: {new Date(document.due_date).toLocaleDateString()}
                 </p>
               )}
@@ -842,8 +674,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
           {/* Customer Info */}
           <div className={`p-8 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-            <h3 className={`text-sm font-semibold mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              BILL TO
+            <h3 className="text-sm font-semibold mb-3" style={{ color: accentText }}>
+              {document.document_type === 'quotation' ? 'PREPARED FOR' : 'BILL TO'}
             </h3>
             <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {document.customer_name}
@@ -864,7 +696,14 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className={`border-b-2 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}>
+                  <tr
+                    className="border-b-2 [&>th]:!text-[color:inherit]"
+                    style={
+                      docStyle.tableStyle === 'solid'
+                        ? { backgroundColor: colors.accent, color: colors.onAccent, borderColor: colors.accent }
+                        : { backgroundColor: docStyle.tableStyle === 'light' && !isDark ? colors.wash : 'transparent', color: accentText, borderColor: colors.accent }
+                    }
+                  >
                     <th className={`text-left py-2 px-2 font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                       Product
                     </th>
@@ -964,7 +803,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
               <div className={`flex justify-between text-lg font-bold py-2 px-3 rounded border-t-2 border-b-2 ${isDark ? 'border-gray-600 text-white' : 'border-gray-300 text-gray-900'}`}>
                 <span>TOTAL:</span>
-                <span className="text-blue-600">{formatCurrency(safeNum(document.total))}</span>
+                <span style={{ color: accentText }}>{formatCurrency(safeNum(document.total))}</span>
               </div>
 
               {document.document_type === 'invoice' && safeNum(document.amount_paid) > 0 && (
@@ -1000,17 +839,20 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
           {/* Payment Instructions */}
           {document.document_type === 'invoice' && (businessSettings.payment_instructions || businessSettings.bank_details) && (
-            <div className={`p-8 border-b ${isDark ? 'border-gray-700 bg-green-900 bg-opacity-20' : 'border-gray-200 bg-green-50'}`}>
-              <h3 className={`text-sm font-semibold mb-2 ${isDark ? 'text-green-300' : 'text-green-700'}`}>
+            <div
+              className={`p-8 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+              style={isDark ? undefined : { backgroundColor: colors.wash }}
+            >
+              <h3 className="text-sm font-semibold mb-2" style={{ color: accentText }}>
                 Payment Instructions
               </h3>
               {businessSettings.payment_instructions && (
-                <p className={`text-sm ${isDark ? 'text-green-200' : 'text-green-700'}`}>
+                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   {businessSettings.payment_instructions}
                 </p>
               )}
               {businessSettings.bank_details && (
-                <p className={`text-sm mt-2 ${isDark ? 'text-green-200' : 'text-green-700'}`}>
+                <p className={`text-sm mt-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   Bank Details: {businessSettings.bank_details}
                 </p>
               )}
@@ -1029,10 +871,28 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             </div>
           )}
 
+          {docStyle.showSignature && (businessSettings.signature_url || businessSettings.stamp_url) && (
+            <div className="flex items-end justify-between gap-6 px-8 pt-8">
+              <div className="min-w-[200px]">
+                {businessSettings.signature_url && (
+                  <>
+                    <img src={businessSettings.signature_url} alt="" className="max-h-16 max-w-[180px] object-contain" />
+                    <div className={`border-t mt-1 pt-1 text-xs ${isDark ? 'border-gray-500 text-gray-400' : 'border-gray-400 text-gray-600'}`}>
+                      Authorised signature
+                    </div>
+                  </>
+                )}
+              </div>
+              {businessSettings.stamp_url && (
+                <img src={businessSettings.stamp_url} alt="" className="max-h-28 max-w-[112px] object-contain" />
+              )}
+            </div>
+          )}
+
           {/* Footer */}
           <div className={`p-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             <p className="text-xs mb-2">{getFooterText()}</p>
-            <p className="text-xs">Generated on {new Date().toLocaleString()}</p>
+            {docStyle.showGeneratedLine && <p className="text-xs">Generated on {new Date().toLocaleString()}</p>}
           </div>
         </div>
       </div>

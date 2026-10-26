@@ -107,6 +107,64 @@ describe('PDF generation', () => {
     expect(await header(blob)).toMatch(/^%PDF-/);
   });
 
+  describe('document appearance', () => {
+    const base = {
+      document: { document_type: 'invoice' as const, document_number: 'INV-7', subtotal: 500, total: 500, amount_paid: 0, balance_due: 500 },
+      items: [{ product_name: 'Desk', quantity: 1, unit_price: 500, total: 500 }],
+    };
+
+    it('builds with every header, table and font combination', async () => {
+      for (const headerStyle of ['plain', 'band']) {
+        for (const tableStyle of ['solid', 'light', 'lines']) {
+          for (const font of ['sans', 'serif']) {
+            const blob = await buildDocumentPdf({
+              ...base,
+              business: { business_name: 'Acme', document_style: { accent: '#1d4ed8', headerStyle, tableStyle, font } },
+            });
+            expect(await header(blob)).toMatch(/^%PDF-/);
+          }
+        }
+      }
+    });
+
+    it('uses the chosen title wording, font and paper size', async () => {
+      const blob = await buildDocumentPdf({
+        ...base,
+        business: {
+          business_name: 'Acme',
+          document_style: { font: 'serif', paper: 'letter', titles: { invoice: 'Tax Invoice' } },
+        },
+      });
+      const text = await blob.text();
+      expect(text).toContain('TAX INVOICE');
+      expect(text).toContain('Times-Roman');
+      expect(text).toMatch(/\/MediaBox\s*\[\s*0\s+0\s+612\.?\d*\s+792\.?\d*\s*\]/);
+    });
+
+    it('defaults to A4 and the standard heading', async () => {
+      const text = await (await buildDocumentPdf({ ...base, business: { business_name: 'Acme' } })).text();
+      expect(text).toContain('INVOICE');
+      expect(text).toMatch(/\/MediaBox\s*\[\s*0\s+0\s+595\.?\d*\s+841\.?\d*\s*\]/);
+    });
+
+    it('hides tax ids when switched off', async () => {
+      const business = { business_name: 'Acme', kra_pin: 'A123456789Z', vat_number: 'V999' };
+      const shown = await (await buildDocumentPdf({ ...base, business })).text();
+      const hidden = await (await buildDocumentPdf({ ...base, business: { ...business, document_style: { showTaxIds: false } } })).text();
+      expect(shown).toContain('A123456789Z');
+      expect(hidden).not.toContain('A123456789Z');
+      expect(hidden).not.toContain('V999');
+    });
+
+    it('still builds when the signature and stamp cannot be loaded', async () => {
+      const blob = await buildDocumentPdf({
+        ...base,
+        business: { business_name: 'Acme', signature_url: 'https://example.invalid/s.png', stamp_url: 'https://example.invalid/t.png' },
+      });
+      expect(await header(blob)).toMatch(/^%PDF-/);
+    });
+  });
+
   it('paginates a document with many line items', async () => {
     const items = Array.from({ length: 80 }, (_, i) => ({
       product_name: `Item ${i + 1}`,

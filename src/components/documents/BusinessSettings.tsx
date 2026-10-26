@@ -5,6 +5,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import toast from 'react-hot-toast';
 import { uploadPublicImage, ImageUploadError } from '../../services/storage/publicImageUpload';
 import PrintingSettings from './PrintingSettings';
+import DocumentAppearance, { type ImageKind } from './DocumentAppearance';
+import { resolveDocumentStyle, styleToStored, type DocumentKind, type DocumentStyle } from '../../utils/documentTheme';
 import {
   Building2,
   Phone,
@@ -13,7 +15,6 @@ import {
   MapPin,
   CreditCard,
   FileText,
-  Palette,
   Image as ImageIcon,
   Upload,
   X,
@@ -50,16 +51,11 @@ interface BusinessSettings {
   quotation_next_number: number;
   receipt_next_number: number;
   default_template: string;
+  /** Owner's look-and-feel choices; see utils/documentTheme. */
+  document_style?: unknown;
   created_at: string;
   updated_at: string;
 }
-
-const TEMPLATES = [
-  { id: 'classic', label: 'Classic', description: 'Traditional business style' },
-  { id: 'minimal', label: 'Minimal', description: 'Clean and simple' },
-  { id: 'professional', label: 'Professional', description: 'Modern corporate design' },
-  { id: 'corporate', label: 'Corporate', description: 'Premium business layout' },
-];
 
 export default function BusinessSettings() {
   const { theme } = useTheme();
@@ -68,6 +64,10 @@ export default function BusinessSettings() {
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState<ImageKind | null>(null);
+  // False until the document_style migration has been run: saving it would then fail the whole row.
+  const [hasStyleColumn, setHasStyleColumn] = useState(true);
+  const [styleEdited, setStyleEdited] = useState(false);
   const [settings, setSettings] = useState<Partial<BusinessSettings>>({
     business_name: '',
     phone: '',
@@ -129,6 +129,7 @@ export default function BusinessSettings() {
         console.error(error);
       } else if (data) {
         setSettings(data);
+        setHasStyleColumn('document_style' in data);
       } else {
         // Auto-create default settings for new users
         const { data: newSettings, error: insertError } = await supabase
@@ -141,6 +142,7 @@ export default function BusinessSettings() {
           console.error('Error creating default settings:', insertError);
         } else if (newSettings) {
           setSettings(newSettings);
+          setHasStyleColumn('document_style' in newSettings);
         }
       }
     } catch (error) {
@@ -191,6 +193,71 @@ export default function BusinessSettings() {
     setSettings((prev) => ({ ...prev, logo_url: '' }));
   };
 
+  const docStyle = resolveDocumentStyle(settings);
+
+  const updateStyle = (patch: Partial<DocumentStyle>) => {
+    setStyleEdited(true);
+    setSettings((prev) => {
+      const next = { ...resolveDocumentStyle(prev), ...patch };
+      return { ...prev, document_style: styleToStored(next, prev.default_template) };
+    });
+  };
+
+  const updateTitle = (kind: DocumentKind, value: string) => {
+    setStyleEdited(true);
+    setSettings((prev) => {
+      const current = resolveDocumentStyle(prev);
+      const next = { ...current, titles: { ...current.titles, [kind]: value } };
+      return { ...prev, document_style: styleToStored(next, prev.default_template) };
+    });
+  };
+
+  // A new starting design resets header, table and font to what that design gives; colour,
+  // wording and the show/hide choices are kept.
+  const changeTemplate = (id: string) => {
+    setStyleEdited(true);
+    setSettings((prev) => {
+      const stored = styleToStored(resolveDocumentStyle(prev), prev.default_template);
+      delete stored.headerStyle;
+      delete stored.tableStyle;
+      delete stored.font;
+      return { ...prev, default_template: id, document_style: stored };
+    });
+  };
+
+  const resetStyle = () => {
+    setStyleEdited(true);
+    setSettings((prev) => ({ ...prev, document_style: {} }));
+  };
+
+  const handleImageUpload = async (kind: ImageKind, file: File) => {
+    if (!userId) return;
+    const field = kind === 'signature' ? 'signature_url' : 'stamp_url';
+    setUploadingImage(kind);
+    try {
+      const url = await uploadPublicImage({
+        bucket: 'business-assets',
+        userId,
+        prefix: kind,
+        file,
+        maxDim: 800,
+        maxBytes: 5 * 1024 * 1024,
+        previousUrl: settings[field],
+      });
+      setSettings((prev) => ({ ...prev, [field]: url }));
+      toast.success(`${kind === 'signature' ? 'Signature' : 'Stamp'} uploaded — click Save Settings to keep it`);
+    } catch (error) {
+      console.error(`Error uploading ${kind}:`, error);
+      toast.error(error instanceof ImageUploadError ? error.message : `Failed to upload ${kind}`);
+    } finally {
+      setUploadingImage(null);
+    }
+  };
+
+  const handleImageRemove = (kind: ImageKind) => {
+    setSettings((prev) => ({ ...prev, [kind === 'signature' ? 'signature_url' : 'stamp_url']: null }));
+  };
+
   const handleSave = async () => {
     try {
       if (!userId) {
@@ -200,10 +267,17 @@ export default function BusinessSettings() {
 
       setSaving(true);
 
-      const dataToSave = {
+      const dataToSave: Record<string, unknown> = {
         user_id: userId,
         ...settings,
       };
+      if (!hasStyleColumn) {
+        // The column does not exist yet; sending it would reject the whole save.
+        delete dataToSave.document_style;
+        if (styleEdited) {
+          toast('Colours and layout need a one-time database update before they can be saved.', { icon: 'ℹ️', duration: 6000 });
+        }
+      }
 
       const { error } = await supabase
         .from('business_settings')
@@ -766,57 +840,20 @@ export default function BusinessSettings() {
           </div>
         </div>
 
-        {/* Template Selection Section */}
-        <div className={`${sectionClasses} mb-6`}>
-          <div className="flex items-center gap-3 mb-6">
-            <Palette className="w-6 h-6 text-pink-500" />
-            <div>
-              <h2 className={`text-xl font-semibold ${
-                isDark ? 'text-white' : 'text-gray-900'
-              }`}>
-                Default Template
-              </h2>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Choose your preferred document design
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {TEMPLATES.map((template) => (
-              <button
-                key={template.id}
-                onClick={() =>
-                  handleInputChange('default_template', template.id)
-                }
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  settings.default_template === template.id
-                    ? isDark
-                      ? 'border-blue-500 bg-blue-900 bg-opacity-20'
-                      : 'border-blue-500 bg-blue-50'
-                    : isDark
-                      ? 'border-gray-600 hover:border-gray-500'
-                      : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <div
-                  className={`text-left font-semibold ${
-                    isDark ? 'text-white' : 'text-gray-900'
-                  }`}
-                >
-                  {template.label}
-                </div>
-                <div
-                  className={`text-sm mt-1 ${
-                    isDark ? 'text-gray-400' : 'text-gray-600'
-                  }`}
-                >
-                  {template.description}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Document appearance: template, colours, layout, signature and wording */}
+        <DocumentAppearance
+          isDark={isDark}
+          style={docStyle}
+          template={settings.default_template || 'professional'}
+          business={settings}
+          uploading={uploadingImage}
+          onTemplateChange={changeTemplate}
+          onStyleChange={updateStyle}
+          onTitleChange={updateTitle}
+          onUpload={handleImageUpload}
+          onRemove={handleImageRemove}
+          onReset={resetStyle}
+        />
 
         {/* Save Button */}
         <div className="flex gap-4">
