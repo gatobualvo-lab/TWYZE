@@ -1,3 +1,4 @@
+import Spinner from '../components/ui/Spinner';
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
@@ -32,7 +33,7 @@ export default function AdminRoute({ children }: { children: JSX.Element }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <Spinner className="w-12 h-12 mx-auto mb-4" />
           <h2 className="text-lg font-semibold text-slate-800">Verifying access</h2>
         </div>
       </div>

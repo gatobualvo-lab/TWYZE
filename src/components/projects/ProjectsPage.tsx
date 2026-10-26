@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { useFormErrors } from '../../hooks/useFormErrors';
+import FieldError from '../ui/FieldError';
 import { Briefcase, Plus, X, Trash2, Check, CheckCircle2, Archive, FolderOpen, ChevronUp, FileText, Receipt } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { fetchProjectSummaries, type ProjectSummary } from '../../services/projects/projectRollupService';
@@ -172,6 +174,7 @@ const ProjectsPage: React.FC = () => {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', clientName: '', budget: '', notes: '' });
+  const { errors, fail, field, formRef } = useFormErrors<'name'>();
   const [submitting, setSubmitting] = useState(false);
 
   const refresh = () => { fetchProjectSummaries().then(setProjects).catch(() => setProjects([])); };
@@ -181,7 +184,7 @@ const ProjectsPage: React.FC = () => {
     e.preventDefault();
     if (!form.name.trim()) {
       toast.error('Enter a project name');
-      return;
+      return fail({ name: 'Give the project a name' });
     }
     try {
       setSubmitting(true);
@@ -231,12 +234,13 @@ const ProjectsPage: React.FC = () => {
         }
       >
         {showForm && (
-          <form onSubmit={handleCreate} className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-slide-up">
-            <input
+          <form ref={formRef} noValidate onSubmit={handleCreate} className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-slide-up">
+            <input {...field('name')}
               type="text" placeholder="Project name" value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               className="sm:col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
+            <FieldError name="name" message={errors.name} />
             <input
               type="text" placeholder="Client name (optional)" value={form.clientName}
               onChange={e => setForm(f => ({ ...f, clientName: e.target.value }))}

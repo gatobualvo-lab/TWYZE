@@ -57,6 +57,8 @@ import toast from 'react-hot-toast';
 import { useTheme } from '../contexts/ThemeContext';
 import { setAccountCurrency, useAccountCurrency } from '../utils/accountCurrency';
 import { useTaskReminders } from '../services/tasks/useTaskReminders';
+import TopProgress from './ui/TopProgress';
+import { LogoMark, Wordmark } from './brand/Logo';
 
 interface UserProfile {
   id: string;
@@ -217,12 +219,15 @@ interface NavButtonProps {
 const NavButton: React.FC<NavButtonProps> = ({ active, collapsed, label, icon: Icon, onClick, iconClassName }) => (
   <button
     onClick={onClick}
-    className={`group relative w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 ${
+    className={`group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ease-smooth ${
       active
-        ? 'bg-blue-600 text-white shadow-sm'
+        ? 'bg-blue-600 text-white font-semibold'
         : 'text-gray-700 hover:bg-gray-100 hover:translate-x-0.5 active:translate-x-0 active:bg-gray-200'
     }`}
   >
+    {active && (
+      <span aria-hidden="true" className="absolute -left-2 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-accent-400 shadow-glow-accent animate-scale-in" />
+    )}
     <Icon
       className={`w-5 h-5 flex-shrink-0 transition-transform duration-150 group-hover:scale-110 ${
         active ? '' : iconClassName ?? ''
@@ -497,7 +502,8 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
 
   return (
     <>
-    <div className={`min-h-screen flex transition-colors duration-200 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
+    <div className="min-h-screen flex transition-colors duration-200 bg-transparent">
+      <TopProgress routeKey={activeTab} />
       {/* Download Modal */}
       <DownloadModal isOpen={showModal} onClose={handleCloseModal} />
       
@@ -540,22 +546,16 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
       >
         <div
           ref={sidebarRef}
-          className={`fixed md:sticky top-0 left-0 h-screen z-10 shadow-lg transition-all duration-300 safe-pb ${
-            theme === 'dark' ? 'bg-slate-800 border-r border-slate-700' : 'bg-white'
-          } ${isSidebarCollapsed ? 'w-20' : 'w-64'} flex flex-col`}
+          className={`sidebar-dark fixed md:sticky top-0 left-0 h-screen z-10 transition-all duration-300 safe-pb ${
+            isSidebarCollapsed ? 'w-20' : 'w-64'
+          } flex flex-col`}
           style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
         >
           {/* Sidebar Header */}
-          <div className={`p-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-slate-700' : ''}`}>
-            <div className="flex items-center gap-3">
-              <img
-                src="/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png"
-                alt="Trackwyze Logo"
-                className="w-8 h-8"
-              />
-              {!isSidebarCollapsed && (
-                <span className="text-xl font-bold text-gray-800">Trackwyze</span>
-              )}
+          <div className={`p-4 md:pl-4 pl-[76px] border-b flex items-center justify-between ${theme === 'dark' ? 'border-slate-700' : ''}`}>
+            <div className="flex items-center gap-3" aria-label="TrackWyze">
+              <LogoMark variant="dark" className="w-10 h-10 drop-shadow-lg" />
+              {!isSidebarCollapsed && <Wordmark onDark className="text-[24px]" />}
             </div>
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -762,13 +762,13 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
 
       {/* Main Content */}
       <div
-        className="flex-1 min-w-0 p-4 md:p-6 pb-20 md:pb-6 ml-0 md:ml-0 transition-all duration-300"
+        className="flex-1 min-w-0 max-w-[1480px] mx-auto p-4 md:p-6 pb-20 md:pb-6 transition-all duration-300"
         style={isMobileView ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4.5rem)' } : undefined}
       >
         {/* User Profile Bar */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6 flex justify-between items-center">
+        <div className="relative z-20 bg-white/75 backdrop-blur-xl rounded-2xl shadow-sm border border-white/60 ring-1 ring-gray-200/60 p-4 mb-6 flex justify-between items-center">
           <div key={activeTab} className="animate-slide-up">
-            <h1 className="text-xl font-bold text-gray-800">
+            <h1 className="text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight">
               {navTitles[activeTab] ?? ''}
             </h1>
             <p className="text-gray-500 text-sm mt-0.5">
@@ -801,13 +801,14 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
               onClick={() => window.location.reload()}
               className="h-10 w-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
               title="Refresh the app — reloads with the latest data and app version, keeping you on this page"
+              aria-label="Refresh the app"
             >
               <RefreshCw className="w-5 h-5 text-gray-600" />
             </button>
             <UniversalSearch onNavigate={setActiveTab} />
             <NotificationBell onNavigate={setActiveTab} />
-            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center transition-transform duration-150 hover:scale-105">
-              <UserIcon className="w-6 h-6 text-blue-600" />
+            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shadow-glow flex items-center justify-center transition-transform duration-200 ease-spring hover:scale-110">
+              <UserIcon className="w-5 h-5 text-white" />
             </div>
           </div>
         </div>
@@ -884,7 +885,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
       </div>
     </div>
 
-    <MobileBottomNav activeTab={activeTab} onNavigate={handleSidebarNavigate} onMore={() => setIsMobileMenuOpen(true)} businessCategory={user?.profile?.business_category} />
+    {!isMobileMenuOpen && <MobileBottomNav activeTab={activeTab} onNavigate={handleSidebarNavigate} onMore={() => setIsMobileMenuOpen(true)} businessCategory={user?.profile?.business_category} />}
 
     {/* Download Modal (triggered by button) */}
     <DownloadModal isOpen={showDownloadModal} onClose={() => setShowDownloadModal(false)} />

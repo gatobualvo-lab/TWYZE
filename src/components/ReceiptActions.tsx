@@ -52,7 +52,7 @@ const ReceiptActions: React.FC<ReceiptActionsProps> = ({ saleId, compact = false
         disabled={busy}
         title="Receipt"
         aria-label="Receipt"
-        className={`inline-flex items-center gap-1 rounded text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 ${compact ? 'p-1.5' : 'px-3 py-1 text-xs'}`}
+        className={`inline-flex items-center gap-1 rounded text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 ${compact ? 'p-2.5 touch-manipulation' : 'px-3 py-1 text-xs'}`}
       >
         <Receipt className="w-3.5 h-3.5" />
         {!compact && (busy ? 'Preparing...' : 'Receipt')}

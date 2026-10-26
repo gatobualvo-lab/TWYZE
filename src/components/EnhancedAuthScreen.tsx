@@ -1,3 +1,4 @@
+import Spinner from './ui/Spinner';
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Mail, Lock, User as UserIcon, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
@@ -8,6 +9,7 @@ import { sendWelcomeEmail } from '../services/email/emailService';
 import { trackEvent } from '../lib/analytics';
 import { BUSINESS_CATEGORIES, REFERRAL_SOURCES } from '../constants/businessCategory';
 import { ACCOUNT_CURRENCIES, DEFAULT_CURRENCY } from '../utils/accountCurrency';
+import Logo from './brand/Logo';
 
 type Mode = 'login' | 'signup';
 
@@ -206,8 +208,55 @@ const EnhancedAuthScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-sky-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+    <div className="min-h-screen lg:grid lg:grid-cols-[1.05fr_1fr]">
+      {/* Brand panel — desktop only. A quiet, moving picture of what the app does. */}
+      <aside className="relative hidden lg:flex flex-col justify-between mesh-brand text-white p-12 xl:p-16 overflow-hidden">
+        <div aria-hidden="true" className="absolute inset-0 bg-dots opacity-50" />
+        <div aria-hidden="true" className="absolute -right-24 top-1/3 w-96 h-96 rounded-full bg-accent-400/20 blur-3xl" />
+
+        <div className="relative">
+          <Logo onDark markClassName="w-12 h-12" wordmarkClassName="text-3xl" showTagline />
+        </div>
+
+        <div className="relative max-w-lg">
+          <p className="text-xs uppercase tracking-[0.22em] text-white/55 font-semibold mb-4">Built for small business owners</p>
+          <h2 className="font-display text-5xl xl:text-6xl font-extrabold leading-[1.02] tracking-tight text-white">
+            Know exactly what you <span className="text-gradient">made today.</span>
+          </h2>
+          <p className="mt-5 text-lg text-white/70 max-w-md">
+            Sales, stock, expenses and customers in one calm place. Works even when the internet doesn't.
+          </p>
+        </div>
+
+        {/* Floating "product" cards — decorative */}
+        <div aria-hidden="true" className="relative h-52">
+          <div className="absolute left-0 top-2 w-60 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-4 shadow-xl animate-reveal-up" style={{ animationDelay: '350ms' }}>
+            <p className="text-[11px] uppercase tracking-wider text-white/55 font-semibold">Today's sales</p>
+            <p className="font-display text-3xl font-extrabold mt-1 tabular-nums">KES 48,500</p>
+            <p className="text-xs text-emerald-300 font-semibold mt-1">▲ 12% vs yesterday</p>
+          </div>
+          <div className="absolute left-48 top-24 w-56 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-4 shadow-xl animate-reveal-up" style={{ animationDelay: '550ms' }}>
+            <p className="text-[11px] uppercase tracking-wider text-white/55 font-semibold">Profit this week</p>
+            <svg viewBox="0 0 200 56" className="mt-2 w-full h-12">
+              <defs>
+                <linearGradient id="authSpark" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0" stopColor="#34d399" stopOpacity="0.5" />
+                  <stop offset="1" stopColor="#34d399" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d="M0 44 C20 40 30 22 52 28 S90 50 112 30 S160 8 200 14 V56 H0 Z" fill="url(#authSpark)" />
+              <path d="M0 44 C20 40 30 22 52 28 S90 50 112 30 S160 8 200 14" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" pathLength="1" strokeDasharray="1" className="animate-[draw-line_2.4s_ease-out_both]" />
+            </svg>
+          </div>
+          <div className="absolute right-0 top-0 hidden xl:flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md border border-white/15 px-3.5 py-2 shadow-lg animate-reveal-up" style={{ animationDelay: '750ms' }}>
+            <span className="w-2 h-2 rounded-full bg-accent-400" />
+            <span className="text-xs font-semibold text-white/85">Office chair: 3 left</span>
+          </div>
+        </div>
+      </aside>
+
+      <div className="flex items-center justify-center p-4 sm:p-8 min-h-screen">
+      <div className="w-full max-w-md bg-white/85 backdrop-blur-xl rounded-3xl shadow-xl border border-white/70 ring-1 ring-gray-200/70 p-7 sm:p-9 animate-reveal-up">
         <div className="mb-4">
           <Link to="/landing" className="flex items-center text-blue-600 hover:text-blue-800 text-sm">
             <ArrowLeft className="w-4 h-4 mr-1" />
@@ -216,30 +265,30 @@ const EnhancedAuthScreen: React.FC = () => {
         </div>
 
         <div className="text-center mb-8">
-          <img
-            src="/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png"
-            alt="Trackwyze Logo"
-            className="w-16 h-16 mx-auto mb-4"
-          />
-          <h1 className="text-2xl font-bold text-gray-800 mb-1">Trackwyze</h1>
-          <p className="text-blue-600 font-medium mb-4">Track Smart. Profit Wise.</p>
+          <div className="flex justify-center mb-5 lg:hidden">
+            <Logo markClassName="w-12 h-12" wordmarkClassName="text-3xl" />
+          </div>
+          <h1 className="font-display text-3xl font-extrabold text-gray-900 mb-1 tracking-tight">{isLogin ? 'Welcome back' : 'Create your account'}</h1>
+          <p className="text-gray-500 mb-6">{isLogin ? 'Log in to see how your business is doing.' : 'Start tracking sales, stock and profit in minutes.'}</p>
 
-          <div className="flex bg-gray-100 rounded-lg p-1">
+          <div className="relative grid grid-cols-2 bg-gray-100 rounded-xl p-1">
+            <span
+              aria-hidden="true"
+              className={`absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-lg bg-white shadow-md transition-transform duration-300 ease-spring ${isLogin ? 'translate-x-0' : 'translate-x-full'}`}
+            />
             <button
               type="button"
               onClick={() => switchMode('login')}
-              className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors text-sm ${
-                isLogin ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
-              }`}
+              aria-pressed={isLogin}
+              className={`relative z-10 py-2 px-4 rounded-lg font-semibold transition-colors duration-200 text-sm ${isLogin ? 'text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
             >
               Login
             </button>
             <button
               type="button"
               onClick={() => switchMode('signup')}
-              className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors text-sm ${
-                !isLogin ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
-              }`}
+              aria-pressed={!isLogin}
+              className={`relative z-10 py-2 px-4 rounded-lg font-semibold transition-colors duration-200 text-sm ${!isLogin ? 'text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
             >
               Sign Up
             </button>
@@ -396,14 +445,14 @@ const EnhancedAuthScreen: React.FC = () => {
           )}
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+            <div role="alert" className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
 
           {success && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-2">
+            <div role="status" className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-2">
               <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-green-600">{success}</p>
             </div>
@@ -412,11 +461,11 @@ const EnhancedAuthScreen: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 min-h-[48px]"
+            className="sheen-host w-full bg-gradient-to-b from-blue-500 to-blue-700 hover:shadow-glow disabled:from-blue-300 disabled:to-blue-300 disabled:shadow-none text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-inset transition-all duration-200 ease-smooth active:scale-[0.98] flex items-center justify-center gap-2 min-h-[50px]"
           >
             {isSubmitting ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <Spinner className="w-4 h-4" tone="light" />
                 {isLogin ? 'Logging in...' : 'Creating account...'}
               </>
             ) : (
@@ -451,6 +500,7 @@ const EnhancedAuthScreen: React.FC = () => {
           )}
         </div>
 
+      </div>
       </div>
       <Toaster
         position="bottom-center"

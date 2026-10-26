@@ -11,6 +11,10 @@ import { getPeriodRange } from '../utils/dateRange';
 import BusinessHealthScore from './analytics/BusinessHealthScore';
 import { listTasks, createTask, toggleTaskCompleted, deleteTask as deleteTaskRecord } from '../services/tasks/taskService';
 import { REMINDER_OPTIONS, formatDueTime } from '../services/tasks/reminders';
+import CountUp from './ui/CountUp';
+import Spinner from './ui/Spinner';
+import Sparkline from './ui/Sparkline';
+import { useRotatingMessage } from './LoadingScreen';
 import { ensureNotificationPermission } from '../services/tasks/useTaskReminders';
 import type { BusinessTask } from '../services/tasks/taskService';
 import { Skeleton, SkeletonStatGrid, SkeletonList } from './ui';
@@ -75,6 +79,18 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
 
   // Chart data
   const [chartData, setChartData] = useState<any>({ labels: [], datasets: [] });
+  const chartHasData = (chartData.datasets ?? []).some((d: { data: number[] }) => d.data.some((v: number) => v > 0));
+  // Recent trend lines for the KPI cards, from the same daily numbers the chart uses.
+  const salesSeries: number[] = chartData.datasets?.[0]?.data ?? [];
+  const profitSeries: number[] = chartData.datasets?.[1]?.data ?? [];
+  // Plain-language version of the chart for screen readers (and anyone who can't make out the lines).
+  const chartSummary = (() => {
+    const [sales, profit] = chartData.datasets ?? [];
+    if (!sales || !chartHasData) return 'Sales and profit chart for the last 30 days. No data yet.';
+    const total = (d?: { data: number[] }) => (d ? d.data.reduce((a: number, b: number) => a + b, 0) : 0);
+    const peakIndex = sales.data.indexOf(Math.max(...sales.data));
+    return `Sales and profit for the last 30 days. Sales total ${formatKES(total(sales))}, profit total ${formatKES(total(profit))}. Best day was ${chartData.labels[peakIndex]} with ${formatKES(sales.data[peakIndex])} in sales. Sales is the solid line; profit is the dashed line.`;
+  })();
 
   // Recent sales
   const [recentSales, setRecentSales] = useState<RecentSale[]>([]);
@@ -91,6 +107,16 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newTaskDueTime, setNewTaskDueTime] = useState('');
   const [newTaskRemind, setNewTaskRemind] = useState<number | null>(null);
+
+  // A fill that fades from the line colour down to nothing, built from the chart's own canvas.
+  const areaGradient = (rgb: string) => (context: { chart: { ctx: CanvasRenderingContext2D; chartArea?: { top: number; bottom: number } } }) => {
+    const { ctx, chartArea } = context.chart;
+    if (!chartArea) return `rgba(${rgb}, 0.12)`;
+    const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+    gradient.addColorStop(0, `rgba(${rgb}, 0.32)`);
+    gradient.addColorStop(1, `rgba(${rgb}, 0)`);
+    return gradient;
+  };
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -299,20 +325,23 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
         {
           label: 'Sales',
           data: days.map(d => salesByDay[d]),
-          borderColor: '#3b82f6',
-          backgroundColor: 'rgba(59, 130, 246, 0.08)',
+          borderColor: '#0e9f6e',
+          borderWidth: 2.5,
+          backgroundColor: areaGradient('14, 159, 110'),
           fill: true,
-          tension: 0.3,
+          tension: 0.38,
           pointRadius: 0,
           pointHoverRadius: 4,
         },
         {
           label: 'Profit',
           data: days.map(d => profitByDay[d]),
-          borderColor: '#10b981',
-          backgroundColor: 'rgba(16, 185, 129, 0.08)',
+          borderColor: '#f5a524',
+          borderWidth: 2.5,
+          borderDash: [7, 5],
+          backgroundColor: areaGradient('245, 165, 36'),
           fill: true,
-          tension: 0.3,
+          tension: 0.38,
           pointRadius: 0,
           pointHoverRadius: 4,
         },
@@ -367,27 +396,45 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
   };
 
   const isDark = theme === 'dark';
-  const cardClass = `rounded-xl border p-5 transition-all duration-200 cursor-pointer hover:-translate-y-0.5 ${
-    isDark ? 'bg-slate-800 border-slate-700 hover:shadow-lg hover:shadow-black/20' : 'bg-white border-gray-100 shadow-sm hover:shadow-md'
+  const cardClass = `spotlight rounded-2xl border p-5 transition-all duration-300 ease-smooth cursor-pointer hover:-translate-y-1 active:translate-y-0 ${
+    isDark ? 'bg-slate-800 border-slate-700 hover:shadow-lg hover:shadow-black/30' : 'bg-white border-gray-200/70 shadow-sm hover:shadow-lg hover:border-blue-200'
   }`;
   const sectionTitle = `text-lg font-semibold ${isDark ? 'text-gray-100' : 'text-gray-800'}`;
+  const loadingMessage = useRotatingMessage();
 
   if (loading) {
     return (
-      <div className="space-y-6 animate-fadeIn">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <Skeleton className="h-7 w-56" />
-            <Skeleton className="h-4 w-40" />
+      <div className="space-y-6" role="status" aria-live="polite" aria-label="Loading your dashboard">
+        {/* Same shape as the real hero, so nothing jumps when the numbers arrive */}
+        <div className="relative rounded-3xl mesh-brand text-white shadow-xl overflow-hidden animate-reveal-up">
+          <div aria-hidden="true" className="absolute inset-0 bg-dots opacity-60" />
+          <div aria-hidden="true" className="absolute -right-8 -top-12 w-64 h-64 rounded-full bg-accent-400/15 blur-3xl" />
+          <div className="relative p-6 sm:p-8 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+            <div className="space-y-3">
+              <div className="skeleton-on-dark h-3 w-40 rounded-full" />
+              <div className="skeleton-on-dark h-9 w-72 max-w-full rounded-xl" />
+              <div className="flex items-center gap-2.5 pt-1">
+                <Spinner tone="light" className="w-4 h-4" label="Loading dashboard" />
+                <span key={loadingMessage} className="text-sm text-white/75 animate-fade-in">{loadingMessage}</span>
+              </div>
+            </div>
+            <div className="flex items-end gap-6">
+              <div className="space-y-2">
+                <div className="skeleton-on-dark h-3 w-24 rounded-full" />
+                <div className="skeleton-on-dark h-9 w-40 rounded-xl" />
+              </div>
+              <div className="h-12 w-36 rounded-xl bg-gradient-to-b from-accent-400 to-accent-600 opacity-60 animate-pulse" />
+            </div>
           </div>
-          <Skeleton className="h-10 w-32 rounded-lg" />
         </div>
         <SkeletonStatGrid />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-5">
-            <Skeleton className="h-56 w-full" />
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200/70 p-5">
+            <Skeleton className="h-5 w-40 mb-2" />
+            <Skeleton className="h-3 w-24 mb-5" />
+            <Skeleton className="h-48 w-full" />
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-5">
+          <div className="bg-white rounded-2xl border border-gray-200/70 p-5">
             <SkeletonList rows={3} />
           </div>
         </div>
@@ -396,62 +443,82 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 stagger-soft">
       <OnboardingChecklist onNavigate={onNavigate} />
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            {getGreeting()}, {userName.split(' ')[0] || 'there'}
-          </h1>
-          <p className={`mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            Here's today's business overview.
-          </p>
+      {/* Hero: greeting, today's headline number, and the main action */}
+      <div className="relative rounded-3xl mesh-brand text-white shadow-xl animate-reveal-up">
+        <div aria-hidden="true" className="absolute inset-0 rounded-3xl overflow-hidden">
+          <div className="absolute inset-0 bg-dots opacity-60" />
+          <div className="absolute -right-8 -top-12 w-64 h-64 rounded-full bg-accent-400/25 blur-3xl" />
+          <div className="absolute -left-10 -bottom-16 w-72 h-72 rounded-full bg-blue-400/20 blur-3xl" />
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <button
-              onClick={() => setShowQuickAdd(!showQuickAdd)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm"
-            >
-              <Plus className="w-4 h-4" />
-              Quick Add
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showQuickAdd ? 'rotate-180' : ''}`} />
-            </button>
-            {showQuickAdd && (
-              <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg border z-20 py-1 origin-top-right animate-scale-in ${
-                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-              }`}>
-                {[
-                  { label: categoryConfig.addSaleLabel, tab: 'add-sale', icon: ShoppingCart },
-                  { label: 'Add Expense', tab: 'general-expenses', icon: DollarSign },
-                  { label: 'Add Delivery', tab: 'delivery-payments', icon: Truck },
-                  { label: 'Add Supplier Sale', tab: 'add-supplier', icon: Users },
-                ].map(item => (
-                  <button
-                    key={item.tab}
-                    onClick={() => { onNavigate(item.tab); setShowQuickAdd(false); }}
-                    className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition-colors ${
-                      isDark ? 'text-gray-300 hover:bg-slate-700' : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <item.icon className="w-4 h-4 text-blue-500" />
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            )}
+        <div className="relative p-6 sm:p-8 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-white/60 font-semibold">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
+            <h1 className="font-display text-3xl sm:text-4xl font-extrabold mt-1.5 tracking-tight text-white">
+              {getGreeting()}, <span className="text-gradient">{userName.split(' ')[0] || 'there'}</span>
+            </h1>
+            <p className="mt-1 text-white/70">Here's today's business overview.</p>
           </div>
-          <button
-            onClick={() => setShowCustomize(!showCustomize)}
-            className={`p-2.5 rounded-lg border transition-colors ${
-              isDark ? 'border-slate-700 hover:bg-slate-700 text-gray-400' : 'border-gray-200 hover:bg-gray-50 text-gray-500'
-            }`}
-            title="Customize Dashboard"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+            <div>
+              <p className="text-xs font-medium text-white/60">Today's {categoryConfig.salesLabel}</p>
+              <p className="font-display text-3xl sm:text-4xl font-extrabold tabular-nums leading-tight">
+                <CountUp value={todaySales} format={formatKES} />
+              </p>
+              {todayOrderCount > 0 && (
+                <p className="text-xs text-white/60">
+                  {todayOrderCount} {todayOrderCount === 1 ? categoryConfig.saleNounSingular : saleNounPlural} today
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <button
+                  onClick={() => setShowQuickAdd(!showQuickAdd)}
+                  className="sheen-host flex items-center gap-2 px-5 py-3 bg-gradient-to-b from-accent-300 to-accent-500 hover:shadow-glow-accent text-gray-900 rounded-xl font-bold shadow-md shadow-inset transition-all duration-200 ease-smooth active:scale-[0.97] text-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  Quick Add
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showQuickAdd ? 'rotate-180' : ''}`} />
+                </button>
+                {showQuickAdd && (
+                  <div className={`absolute right-0 mt-2 w-52 rounded-xl shadow-xl border z-30 py-1.5 origin-top-right animate-scale-in ${
+                    isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+                  }`}>
+                    {[
+                      { label: categoryConfig.addSaleLabel, tab: 'add-sale', icon: ShoppingCart },
+                      { label: 'Add Expense', tab: 'general-expenses', icon: DollarSign },
+                      { label: 'Add Delivery', tab: 'delivery-payments', icon: Truck },
+                      { label: 'Add Supplier Sale', tab: 'add-supplier', icon: Users },
+                    ].map(item => (
+                      <button
+                        key={item.tab}
+                        onClick={() => { onNavigate(item.tab); setShowQuickAdd(false); }}
+                        className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition-colors ${
+                          isDark ? 'text-gray-300 hover:bg-slate-700' : 'text-gray-700 hover:bg-blue-50'
+                        }`}
+                      >
+                        <item.icon className="w-4 h-4 text-blue-500" />
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setShowCustomize(!showCustomize)}
+                className="p-3 rounded-xl border border-white/20 text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+                title="Customize Dashboard"
+                aria-label="Customize dashboard"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -495,23 +562,23 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
 
       {/* KPI Cards */}
       {prefs.show_kpi_cards && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 no-stagger">
           {([
             {
-              tab: 'view-sales', bg: 'bg-blue-500/10', icon: TrendingUp, iconColor: 'text-blue-600',
-              label: `Today's ${categoryConfig.salesLabel}`, value: todaySales,
+              tab: 'view-sales', bg: 'bg-blue-500/12', icon: TrendingUp, iconColor: 'text-blue-600',
+              label: `Today's ${categoryConfig.salesLabel}`, value: todaySales, spark: salesSeries.slice(-7), sparkColor: '#0e9f6e',
               sub: todayOrderCount > 0 ? `${todayOrderCount} ${todayOrderCount === 1 ? categoryConfig.saleNounSingular : saleNounPlural} today` : null,
               subTone: 'neutral',
             },
             {
               tab: 'monthly-dashboard', bg: 'bg-emerald-500/10', icon: DollarSign, iconColor: 'text-emerald-600',
-              label: "This Week's Gross Profit", value: weekGrossProfit,
+              label: "This Week's Gross Profit", value: weekGrossProfit, spark: profitSeries.slice(-7), sparkColor: '#0e9f6e',
               sub: weekGrossProfitChangePct !== null ? `${weekGrossProfitChangePct >= 0 ? '+' : ''}${weekGrossProfitChangePct.toFixed(0)}% vs last week` : null,
               subTone: weekGrossProfitChangePct !== null && weekGrossProfitChangePct >= 0 ? 'good' : 'bad',
             },
             {
               tab: 'monthly-dashboard', bg: 'bg-amber-500/10', icon: TrendingUp, iconColor: 'text-amber-600',
-              label: "This Month's Net Profit", value: monthNetProfit,
+              label: "This Month's Net Profit", value: monthNetProfit, spark: profitSeries, sparkColor: '#f5a524',
               sub: monthNetProfitChangePct !== null ? `${monthNetProfitChangePct >= 0 ? '+' : ''}${monthNetProfitChangePct.toFixed(0)}% vs last month` : null,
               subTone: monthNetProfitChangePct !== null && monthNetProfitChangePct >= 0 ? 'good' : 'bad',
             },
@@ -522,20 +589,25 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
               // Inverted: lower expenses is the good direction, unlike the two profit cards above.
               subTone: weekExpensesChangePct !== null && weekExpensesChangePct <= 0 ? 'good' : 'bad',
             },
-          ] as Array<{ tab: string; bg: string; icon: typeof TrendingUp; iconColor: string; label: string; value: number; sub: string | null; subTone: 'good' | 'bad' | 'neutral' }>).map((kpi, i) => (
+          ] as Array<{ tab: string; bg: string; icon: typeof TrendingUp; iconColor: string; label: string; value: number; sub: string | null; subTone: 'good' | 'bad' | 'neutral'; spark?: number[]; sparkColor?: string }>).map((kpi, i) => (
             <div
               key={kpi.label}
-              className={`${cardClass} animate-slide-up group`}
-              style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'backwards' }}
+              className={`${cardClass} animate-[soft-rise_0.55s_cubic-bezier(0.16,1,0.3,1)_both] group`}
+              style={{ animationDelay: `${120 + i * 55}ms` }}
+              onMouseMove={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                e.currentTarget.style.setProperty('--mx', `${e.clientX - r.left}px`);
+                e.currentTarget.style.setProperty('--my', `${e.clientY - r.top}px`);
+              }}
               onClick={() => onNavigate(kpi.tab)}
             >
               <div className="flex items-center gap-3">
-                <div className={`p-2.5 rounded-lg ${kpi.bg} transition-transform duration-200 group-hover:scale-110`}>
+                <div className={`p-2.5 rounded-xl ${kpi.bg} transition-transform duration-300 ease-spring group-hover:scale-110 group-hover:-rotate-3`}>
                   <kpi.icon className={`w-5 h-5 ${kpi.iconColor}`} />
                 </div>
                 <div className="min-w-0">
                   <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{kpi.label}</p>
-                  <p className={`text-xl font-bold truncate tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatKES(kpi.value)}</p>
+                  <p className={`font-display text-xl font-extrabold truncate tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}><CountUp value={kpi.value} format={formatKES} /></p>
                   {kpi.sub && (
                     <p className={`text-xs mt-0.5 truncate ${
                       kpi.subTone === 'good' ? 'text-green-600' : kpi.subTone === 'bad' ? 'text-red-500' : isDark ? 'text-gray-500' : 'text-gray-400'
@@ -545,6 +617,11 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                   )}
                 </div>
               </div>
+              {kpi.spark && kpi.spark.length > 1 && kpi.spark.some(v => v !== 0) && (
+                <div className="mt-3 -mx-1">
+                  <Sparkline values={kpi.spark} color={kpi.sparkColor} className="w-full h-7" />
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -557,7 +634,19 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
           <div className={`lg:col-span-2 rounded-xl border p-5 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
             <h2 className={sectionTitle}>{categoryConfig.salesLabel} & Profit</h2>
             <p className={`text-xs mb-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Last 30 days</p>
-            <div className="h-56">
+            {!chartHasData ? (
+              <div className="h-56 flex flex-col items-center justify-center text-center gap-3">
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>No {categoryConfig.salesLabel.toLowerCase()} in the last 30 days yet.</p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('add-sale')}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-b from-blue-500 to-blue-700 text-white text-sm font-semibold shadow-md hover:shadow-glow active:scale-[0.97] transition-all"
+                >
+                  {categoryConfig.addSaleLabel}
+                </button>
+              </div>
+            ) : (
+            <div className="h-56" role="img" aria-label={chartSummary}>
               <Line
                 data={chartData}
                 options={{
@@ -586,7 +675,21 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                     },
                   },
                   plugins: {
-                    legend: { display: true, position: 'top', align: 'end', labels: { boxWidth: 8, usePointStyle: true, pointStyle: 'circle', color: isDark ? '#94a3b8' : '#6b7280', font: { size: 12 } } },
+                    legend: { display: true, position: 'top', align: 'end', labels: {
+                      boxWidth: 8,
+                      boxHeight: 8,
+                      usePointStyle: true,
+                      pointStyle: 'circle',
+                      color: isDark ? '#94a3b8' : '#6b7280',
+                      font: { size: 12 },
+                      // Solid dots in the line colour: the gradient fill and thick stroke belong to the lines, not the legend.
+                      generateLabels: (chart) =>
+                        ChartJS.defaults.plugins.legend.labels.generateLabels(chart).map((item) => ({
+                          ...item,
+                          fillStyle: item.strokeStyle,
+                          lineWidth: 0,
+                        })),
+                    } },
                     tooltip: {
                       backgroundColor: isDark ? '#1e293b' : '#fff',
                       titleColor: isDark ? '#f1f5f9' : '#111827',
@@ -599,6 +702,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                 }}
               />
             </div>
+            )}
           </div>
         )}
 

@@ -261,7 +261,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           .doc-type {
             font-size: 28px;
             font-weight: 700;
-            color: #1e40af;
+            color: #086646;
             margin-bottom: 10px;
           }
           .doc-number {
@@ -355,7 +355,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           }
           .notes {
             background-color: #f9fafb;
-            border-left: 3px solid #1e40af;
+            border-left: 3px solid #086646;
             padding: 15px;
             margin-top: 20px;
             font-size: 13px;

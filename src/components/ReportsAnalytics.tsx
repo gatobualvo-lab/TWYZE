@@ -1,3 +1,4 @@
+import Spinner from './ui/Spinner';
 import React, { useState, useEffect } from 'react';
 import { Calendar, Download, FileText, Filter, Eye, BarChart3, TrendingUp, DollarSign } from 'lucide-react';
 import { supabase } from '../utils/supabase';
@@ -857,7 +858,7 @@ const ReportsAnalytics: React.FC = () => {
           >
             {loading ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <Spinner className="w-4 h-4" tone="light" />
                 Loading...
               </>
             ) : (

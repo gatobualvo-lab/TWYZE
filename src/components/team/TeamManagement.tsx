@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { useFormErrors } from '../../hooks/useFormErrors';
+import FieldError from '../ui/FieldError';
 import { Users, Plus, X, Clock, CheckCircle2, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -129,6 +131,7 @@ const TeamManagement: React.FC = () => {
   const [restrictToOwnRecords, setRestrictToOwnRecords] = useState(true);
   const [hideFinancialDetails, setHideFinancialDetails] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const { errors, fail, field, formRef } = useFormErrors<'email'>();
 
   const refresh = () => { listTeamMembers().then(setMembers).catch(() => setMembers([])); };
   useEffect(refresh, []);
@@ -137,7 +140,7 @@ const TeamManagement: React.FC = () => {
     e.preventDefault();
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       toast.error('Enter a valid email address');
-      return;
+      return fail({ email: 'Enter a valid email address, like name@example.com' });
     }
     try {
       setSubmitting(true);
@@ -185,12 +188,13 @@ const TeamManagement: React.FC = () => {
         }
       >
         {showForm && (
-          <form onSubmit={handleInvite} className="mt-4 pt-4 border-t border-gray-100 space-y-3 animate-slide-up">
-            <input
+          <form ref={formRef} noValidate onSubmit={handleInvite} className="mt-4 pt-4 border-t border-gray-100 space-y-3 animate-slide-up">
+            <input {...field('email')}
               type="email" placeholder="Their email address" value={email}
               onChange={e => setEmail(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
+            <FieldError name="email" message={errors.email} />
             <div>
               <p className="text-xs text-gray-500 mb-1.5">Access to grant:</p>
               <PermissionToggles selected={permissions} onChange={setPermissions} />

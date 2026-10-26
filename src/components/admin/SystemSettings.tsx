@@ -1,3 +1,4 @@
+import Spinner from '../ui/Spinner';
 import React, { useState, useEffect } from 'react';
 import { Mail, Save, Edit, Check, X, AlertCircle, Info } from 'lucide-react';
 import { supabase } from '../../utils/supabase';
@@ -305,7 +306,7 @@ const SystemSettings: React.FC = () => {
 
           {flagsLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <Spinner className="w-6 h-6" tone="brand" />
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-200">

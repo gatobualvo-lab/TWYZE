@@ -16,7 +16,7 @@ export class ReceiptScanError extends Error {}
 const MAX_DIM = 1600;
 
 /** Phone photos are huge; a 1600px JPEG is plenty for reading a receipt and keeps the upload small. */
-export async function toJpegBase64(file: File): Promise<string> {
+async function toJpegBase64(file: File): Promise<string> {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -40,7 +40,7 @@ export async function toJpegBase64(file: File): Promise<string> {
   }
 }
 
-export async function readErrorCode(error: unknown): Promise<{ status?: number; code?: string }> {
+async function readErrorCode(error: unknown): Promise<{ status?: number; code?: string }> {
   const context = (error as { context?: Response })?.context;
   if (!context || typeof context.json !== 'function') return {};
   try {

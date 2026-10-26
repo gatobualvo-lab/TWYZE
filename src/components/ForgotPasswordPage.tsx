@@ -1,3 +1,4 @@
+import Spinner from './ui/Spinner';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Mail, AlertCircle, CheckCircle } from 'lucide-react';
@@ -113,7 +114,7 @@ const ForgotPasswordPage: React.FC = () => {
           >
             {isSubmitting ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <Spinner className="w-4 h-4" tone="light" />
                 Sending link...
               </>
             ) : (

@@ -1,3 +1,4 @@
+import LoadingScreen from './components/LoadingScreen';
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase, refreshSession } from './utils/supabase';
@@ -17,13 +18,59 @@ const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
 const RefundPolicy = lazy(() => import('./components/legal/RefundPolicy'));
 const HelpCenter = lazy(() => import('./components/help/HelpCenter'));
 
-const LazyFallback = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-    <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-  </div>
-);
+const LazyFallback = () => <LoadingScreen variant="splash" />;
+
+// Dark "ink" toasts with brand-coloured icons, instead of react-hot-toast's plain white boxes.
+export const TOAST_OPTIONS = {
+  duration: 3500,
+  style: {
+    background: '#0f1b2d',
+    color: '#e8f3f0',
+    borderRadius: '16px',
+    padding: '12px 16px',
+    fontSize: '14px',
+    fontWeight: 500,
+    boxShadow: '0 16px 32px -8px rgba(6, 16, 15, 0.45)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    maxWidth: '420px',
+  },
+  success: { iconTheme: { primary: '#34d399', secondary: '#0f1b2d' } },
+  error: { iconTheme: { primary: '#ff7a7a', secondary: '#0f1b2d' } },
+  loading: { iconTheme: { primary: '#34d399', secondary: '#0f1b2d' } },
+} as const;
+
+// Forms that still use the browser's own "required" checks (and have no custom error
+// handling) get the same red error state as the rest of the app. Only fields flagged here
+// are cleared here, so fields controlled by a form's own error state are never touched.
+function useNativeInvalidStyling() {
+  useEffect(() => {
+    const mark = (e: Event) => {
+      const el = e.target as HTMLElement | null;
+      if (!el || el.getAttribute('aria-invalid') === 'true') return;
+      el.setAttribute('aria-invalid', 'true');
+      el.setAttribute('data-native-invalid', '1');
+    };
+    const unmark = (e: Event) => {
+      const el = e.target as (HTMLInputElement & HTMLElement) | null;
+      if (!el?.getAttribute || el.getAttribute('data-native-invalid') !== '1') return;
+      if (el.validity?.valid) {
+        el.removeAttribute('aria-invalid');
+        el.removeAttribute('data-native-invalid');
+      }
+    };
+    document.addEventListener('invalid', mark, true);
+    document.addEventListener('input', unmark, true);
+    document.addEventListener('change', unmark, true);
+    return () => {
+      document.removeEventListener('invalid', mark, true);
+      document.removeEventListener('input', unmark, true);
+      document.removeEventListener('change', unmark, true);
+    };
+  }, []);
+}
 
 const App = () => {
+  useNativeInvalidStyling();
   const [initializing, setInitializing] = useState(true);
   const [session, setSession] = useState<any>(null);
 
@@ -78,22 +125,7 @@ const App = () => {
   }, []);
 
   if (initializing) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <img 
-            src="/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png" 
-            alt="Trackwyze Logo" 
-            className="w-16 h-16 mx-auto mb-4 animate-pulse"
-          />
-          <h1 className="text-2xl font-bold text-gray-800 mb-1">Trackwyze</h1>
-          <p className="text-blue-600 font-medium">Track Smart. Profit Wise.</p>
-          <div className="mt-4 w-8 h-1 bg-blue-200 rounded-full mx-auto overflow-hidden">
-            <div className="w-full h-full bg-blue-600 rounded-full animate-pulse"></div>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingScreen variant="splash" />;
   }
 
   return (
@@ -101,6 +133,7 @@ const App = () => {
       <Toaster
         position="bottom-center"
         containerStyle={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 68px)' }}
+        toastOptions={TOAST_OPTIONS}
       />
       <ErrorBoundary>
         <Suspense fallback={<LazyFallback />}>

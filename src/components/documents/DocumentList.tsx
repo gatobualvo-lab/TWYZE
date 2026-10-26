@@ -1,3 +1,4 @@
+import Spinner from '../ui/Spinner';
 import { formatCurrency } from '../../utils/format';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../utils/supabase';
@@ -236,7 +237,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
         }`}
       >
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <Spinner className="w-12 h-12 mx-auto" />
           <p
             className={`mt-4 ${
               isDark ? 'text-gray-400' : 'text-gray-600'

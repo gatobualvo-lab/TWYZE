@@ -44,6 +44,8 @@ interface ProductItemProps {
   onRemove: () => void;
   canRemove: boolean;
   error?: string;
+  /** Problems with this line's own fields, shown right under the input they belong to. */
+  fieldErrors?: { sellingPrice?: string; quantity?: string; buyingPrice?: string };
   /** When false, buying price and any cost/profit figures derived from it are hidden from this user. */
   canSeeCosts?: boolean;
 }
@@ -55,6 +57,7 @@ const ProductItem: React.FC<ProductItemProps> = ({
   onRemove,
   canRemove,
   error,
+  fieldErrors,
   canSeeCosts = true
 }) => {
   // Recalculate tax and profit when relevant fields change
@@ -203,7 +206,12 @@ const ProductItem: React.FC<ProductItemProps> = ({
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="0.00"
               required={product.product.trim() !== ''}
+              aria-invalid={fieldErrors?.buyingPrice ? true : undefined}
+              aria-describedby={fieldErrors?.buyingPrice ? `${product.id}-buying-error` : undefined}
             />
+            {fieldErrors?.buyingPrice && (
+              <p id={`${product.id}-buying-error`} role="alert" className="mt-1 text-sm text-red-600">{fieldErrors.buyingPrice}</p>
+            )}
           </div>
         )}
 
@@ -241,7 +249,12 @@ const ProductItem: React.FC<ProductItemProps> = ({
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="0.00"
             required={product.product.trim() !== ''}
+            aria-invalid={fieldErrors?.sellingPrice ? true : undefined}
+            aria-describedby={fieldErrors?.sellingPrice ? `${product.id}-selling-error` : undefined}
           />
+          {fieldErrors?.sellingPrice && (
+            <p id={`${product.id}-selling-error`} role="alert" className="mt-1 text-sm text-red-600">{fieldErrors.sellingPrice}</p>
+          )}
         </div>
 
         {/* Quantity / Hours / Sessions — for a flat-fee service this stays
@@ -269,7 +282,12 @@ const ProductItem: React.FC<ProductItemProps> = ({
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="1"
             required={product.product.trim() !== ''}
+            aria-invalid={fieldErrors?.quantity ? true : undefined}
+            aria-describedby={fieldErrors?.quantity ? `${product.id}-quantity-error` : undefined}
           />
+          {fieldErrors?.quantity && (
+            <p id={`${product.id}-quantity-error`} role="alert" className="mt-1 text-sm text-red-600">{fieldErrors.quantity}</p>
+          )}
         </div>
 
         {/* More details — collapsed by default. Color, tax type, vendor,

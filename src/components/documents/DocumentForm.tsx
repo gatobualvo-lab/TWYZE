@@ -7,6 +7,8 @@ import toast from 'react-hot-toast';
 import { Plus, Trash2, Send, Save } from 'lucide-react';
 import { listProjects, type Project } from '../../services/projects/projectService';
 import { useAccountCurrency } from '../../utils/accountCurrency';
+import { useFormErrors } from '../../hooks/useFormErrors';
+import FieldError from '../ui/FieldError';
 import { uploadPublicImage, ImageUploadError } from '../../services/storage/publicImageUpload';
 import { COMMON_CURRENCIES, fetchBasePerUnit, formatInCurrency, isValidCurrencyCode } from '../../utils/currency';
 
@@ -75,6 +77,7 @@ export default function DocumentForm({
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const base = useAccountCurrency();
+  const { errors, fail, field, group } = useFormErrors<'customer_name' | 'items'>();
   const [isLoading, setIsLoading] = useState(false);
   const [items, setItems] = useState<DocumentItem[]>(
     existingDocument ? [] : [{ product_name: '', description: '', quantity: 1, unit_price: 0, discount_percent: 0, tax_percent: 0, total: 0 }]
@@ -301,14 +304,12 @@ export default function DocumentForm({
   };
 
   const handleSave = async (status: 'draft' | 'sent') => {
-    if (!customerName.trim()) {
-      toast.error('Customer name is required');
-      return;
-    }
-
-    if (items.length === 0 || items.every((item) => !item.product_name)) {
-      toast.error('Please add at least one item');
-      return;
+    const problems: { customer_name?: string; items?: string } = {};
+    if (!customerName.trim()) problems.customer_name = 'Enter the customer name';
+    if (items.length === 0 || items.every((item) => !item.product_name)) problems.items = 'Add at least one item with a name';
+    if (Object.keys(problems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(problems);
     }
 
     setIsLoading(true);
@@ -484,13 +485,14 @@ export default function DocumentForm({
                 <label className={`block text-sm font-medium ${labelClass} mb-2`}>
                   Customer Name *
                 </label>
-                <input
+                <input {...field('customer_name')}
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   className={`w-full px-4 py-2 border rounded-lg ${inputClass} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                   placeholder="Enter customer name"
                 />
+                <FieldError name="customer_name" message={errors.customer_name} />
               </div>
               <div>
                 <label className={`block text-sm font-medium ${labelClass} mb-2`}>
@@ -563,7 +565,8 @@ export default function DocumentForm({
               </button>
             </div>
 
-            <div className="overflow-x-auto">
+            <FieldError name="items" message={errors.items} className="mb-2" />
+            <div {...group('items')} className="overflow-x-auto">
               <table className={`w-full text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
                 <thead>
                   <tr className={isDark ? 'border-b border-gray-700' : 'border-b border-gray-300'}>

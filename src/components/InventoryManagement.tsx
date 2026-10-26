@@ -10,6 +10,8 @@ import { enqueueWrite, isNetworkError } from '../services/offline/offlineQueue';
 import { uploadPublicImage, ImageUploadError } from '../services/storage/publicImageUpload';
 import { syncProductCatalog } from '../services/inventory/productCatalog';
 import CameraBarcodeScanner, { isCameraScanSupported } from './CameraBarcodeScanner';
+import { useFormErrors } from '../hooks/useFormErrors';
+import FieldError from './ui/FieldError';
 
 interface InventoryItem {
   id: string;
@@ -94,6 +96,7 @@ const InventoryManagement: React.FC = () => {
   });
 
   const [showCameraScan, setShowCameraScan] = useState(false);
+  const { errors, fail, field, formRef } = useFormErrors<'product_name' | 'selling_price'>();
   const [uploadingImage, setUploadingImage] = useState(false);
   const [colorInput, setColorInput] = useState('');
 
@@ -191,9 +194,12 @@ const InventoryManagement: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.product_name || toNum(formData.selling_price) <= 0) {
-      toast.error('Please fill in all required fields');
-      return;
+    const problems: { product_name?: string; selling_price?: string } = {};
+    if (!formData.product_name.trim()) problems.product_name = 'Give the item a name';
+    if (toNum(formData.selling_price) <= 0) problems.selling_price = 'Enter a selling price greater than 0';
+    if (Object.keys(problems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(problems);
     }
 
     try {
@@ -493,7 +499,7 @@ const InventoryManagement: React.FC = () => {
             <h3 className="text-lg font-bold text-gray-800 mb-4" style={{ color: '#374151' }}>
               {editingItem ? 'Edit Item' : 'Add New Item'}
             </h3>
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form ref={formRef} onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4" noValidate>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Photo (optional)</label>
                 <div className="flex items-center gap-4">
@@ -519,7 +525,7 @@ const InventoryManagement: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Product Name <span className="text-red-500">*</span>
                 </label>
-                <input
+                <input {...field('product_name')}
                   type="text"
                   value={formData.product_name}
                   onChange={(e) => setFormData(prev => ({ ...prev, product_name: e.target.value }))}
@@ -527,6 +533,7 @@ const InventoryManagement: React.FC = () => {
                   placeholder="e.g., Blue T-Shirt"
                   required
                 />
+                <FieldError name="product_name" message={errors.product_name} />
               </div>
 
               <div>
@@ -634,7 +641,7 @@ const InventoryManagement: React.FC = () => {
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{getAccountCurrency()}</span>
-                  <input
+                  <input {...field('selling_price')}
                     type="number"
                     min="0"
                     step="0.01"
@@ -645,6 +652,7 @@ const InventoryManagement: React.FC = () => {
                     required
                   />
                 </div>
+                  <FieldError name="selling_price" message={errors.selling_price} />
                 <p className="text-xs text-gray-500 mt-1">What you charge customers per unit</p>
               </div>
 

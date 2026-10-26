@@ -2,8 +2,8 @@
 <browserconfig>
     <msapplication>
         <tile>
-            <square150x150logo src="/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png"/>
-            <TileColor>#1e40af</TileColor>
+            <square150x150logo src="/icons/icon-192.png"/>
+            <TileColor>#0f1b2d</TileColor>
         </tile>
     </msapplication>
 </browserconfig>

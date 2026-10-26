@@ -1,6 +1,7 @@
 import React from 'react';
 import { HeartPulse, Info } from 'lucide-react';
 import { useHealthScore } from '../../services/metrics/useHealthScore';
+import { useCountUp } from '../ui/CountUp';
 
 const BAND_COLORS: Record<string, { ring: string; text: string; bg: string }> = {
   excellent: { ring: '#16a34a', text: 'text-green-700', bg: 'bg-green-50' },
@@ -13,7 +14,9 @@ const BAND_COLORS: Record<string, { ring: string; text: string; bg: string }> = 
 const ScoreRing: React.FC<{ score: number; color: string }> = ({ score, color }) => {
   const radius = 52;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - score / 100);
+  // The ring fills and the number counts up together, instead of appearing already complete.
+  const shown = useCountUp(score, 1200);
+  const offset = circumference * (1 - shown / 100);
   return (
     <svg width="140" height="140" viewBox="0 0 140 140" className="flex-shrink-0">
       <circle cx="70" cy="70" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="12" />
@@ -21,10 +24,9 @@ const ScoreRing: React.FC<{ score: number; color: string }> = ({ score, color })
         cx="70" cy="70" r={radius} fill="none" stroke={color} strokeWidth="12" strokeLinecap="round"
         strokeDasharray={circumference} strokeDashoffset={offset}
         transform="rotate(-90 70 70)"
-        style={{ transition: 'stroke-dashoffset 0.6s ease' }}
       />
       <text x="70" y="65" textAnchor="middle" className="fill-gray-900" style={{ fontSize: '32px', fontWeight: 700 }}>
-        {score}
+        {Math.round(shown)}
       </text>
       <text x="70" y="86" textAnchor="middle" className="fill-gray-400" style={{ fontSize: '12px' }}>
         out of 100
@@ -50,7 +52,7 @@ const BusinessHealthScore: React.FC = () => {
   const colors = result.band ? BAND_COLORS[result.band] : null;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 animate-fadeIn">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200/70 p-6">
       <div className="flex items-center gap-2 mb-4">
         <HeartPulse className="w-5 h-5 text-blue-600" />
         <h3 className="font-semibold text-gray-800">Business Health</h3>

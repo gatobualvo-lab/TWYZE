@@ -2,9 +2,9 @@ import React from 'react';
 
 type Tone = 'neutral' | 'positive';
 
-const TONE_CLASSES: Record<Tone, { bg: string; icon: string }> = {
-  neutral: { bg: 'bg-gray-50', icon: 'text-gray-300' },
-  positive: { bg: 'bg-green-50', icon: 'text-green-500' },
+const TONE_CLASSES: Record<Tone, { bg: string; ring: string; icon: string }> = {
+  neutral: { bg: 'bg-gray-100', ring: 'border-gray-300', icon: 'text-gray-400' },
+  positive: { bg: 'bg-green-50', ring: 'border-green-300', icon: 'text-green-500' },
 };
 
 interface EmptyStateProps {
@@ -19,13 +19,17 @@ interface EmptyStateProps {
 
 /** Consistent "nothing here yet" block — used across every list/page in the app instead of each one hand-rolling its own. */
 const EmptyState: React.FC<EmptyStateProps> = ({ icon: Icon, title, description, action, className = '', tone = 'neutral' }) => (
-  <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center animate-scale-in ${className}`}>
-    <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${TONE_CLASSES[tone].bg}`}>
-      <Icon className={`w-7 h-7 ${TONE_CLASSES[tone].icon}`} />
+  <div className={`bg-white rounded-2xl shadow-sm border border-gray-200/70 p-10 text-center animate-scale-in ${className}`}>
+    <div className="relative w-16 h-16 mx-auto mb-4">
+      {/* A dashed ring around the icon. Still on purpose: only loading indicators move forever. */}
+      <span aria-hidden="true" className={`absolute inset-0 rounded-full border-2 border-dashed ${TONE_CLASSES[tone].ring} opacity-60`} />
+      <span className={`absolute inset-2 rounded-full flex items-center justify-center ${TONE_CLASSES[tone].bg}`}>
+        <Icon className={`w-6 h-6 ${TONE_CLASSES[tone].icon}`} />
+      </span>
     </div>
-    <p className="text-gray-700 font-medium">{title}</p>
-    {description && <p className="text-gray-400 text-sm mt-1.5 max-w-sm mx-auto">{description}</p>}
-    {action && <div className="mt-4">{action}</div>}
+    <p className="font-display text-gray-800 font-semibold text-lg">{title}</p>
+    {description && <p className="text-gray-500 text-sm mt-1.5 max-w-sm mx-auto">{description}</p>}
+    {action && <div className="mt-5">{action}</div>}
   </div>
 );
 

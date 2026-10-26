@@ -1,3 +1,4 @@
+import Spinner from './ui/Spinner';
 import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect } from 'react';
 import { Plus, DollarSign, Calendar, Save, Receipt, ScanLine } from 'lucide-react';
@@ -7,6 +8,8 @@ import { toNum, parseInput, NumericInput } from '../utils/numberInput';
 import { listProjects, type Project } from '../services/projects/projectService';
 import { enqueueWrite, isNetworkError } from '../services/offline/offlineQueue';
 import { scanReceiptImage, ReceiptScanError } from '../services/receipts/scanReceipt';
+import { useFormErrors } from '../hooks/useFormErrors';
+import FieldError from './ui/FieldError';
 
 interface GeneralExpenseFormData {
   expense_type: string;
@@ -45,6 +48,7 @@ const GeneralExpenseForm: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const { errors, fail, field, formRef } = useFormErrors<'expense_type' | 'amount' | 'date'>();
   const [userExpenseTypes, setUserExpenseTypes] = useState<string[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
 
@@ -126,9 +130,13 @@ const GeneralExpenseForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.expense_type || toNum(formData.amount) <= 0) {
-      toast.error('Please fill in all required fields');
-      return;
+    const problems: { expense_type?: string; amount?: string; date?: string } = {};
+    if (!formData.expense_type.trim()) problems.expense_type = 'Choose or type what this expense was for';
+    if (toNum(formData.amount) <= 0) problems.amount = 'Enter an amount greater than 0';
+    if (!formData.date) problems.date = 'Pick the date of the expense';
+    if (Object.keys(problems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(problems);
     }
 
     setIsSubmitting(true);
@@ -218,7 +226,7 @@ const GeneralExpenseForm: React.FC = () => {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-6" noValidate>
           {/* Scan receipt */}
           <label className={`flex items-center justify-between gap-3 p-4 rounded-lg border-2 border-dashed border-orange-300 bg-orange-50 cursor-pointer hover:bg-orange-100 transition ${isScanning ? 'opacity-70 pointer-events-none' : ''}`}>
             <span className="flex items-center gap-3">
@@ -237,7 +245,7 @@ const GeneralExpenseForm: React.FC = () => {
               <Receipt className="w-4 h-4 inline mr-1" />
               Expense Type *
             </label>
-            <input
+            <input {...field('expense_type')}
               type="text"
               list="expense-types"
               value={formData.expense_type}
@@ -246,6 +254,7 @@ const GeneralExpenseForm: React.FC = () => {
               placeholder="Select or enter expense type"
               required
             />
+            <FieldError name="expense_type" message={errors.expense_type} />
             <datalist id="expense-types">
               {allExpenseTypes.map(type => (
                 <option key={type} value={type} />
@@ -259,7 +268,7 @@ const GeneralExpenseForm: React.FC = () => {
               <DollarSign className="w-4 h-4 inline mr-1" />
               Amount ({getAccountCurrency()}) *
             </label>
-            <input
+            <input {...field('amount')}
               type="number"
               min="0"
               step="0.01"
@@ -269,6 +278,7 @@ const GeneralExpenseForm: React.FC = () => {
               placeholder="0.00"
               required
             />
+            <FieldError name="amount" message={errors.amount} />
           </div>
 
           {/* Date */}
@@ -277,13 +287,14 @@ const GeneralExpenseForm: React.FC = () => {
               <Calendar className="w-4 h-4 inline mr-1" />
               Expense Date *
             </label>
-            <input
+            <input {...field('date')}
               type="date"
               value={formData.date}
               onChange={(e) => handleInputChange('date', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               required
             />
+            <FieldError name="date" message={errors.date} />
           </div>
 
           {/* Notes */}
@@ -326,7 +337,7 @@ const GeneralExpenseForm: React.FC = () => {
             >
               {isSubmitting ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <Spinner className="w-4 h-4" tone="light" />
                   Recording...
                 </>
               ) : (

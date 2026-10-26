@@ -1,5 +1,6 @@
+import Spinner from '../ui/Spinner';
 import React, { useEffect, useState } from 'react';
-import { Send, AlertTriangle, Loader2 } from 'lucide-react';
+import { Send, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { fetchPlatformStats, listEmailBroadcasts, logEmailBroadcast } from '../../services/admin/adminService';
 import type { PlatformStats, EmailBroadcast } from '../../services/admin/adminService';
@@ -131,7 +132,7 @@ const BroadcastEmail: React.FC = () => {
                   disabled={sending}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:bg-red-300 transition-colors"
                 >
-                  {sending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {sending && <Spinner className="w-4 h-4" tone="current" />}
                   {sending ? 'Sending…' : 'Confirm & Send'}
                 </button>
                 <button

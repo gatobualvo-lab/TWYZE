@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useFormErrors } from '../../hooks/useFormErrors';
+import FieldError from '../ui/FieldError';
 import { Target, Plus, X, CheckCircle2, AlertTriangle, Clock, TrendingUp, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useMetricsContext } from '../../services/metrics/MetricsProvider';
@@ -119,6 +121,7 @@ const BusinessGoals: React.FC = () => {
     periodStart: todayStr(), periodEnd: todayStr(), notes: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const { errors, fail, field, formRef } = useFormErrors<'name' | 'targetValue' | 'periodEnd'>();
 
   const refresh = () => { listGoals().then(setGoals).catch(() => setGoals([])); };
   useEffect(refresh, []);
@@ -126,9 +129,13 @@ const BusinessGoals: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const target = toNum(form.targetValue);
-    if (!form.name.trim() || target <= 0 || form.periodEnd < form.periodStart) {
-      toast.error('Please fill in a name, a positive target, and a valid date range.');
-      return;
+    const problems: { name?: string; targetValue?: string; periodEnd?: string } = {};
+    if (!form.name.trim()) problems.name = 'Give the goal a name';
+    if (target <= 0) problems.targetValue = 'Enter a target greater than 0';
+    if (form.periodEnd < form.periodStart) problems.periodEnd = 'The end date must be on or after the start date';
+    if (Object.keys(problems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(problems);
     }
     try {
       setSubmitting(true);
@@ -169,12 +176,13 @@ const BusinessGoals: React.FC = () => {
         }
       >
         {showForm && (
-          <form onSubmit={handleCreate} className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-slide-up">
-            <input
+          <form ref={formRef} noValidate onSubmit={handleCreate} className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-slide-up">
+            <input {...field('name')}
               type="text" placeholder="Goal name (e.g. August Revenue Target)" value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               className="sm:col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
+            <FieldError name="name" message={errors.name} />
             <select
               value={form.metricType}
               onChange={e => setForm(f => ({ ...f, metricType: e.target.value as GoalMetricType }))}
@@ -182,11 +190,12 @@ const BusinessGoals: React.FC = () => {
             >
               {Object.entries(METRIC_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
             </select>
-            <input
+            <input {...field('targetValue')}
               type="number" placeholder="Target value" value={form.targetValue}
               onChange={e => setForm(f => ({ ...f, targetValue: e.target.value }))}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
+            <FieldError name="targetValue" message={errors.targetValue} />
             <div>
               <label className="text-xs text-gray-500">Start</label>
               <input
@@ -197,11 +206,12 @@ const BusinessGoals: React.FC = () => {
             </div>
             <div>
               <label className="text-xs text-gray-500">End</label>
-              <input
+              <input {...field('periodEnd')}
                 type="date" value={form.periodEnd}
                 onChange={e => setForm(f => ({ ...f, periodEnd: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
               />
+              <FieldError name="periodEnd" message={errors.periodEnd} />
             </div>
             <button
               type="submit" disabled={submitting}

@@ -162,7 +162,7 @@ const ProfitAnalytics: React.FC = () => {
         {
           label: 'Revenue',
           data: daily.map(d => d.revenue),
-          borderColor: '#2563eb',
+          borderColor: '#0e9f6e',
           backgroundColor: 'rgba(37, 99, 235, 0.08)',
           fill: true,
           tension: 0.3,

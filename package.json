@@ -110,6 +110,22 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Trackwyze"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.business",
+      "icon": "electron/icons/icon.png"
+    },
+    "dmg": {
+      "title": "Trackwyze"
     }
   },
   "allowScripts": {

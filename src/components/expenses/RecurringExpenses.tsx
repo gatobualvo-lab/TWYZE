@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { useFormErrors } from '../../hooks/useFormErrors';
+import FieldError from '../ui/FieldError';
 import { Repeat, Plus, X, Trash2, Pause, Play, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -86,6 +88,7 @@ const RecurringExpenses: React.FC = () => {
     startDate: toISODate(new Date()),
   });
   const [submitting, setSubmitting] = useState(false);
+  const { errors, fail, field, formRef } = useFormErrors<'description' | 'amount'>();
 
   const refresh = () => { listRecurringExpenses().then(setExpenses).catch(() => setExpenses([])); };
   useEffect(refresh, []);
@@ -93,9 +96,12 @@ const RecurringExpenses: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const amount = toNum(form.amount);
-    if (!form.description.trim() || amount <= 0) {
-      toast.error('Enter a description and a positive amount');
-      return;
+    const problems: { description?: string; amount?: string } = {};
+    if (!form.description.trim()) problems.description = 'Describe the expense';
+    if (amount <= 0) problems.amount = 'Enter an amount greater than 0';
+    if (Object.keys(problems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(problems);
     }
     try {
       setSubmitting(true);
@@ -148,22 +154,24 @@ const RecurringExpenses: React.FC = () => {
         }
       >
         {showForm && (
-          <form onSubmit={handleCreate} className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-slide-up">
-            <input
+          <form ref={formRef} noValidate onSubmit={handleCreate} className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-slide-up">
+            <input {...field('description')}
               type="text" placeholder="Description (e.g. Shop rent)" value={form.description}
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               className="sm:col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
+            <FieldError name="description" message={errors.description} />
             <input
               type="text" placeholder="Category (e.g. Rent, Salaries)" value={form.expenseType}
               onChange={e => setForm(f => ({ ...f, expenseType: e.target.value }))}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
-            <input
+            <input {...field('amount')}
               type="number" placeholder="Amount" value={form.amount}
               onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
+            <FieldError name="amount" message={errors.amount} />
             <select
               value={form.frequency}
               onChange={e => setForm(f => ({ ...f, frequency: e.target.value as RecurringFrequency }))}

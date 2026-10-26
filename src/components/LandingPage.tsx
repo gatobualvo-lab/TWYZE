@@ -18,6 +18,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { BILLING_PLANS } from '../utils/subscription';
+import Reveal from './ui/Reveal';
+import Logo from './brand/Logo';
 
 const scrollToId = (id: string) => {
   const el = document.getElementById(id);
@@ -31,7 +33,7 @@ const ScreenshotCard: React.FC<{ src: string; alt: string; label: string; width:
   src, alt, label, width, height, maxWidth = 'max-w-xl',
 }) => (
   <div className={`relative w-full ${maxWidth} mx-auto`}>
-    <div className="absolute -inset-4 bg-gradient-to-tr from-blue-200/60 via-sky-100/40 to-emerald-100/40 blur-2xl rounded-3xl" />
+    <div className="absolute -inset-4 bg-gradient-to-tr from-blue-300/50 via-blue-100/40 to-accent-200/50 blur-2xl rounded-3xl" />
     <div className="relative bg-white rounded-2xl shadow-2xl ring-1 ring-gray-200/70 overflow-hidden">
       <div className="flex items-center gap-1.5 px-4 py-3 border-b border-gray-100 bg-gray-50">
         <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
@@ -76,14 +78,7 @@ const LandingPage: React.FC = () => {
       <nav className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-gray-100 safe-pt">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-2">
-              <img
-                src="/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png"
-                alt="Trackwyze Logo"
-                className="h-8 w-8"
-              />
-              <span className="text-lg font-bold text-gray-900 tracking-tight">Trackwyze</span>
-            </div>
+            <Logo markClassName="w-9 h-9" wordmarkClassName="text-[22px]" />
 
             <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
               {NAV_LINKS.map(link => (
@@ -145,7 +140,7 @@ const LandingPage: React.FC = () => {
       <section className="relative overflow-hidden">
         <div
           aria-hidden
-          className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,_rgba(59,130,246,0.10),_transparent_60%),radial-gradient(ellipse_at_bottom_left,_rgba(16,185,129,0.08),_transparent_60%)]"
+          className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,_rgba(14,159,110,0.16),_transparent_60%),radial-gradient(ellipse_at_bottom_left,_rgba(245,165,36,0.12),_transparent_60%)]"
         />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-20 lg:pt-20 lg:pb-28">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
@@ -156,7 +151,7 @@ const LandingPage: React.FC = () => {
               </div>
               <h1 className="mt-5 text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.05]">
                 Track Your Business.
-                <span className="block text-blue-600">Know Your Profit.</span>
+                <span className="block text-gradient-ink">Know Your Profit.</span>
               </h1>
               <p className="mt-5 text-lg text-gray-600 max-w-xl mx-auto lg:mx-0 leading-relaxed">
                 Manage sales, expenses, inventory, suppliers, and deliveries in one simple system.
@@ -165,14 +160,14 @@ const LandingPage: React.FC = () => {
               <div className="mt-8 flex flex-col sm:flex-row gap-3 sm:justify-center lg:justify-start">
                 <button
                   onClick={() => navigate('/login')}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-base shadow-lg shadow-blue-600/20 transition"
+                  className="sheen-host inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-b from-blue-500 to-blue-700 hover:shadow-glow text-white font-bold text-base shadow-lg shadow-inset transition-all duration-200 ease-smooth active:scale-[0.98]"
                 >
                   Get Started for Free
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => navigate('/login')}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 font-semibold text-base transition"
+                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl border border-gray-300 bg-white/80 backdrop-blur hover:bg-white hover:border-blue-300 text-gray-800 font-semibold text-base transition-all duration-200 ease-smooth active:scale-[0.98]"
                 >
                   <LogIn className="w-4 h-4" />
                   Login
@@ -273,17 +268,18 @@ const LandingPage: React.FC = () => {
                 title: 'Works Everywhere You Do',
                 body: 'A full desktop app plus a browser experience that stays in sync on tablet and mobile.',
               },
-            ].map(({ icon: Icon, tint, bg, title, body }) => (
-              <div
+            ].map(({ icon: Icon, tint, bg, title, body }, i) => (
+              <Reveal
                 key={title}
-                className="group bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 hover:border-gray-200 transition-all duration-200"
+                delay={(i % 3) * 90}
+                className="group bg-white p-6 rounded-2xl border border-gray-200/70 shadow-sm hover:shadow-lg hover:-translate-y-1 hover:border-blue-200"
               >
                 <div className={`inline-flex p-2.5 rounded-lg ${bg} ${tint} ring-1 ring-inset ring-black/5`}>
                   <Icon className="h-5 w-5" />
                 </div>
                 <h3 className="mt-4 text-base font-bold text-gray-900">{title}</h3>
                 <p className="mt-1.5 text-sm text-gray-600 leading-relaxed">{body}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -492,14 +488,7 @@ const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto py-14 px-4 sm:px-6 lg:px-8">
           <div className="grid gap-10 md:grid-cols-3">
             <div>
-              <div className="flex items-center gap-2">
-                <img
-                  className="h-8 w-8"
-                  src="/ChatGPT Image Jun 24, 2025, 12_26_32 AM.png"
-                  alt="Trackwyze"
-                />
-                <span className="text-lg font-bold text-white">Trackwyze</span>
-              </div>
+              <Logo onDark markClassName="w-9 h-9" wordmarkClassName="text-[22px]" showTagline />
               <p className="mt-4 text-sm leading-relaxed text-gray-400 max-w-sm">
                 Track your business. Know your profit. A simple operating system for small and
                 growing businesses.

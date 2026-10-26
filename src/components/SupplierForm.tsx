@@ -1,3 +1,4 @@
+import Spinner from './ui/Spinner';
 import { formatCurrency } from '../utils/format';
 import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect } from 'react';
@@ -5,6 +6,8 @@ import { Plus, Calculator, User, DollarSign, Truck, Calendar, Save, Package, Arr
 import { supabase } from '../utils/supabase';
 import EnhancedDropdown from './EnhancedDropdown';
 import ClientDropdown from './ClientDropdown';
+import { useFormErrors } from '../hooks/useFormErrors';
+import FieldError from './ui/FieldError';
 import toast from 'react-hot-toast';
 import { toNum, displayNumber } from '../utils/number';
 import { enqueueWrite, isNetworkError } from '../services/offline/offlineQueue';
@@ -38,6 +41,7 @@ const blankForm = (): SupplierFormData => ({
 const SupplierForm: React.FC = () => {
   const [formData, setFormData] = useState<SupplierFormData>(blankForm());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { errors, fail, field, group, formRef } = useFormErrors<'client' | 'product' | 'selling_price' | 'amount_paid'>();
   const [grossProfit, setGrossProfit] = useState(0);
   const [netProfit, setNetProfit] = useState(0);
   const [taxAmount, setTaxAmount] = useState(0);
@@ -85,13 +89,16 @@ const SupplierForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.client || !formData.product || formData.selling_price <= 0) {
-      toast.error('Please fill in client, product, and selling price');
-      return;
-    }
+    const problems: { client?: string; product?: string; selling_price?: string; amount_paid?: string } = {};
+    if (!formData.client) problems.client = 'Choose the client';
+    if (!formData.product) problems.product = 'Choose the product supplied';
+    if (formData.selling_price <= 0) problems.selling_price = 'Enter the selling price (greater than 0)';
     if (formData.amount_paid < 0 || formData.amount_paid > formData.selling_price) {
-      toast.error('Amount paid must be between 0 and the selling price');
-      return;
+      problems.amount_paid = 'Amount paid must be between 0 and the selling price';
+    }
+    if (Object.keys(problems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(problems);
     }
 
     setIsSubmitting(true);
@@ -203,8 +210,9 @@ const SupplierForm: React.FC = () => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="p-6 space-y-6" noValidate>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div {...group('client')}>
             <ClientDropdown
               label="Client Name"
               value={formData.client}
@@ -213,7 +221,10 @@ const SupplierForm: React.FC = () => {
               required
               icon={<User className="w-4 h-4 inline mr-1" />}
             />
+            <FieldError name="client" message={errors.client} />
+            </div>
 
+            <div {...group('product')}>
             <EnhancedDropdown
               label="Product"
               value={formData.product}
@@ -223,6 +234,8 @@ const SupplierForm: React.FC = () => {
               required
               icon={<Package className="w-4 h-4 inline mr-1" />}
             />
+            <FieldError name="product" message={errors.product} />
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -247,7 +260,7 @@ const SupplierForm: React.FC = () => {
                 <DollarSign className="w-4 h-4 inline mr-1" />
                 Selling Price to Client ({getAccountCurrency()}) *
               </label>
-              <input
+              <input {...field('selling_price')}
                 type="number"
                 min="0"
                 step="0.01"
@@ -257,6 +270,7 @@ const SupplierForm: React.FC = () => {
                 placeholder="What the client owes you"
                 required
               />
+              <FieldError name="selling_price" message={errors.selling_price} />
               <p className="text-xs text-gray-500 mt-1">Total price billed to the client.</p>
             </div>
 
@@ -349,7 +363,7 @@ const SupplierForm: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Amount Paid ({getAccountCurrency()})</label>
-                <input
+                <input {...field('amount_paid')}
                   type="number"
                   min="0"
                   max={formData.selling_price || undefined}
@@ -359,6 +373,7 @@ const SupplierForm: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   placeholder="0.00"
                 />
+                <FieldError name="amount_paid" message={errors.amount_paid} />
               </div>
 
               <div>
@@ -417,7 +432,7 @@ const SupplierForm: React.FC = () => {
             >
               {isSubmitting ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Spinner className="w-4 h-4" tone="light" />
                   Saving...
                 </>
               ) : (

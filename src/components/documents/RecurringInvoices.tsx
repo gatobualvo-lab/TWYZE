@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { useFormErrors } from '../../hooks/useFormErrors';
+import FieldError from '../ui/FieldError';
 import { Repeat, Plus, X, Trash2, Pause, Play, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -84,6 +86,7 @@ const RecurringInvoices: React.FC = () => {
     startDate: toISODate(new Date()), projectId: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const { errors, fail, field, formRef } = useFormErrors<'customerName' | 'description' | 'amount'>();
 
   const refresh = () => { listRecurringInvoices().then(setInvoices).catch(() => setInvoices([])); };
   useEffect(refresh, []);
@@ -92,9 +95,13 @@ const RecurringInvoices: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const amount = toNum(form.amount);
-    if (!form.customerName.trim() || !form.description.trim() || amount <= 0) {
-      toast.error('Enter a customer, description, and a positive amount');
-      return;
+    const problems: { customerName?: string; description?: string; amount?: string } = {};
+    if (!form.customerName.trim()) problems.customerName = 'Enter the customer name';
+    if (!form.description.trim()) problems.description = 'Describe what is being billed';
+    if (amount <= 0) problems.amount = 'Enter an amount greater than 0';
+    if (Object.keys(problems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(problems);
     }
     try {
       setSubmitting(true);
@@ -150,12 +157,13 @@ const RecurringInvoices: React.FC = () => {
         }
       >
         {showForm && (
-          <form onSubmit={handleCreate} className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-slide-up">
-            <input
+          <form ref={formRef} noValidate onSubmit={handleCreate} className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-slide-up">
+            <input {...field('customerName')}
               type="text" placeholder="Customer name" value={form.customerName}
               onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))}
               className="sm:col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
+            <FieldError name="customerName" message={errors.customerName} />
             <input
               type="email" placeholder="Customer email (optional)" value={form.customerEmail}
               onChange={e => setForm(f => ({ ...f, customerEmail: e.target.value }))}
@@ -166,11 +174,12 @@ const RecurringInvoices: React.FC = () => {
               onChange={e => setForm(f => ({ ...f, customerPhone: e.target.value }))}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
-            <input
+            <input {...field('description')}
               type="text" placeholder="Description (e.g. Monthly retainer)" value={form.description}
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               className="sm:col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
+            <FieldError name="description" message={errors.description} />
             {projects.length > 0 && (
               <select
                 value={form.projectId}
@@ -181,11 +190,12 @@ const RecurringInvoices: React.FC = () => {
                 {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             )}
-            <input
+            <input {...field('amount')}
               type="number" placeholder="Amount" value={form.amount}
               onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
+            <FieldError name="amount" message={errors.amount} />
             <select
               value={form.frequency}
               onChange={e => setForm(f => ({ ...f, frequency: e.target.value as RecurringFrequency }))}

@@ -1,3 +1,4 @@
+import Spinner from './ui/Spinner';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Mail, Phone, CreditCard, LogOut, Save, AlertCircle, CheckCircle, Briefcase } from 'lucide-react';
@@ -117,6 +118,12 @@ const AccountSettings: React.FC = () => {
     e.preventDefault();
     
     if (!validateProfileForm()) {
+      // Take the user to the first field that needs fixing.
+      window.setTimeout(() => {
+        const target = document.querySelector<HTMLElement>('[aria-invalid="true"]');
+        target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        target?.focus({ preventScroll: true });
+      }, 60);
       return;
     }
     
@@ -209,6 +216,9 @@ const AccountSettings: React.FC = () => {
               <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
+                id="field-fullName"
+                aria-invalid={errors.fullName ? true : undefined}
+                aria-describedby={errors.fullName ? 'field-fullName-error' : undefined}
                 value={formData.fullName}
                 onChange={(e) => handleInputChange('fullName', e.target.value)}
                 className={`pl-10 w-full px-3 py-2 border ${
@@ -218,7 +228,7 @@ const AccountSettings: React.FC = () => {
               />
             </div>
             {errors.fullName && (
-              <p className="mt-1 text-sm text-red-600">{errors.fullName}</p>
+              <p id="field-fullName-error" role="alert" className="mt-1 text-sm text-red-600">{errors.fullName}</p>
             )}
           </div>
 
@@ -231,6 +241,9 @@ const AccountSettings: React.FC = () => {
               <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="tel"
+                id="field-phoneNumber"
+                aria-invalid={errors.phoneNumber ? true : undefined}
+                aria-describedby={errors.phoneNumber ? 'field-phoneNumber-error' : undefined}
                 value={formData.phoneNumber}
                 onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
                 className={`pl-10 w-full px-3 py-2 border ${
@@ -240,7 +253,7 @@ const AccountSettings: React.FC = () => {
               />
             </div>
             {errors.phoneNumber && (
-              <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
+              <p id="field-phoneNumber-error" role="alert" className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
             )}
           </div>
 
@@ -308,7 +321,7 @@ const AccountSettings: React.FC = () => {
             >
               {saving ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <Spinner className="w-4 h-4" tone="light" />
                   Saving...
                 </>
               ) : (

@@ -1,3 +1,4 @@
+import Spinner from './ui/Spinner';
 import { formatCurrency } from '../utils/format';
 import React, { useState, useEffect } from 'react';
 import { Users, Search, Phone, MapPin, ShoppingCart, DollarSign, ChevronDown, ChevronUp, Calendar, ArrowLeft, UserPlus, X } from 'lucide-react';
@@ -5,6 +6,8 @@ import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
 import { createCustomer, listCustomers } from '../services/customers/customerService';
+import { useFormErrors } from '../hooks/useFormErrors';
+import FieldError from './ui/FieldError';
 
 interface ClientSummary {
   name: string;
@@ -38,6 +41,7 @@ const ClientManagement: React.FC = () => {
   const [sortBy, setSortBy] = useState<'name' | 'orders' | 'spent' | 'recent'>('recent');
   const [showAdd, setShowAdd] = useState(false);
   const [adding, setAdding] = useState(false);
+  const { errors: addErrors, fail, field: fieldProps, formRef } = useFormErrors<'name'>();
   const [draft, setDraft] = useState({ name: '', phone: '', email: '', address: '' });
 
   useEffect(() => {
@@ -177,7 +181,7 @@ const ClientManagement: React.FC = () => {
   };
 
   const addCustomer = async () => {
-    if (!draft.name.trim()) return toast.error('Enter the customer name');
+    if (!draft.name.trim()) return fail({ name: 'Enter the customer name' });
     setAdding(true);
     try {
       const created = await createCustomer(draft);
@@ -241,7 +245,7 @@ const ClientManagement: React.FC = () => {
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Purchase History</h3>
           {salesLoading ? (
             <div className="flex justify-center py-8">
-              <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <Spinner className="w-6 h-6" tone="brand" />
             </div>
           ) : clientSales.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No purchase history found.</p>
@@ -331,11 +335,12 @@ const ClientManagement: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredClients.map(client => (
+          {filteredClients.map((client, i) => (
             <div
               key={client.name}
               onClick={() => loadClientSales(client)}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+              style={{ animationDelay: i < 12 ? `${i * 30}ms` : '0ms' }}
+              className="animate-slide-up bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -375,7 +380,7 @@ const ClientManagement: React.FC = () => {
       )}
       {showAdd && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-sm p-5 space-y-3">
+          <div ref={formRef} className="bg-white rounded-xl w-full max-w-sm p-5 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-800">New customer</h3>
               <button type="button" onClick={() => setShowAdd(false)} className="p-1.5 rounded-lg hover:bg-gray-100" aria-label="Close">
@@ -388,15 +393,18 @@ const ClientManagement: React.FC = () => {
               ['email', 'Email', 'email'],
               ['address', 'Address / location', 'text'],
             ] as const).map(([field, placeholder, type]) => (
-              <input
-                key={field}
-                type={type}
-                value={draft[field]}
-                onChange={(e) => setDraft(d => ({ ...d, [field]: e.target.value }))}
-                placeholder={placeholder}
-                autoFocus={field === 'name'}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              <React.Fragment key={field}>
+                <input
+                  type={type}
+                  value={draft[field]}
+                  onChange={(e) => setDraft(d => ({ ...d, [field]: e.target.value }))}
+                  placeholder={placeholder}
+                  autoFocus={field === 'name'}
+                  {...(field === 'name' ? fieldProps('name') : {})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {field === 'name' && <FieldError name="name" message={addErrors.name} />}
+              </React.Fragment>
             ))}
             <p className="text-xs text-gray-400">You can pick this customer when you record a sale.</p>
             <div className="flex justify-end gap-2 pt-1">

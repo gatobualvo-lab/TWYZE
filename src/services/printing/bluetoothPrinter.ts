@@ -1,3 +1,5 @@
+import { isDesktopApp } from '../../utils/platform';
+
 // Bluetooth receipt printing via Web Bluetooth (Chrome/Edge on Android and
 // desktop). Supports BLE thermal printers that expose a writable GATT
 // characteristic, which covers most low-cost 58mm/80mm receipt printers.
@@ -29,6 +31,8 @@ interface Connection {
 let connection: Connection | null = null;
 
 export function isBluetoothSupported(): boolean {
+  // The desktop app has no Bluetooth device picker; it prints straight to any printer Windows already knows.
+  if (isDesktopApp()) return false;
   return typeof navigator !== 'undefined' && 'bluetooth' in navigator && !!navigator.bluetooth;
 }
 

@@ -24,8 +24,8 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, onNavigate
     { id: 'cash-position', label: 'Money', icon: Wallet },
   ];
   return (
-  <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 bg-white border-t border-gray-200 safe-pb">
-    <div className="flex items-stretch justify-around">
+  <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 px-3 pb-2 pt-1 safe-pb pointer-events-none">
+    <div className="pointer-events-auto flex items-stretch justify-around rounded-2xl bg-white/85 backdrop-blur-xl shadow-xl border border-white/70 ring-1 ring-gray-200/70 px-1">
       {TABS.map(tab => {
         const isActive = activeTab === tab.id;
         const Icon = tab.icon;
@@ -33,12 +33,15 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, onNavigate
           <button
             key={tab.id}
             onClick={() => onNavigate(tab.id)}
-            className={`flex flex-col items-center justify-center gap-0.5 py-2 flex-1 min-h-[56px] transition-colors active:scale-95 ${
+            aria-current={isActive ? 'page' : undefined}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2 flex-1 min-h-[56px] transition-colors duration-200 active:scale-95 ${
               isActive ? 'text-blue-600' : 'text-gray-500'
             }`}
           >
-            <Icon className="w-5 h-5" />
-            <span className="text-[10px] font-medium">{tab.label}</span>
+            <span className={`flex items-center justify-center w-11 h-7 rounded-full transition-all duration-300 ease-spring ${isActive ? 'bg-blue-100 scale-105' : ''}`}>
+              <Icon className="w-5 h-5" />
+            </span>
+            <span className={`text-[10px] ${isActive ? 'font-bold' : 'font-medium'}`}>{tab.label}</span>
           </button>
         );
       })}
@@ -46,7 +49,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, onNavigate
         onClick={onMore}
         className="flex flex-col items-center justify-center gap-0.5 py-2 flex-1 min-h-[56px] text-gray-500 transition-colors active:scale-95"
       >
-        <Menu className="w-5 h-5" />
+        <span className="flex items-center justify-center w-11 h-7"><Menu className="w-5 h-5" /></span>
         <span className="text-[10px] font-medium">More</span>
       </button>
     </div>

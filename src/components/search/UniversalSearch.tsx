@@ -1,5 +1,7 @@
+import { shortcutModifierLabel } from '../../utils/platform';
+import Spinner from '../ui/Spinner';
 import React, { useEffect, useRef, useState } from 'react';
-import { Search, X, Users, Package, ShoppingCart, FileText, Clock, CornerDownLeft, Loader2, Truck, Briefcase, Trophy, Repeat, Receipt } from 'lucide-react';
+import { Search, X, Users, Package, ShoppingCart, FileText, Clock, CornerDownLeft, Truck, Briefcase, Trophy, Repeat, Receipt } from 'lucide-react';
 import { useUniversalSearch } from '../../hooks/useUniversalSearch';
 import { getRecentSearches, saveRecentSearch, SearchResult, SearchResultType } from '../../services/search/searchService';
 
@@ -124,7 +126,7 @@ const UniversalSearch: React.FC<UniversalSearchProps> = ({ onNavigate }) => {
         <Search className="w-4 h-4" />
         <span className="hidden md:inline text-sm">Search…</span>
         <span className="hidden md:inline text-[10px] font-mono bg-white border border-gray-200 rounded px-1 py-0.5 text-gray-400">
-          Ctrl K
+          {shortcutModifierLabel()} K
         </span>
       </button>
 
@@ -158,7 +160,7 @@ const UniversalSearch: React.FC<UniversalSearchProps> = ({ onNavigate }) => {
 
               {loading && !showingRecent && (
                 <div className="px-4 py-6 flex items-center justify-center gap-2 text-sm text-gray-400">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Searching…
+                  <Spinner className="w-3.5 h-3.5" tone="current" /> Searching…
                 </div>
               )}
 

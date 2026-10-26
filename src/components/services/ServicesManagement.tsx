@@ -9,6 +9,8 @@ import { enqueueWrite, isNetworkError } from '../../services/offline/offlineQueu
 import { uploadPublicImage, ImageUploadError } from '../../services/storage/publicImageUpload';
 import { syncProductCatalog } from '../../services/inventory/productCatalog';
 import { PageHeader, Card, Button } from '../ui';
+import { useFormErrors } from '../../hooks/useFormErrors';
+import FieldError from '../ui/FieldError';
 
 type RateType = 'flat' | 'hourly' | 'per_session';
 
@@ -64,6 +66,7 @@ const ServicesManagement: React.FC = () => {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const { errors, fail, field, formRef } = useFormErrors<'name' | 'rate'>();
 
   const load = async () => {
     try {
@@ -157,8 +160,13 @@ const ServicesManagement: React.FC = () => {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = form.name.trim();
-    if (!name) return toast.error('Give the service a name');
-    if (toNum(form.rate) <= 0) return toast.error('Enter the price for this service');
+    const problems: { name?: string; rate?: string } = {};
+    if (!name) problems.name = 'Give the service a name';
+    if (toNum(form.rate) <= 0) problems.rate = 'Enter the price for this service';
+    if (Object.keys(problems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(problems);
+    }
 
     setSaving(true);
     try {
@@ -262,10 +270,11 @@ const ServicesManagement: React.FC = () => {
               <X className="w-4 h-4" />
             </button>
           </div>
-          <form onSubmit={save} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form ref={formRef} noValidate onSubmit={save} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Service name *</label>
-              <input type="text" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={fieldClass} placeholder="e.g., Haircut, Consultation, Delivery run" />
+              <input {...field('name')} type="text" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={fieldClass} placeholder="e.g., Haircut, Consultation, Delivery run" />
+              <FieldError name="name" message={errors.name} />
             </div>
 
             <div>
@@ -279,7 +288,8 @@ const ServicesManagement: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Price per {rateWord} ({getAccountCurrency()}) *</label>
-              <input type="number" min="0" step="0.01" value={form.rate} onChange={e => setForm(p => ({ ...p, rate: parseInput(e.target.value) }))} className={fieldClass} placeholder="0.00" />
+              <input {...field('rate')} type="number" min="0" step="0.01" value={form.rate} onChange={e => setForm(p => ({ ...p, rate: parseInput(e.target.value) }))} className={fieldClass} placeholder="0.00" />
+              <FieldError name="rate" message={errors.rate} />
             </div>
 
             <div>

@@ -1,3 +1,6 @@
+import { useFormErrors } from '../hooks/useFormErrors';
+import FieldError from './ui/FieldError';
+import Spinner from './ui/Spinner';
 import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect } from 'react';
 import { DollarSign, TrendingUp, Calendar, PieChart, BarChart3, ChevronDown, ChevronRight, Users, Plus, CreditCard as Edit, Trash2, Save, X, Check, RefreshCw, CheckCircle2, AlertTriangle, Archive } from 'lucide-react';
@@ -84,6 +87,7 @@ const ExpenseOverview: React.FC = () => {
   const [showClearedExpenses, setShowClearedExpenses] = useState(true);
 
   const [editingAdExpense, setEditingAdExpense] = useState<AdExpense | null>(null);
+  const { errors, fail, field } = useFormErrors<'ad_platform' | 'ad_amount' | 'gen_type' | 'gen_amount'>();
   const [adExpenseForm, setAdExpenseForm] = useState({
     ad_platform: '',
     ad_type: '',
@@ -121,13 +125,12 @@ const ExpenseOverview: React.FC = () => {
 
   const saveAdExpenseEdit = async () => {
     if (!editingAdExpense) return;
-    if (!adExpenseForm.ad_platform.trim()) {
-      toast.error('Ad platform is required');
-      return;
-    }
-    if (!Number.isFinite(adExpenseForm.amount_kes) || adExpenseForm.amount_kes <= 0) {
-      toast.error('Amount must be greater than 0');
-      return;
+    const adProblems: { ad_platform?: string; ad_amount?: string } = {};
+    if (!adExpenseForm.ad_platform.trim()) adProblems.ad_platform = 'Enter the ad platform';
+    if (!Number.isFinite(adExpenseForm.amount_kes) || adExpenseForm.amount_kes <= 0) adProblems.ad_amount = 'Enter an amount greater than 0';
+    if (Object.keys(adProblems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(adProblems);
     }
     setSavingExpenseEdit(true);
     try {
@@ -203,13 +206,12 @@ const ExpenseOverview: React.FC = () => {
 
   const saveGeneralExpenseEdit = async () => {
     if (!editingGeneralExpense) return;
-    if (!generalExpenseForm.expense_type.trim()) {
-      toast.error('Expense type is required');
-      return;
-    }
-    if (!Number.isFinite(generalExpenseForm.amount) || generalExpenseForm.amount <= 0) {
-      toast.error('Amount must be greater than 0');
-      return;
+    const genProblems: { gen_type?: string; gen_amount?: string } = {};
+    if (!generalExpenseForm.expense_type.trim()) genProblems.gen_type = 'Enter the expense type';
+    if (!Number.isFinite(generalExpenseForm.amount) || generalExpenseForm.amount <= 0) genProblems.gen_amount = 'Enter an amount greater than 0';
+    if (Object.keys(genProblems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(genProblems);
     }
     setSavingExpenseEdit(true);
     try {
@@ -1708,7 +1710,7 @@ const ExpenseOverview: React.FC = () => {
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   {bulkUnarchiving ? (
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <Spinner className="w-3.5 h-3.5" tone="light" />
                   ) : (
                     <RefreshCw className="w-3.5 h-3.5" />
                   )}
@@ -1913,12 +1915,13 @@ const ExpenseOverview: React.FC = () => {
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Ad Platform</label>
-                  <input
+                  <input {...field('ad_platform')}
                     type="text"
                     value={adExpenseForm.ad_platform}
                     onChange={(e) => setAdExpenseForm({ ...adExpenseForm, ad_platform: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   />
+                  <FieldError name="ad_platform" message={errors.ad_platform} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Ad Type</label>
@@ -1931,7 +1934,7 @@ const ExpenseOverview: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Amount ({getAccountCurrency()})</label>
-                  <input
+                  <input {...field('ad_amount')}
                     type="number"
                     min={0}
                     step="0.01"
@@ -1939,6 +1942,7 @@ const ExpenseOverview: React.FC = () => {
                     onChange={(e) => setAdExpenseForm({ ...adExpenseForm, amount_kes: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   />
+                  <FieldError name="ad_amount" message={errors.ad_amount} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
@@ -1975,7 +1979,7 @@ const ExpenseOverview: React.FC = () => {
                 >
                   {savingExpenseEdit ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <Spinner className="w-4 h-4" tone="light" />
                       Saving...
                     </>
                   ) : (
@@ -2003,16 +2007,17 @@ const ExpenseOverview: React.FC = () => {
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Expense Type</label>
-                  <input
+                  <input {...field('gen_type')}
                     type="text"
                     value={generalExpenseForm.expense_type}
                     onChange={(e) => setGeneralExpenseForm({ ...generalExpenseForm, expense_type: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
+                  <FieldError name="gen_type" message={errors.gen_type} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Amount</label>
-                  <input
+                  <input {...field('gen_amount')}
                     type="number"
                     min={0}
                     step="0.01"
@@ -2020,6 +2025,7 @@ const ExpenseOverview: React.FC = () => {
                     onChange={(e) => setGeneralExpenseForm({ ...generalExpenseForm, amount: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
+                  <FieldError name="gen_amount" message={errors.gen_amount} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
@@ -2056,7 +2062,7 @@ const ExpenseOverview: React.FC = () => {
                 >
                   {savingExpenseEdit ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <Spinner className="w-4 h-4" tone="light" />
                       Saving...
                     </>
                   ) : (
@@ -2099,7 +2105,7 @@ const ExpenseOverview: React.FC = () => {
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
               >
                 {bulkDeleting ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Spinner className="w-4 h-4" tone="light" />
                 ) : (
                   <Trash2 className="w-4 h-4" />
                 )}
@@ -2140,7 +2146,7 @@ const ExpenseOverview: React.FC = () => {
                 className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors flex items-center gap-2"
               >
                 {bulkArchiving ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Spinner className="w-4 h-4" tone="light" />
                 ) : (
                   <Archive className="w-4 h-4" />
                 )}

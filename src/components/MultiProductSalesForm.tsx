@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, DollarSign, Truck, MapPin, Calendar, CreditCard, Save, ChevronDown, ChevronRight, ScanLine, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Check, Plus, DollarSign, Truck, MapPin, Calendar, CreditCard, Save, ChevronDown, ChevronRight, ScanLine } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import EnhancedDropdown from './EnhancedDropdown';
@@ -14,8 +14,8 @@ import { formatCurrency } from '../utils/format';
 import { useBusinessRole } from '../services/team/useBusinessRole';
 import { PageHeader, Card, Button } from './ui';
 import CustomerPicker from './customers/CustomerPicker';
-import ScanOrderCard from './orders/ScanOrderCard';
-import type { OrderDraft, ScannedOrder } from '../services/orders/orderToSale';
+import { celebrate } from '../utils/celebrate';
+import { haptic } from '../utils/haptics';
 import CameraBarcodeScanner, { isCameraScanSupported } from './CameraBarcodeScanner';
 import { createCustomer } from '../services/customers/customerService';
 import { addScannedProduct, findProductByCode } from '../services/inventory/barcodeLookup';
@@ -105,7 +105,7 @@ const MultiProductSalesForm: React.FC = () => {
     deliveryDate: ''
   });
 
-  const [scanNotes, setScanNotes] = useState<string[]>([]);
+  const formRef = useRef<HTMLFormElement>(null);
   const [scanCode, setScanCode] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [showCameraScan, setShowCameraScan] = useState(false);
@@ -140,37 +140,17 @@ const MultiProductSalesForm: React.FC = () => {
     setTotalProfit(profit);
   };
 
-  // Fill the form from an order read out of a chat message. Nothing is saved:
-  // the user checks the lines (and any buying price that could not be found).
-  const applyScannedOrder = (order: ScannedOrder, draft: OrderDraft) => {
-    setProducts(
-      draft.lines.map(line => ({
-        ...blankProduct(),
-        product: line.name,
-        quantity: line.quantity,
-        sellingPrice: line.unitPrice,
-        buyingPrice: line.buyingPrice,
-        itemType: line.itemType,
-        availableColors: line.colors,
-      }))
-    );
-    setFormData(prev => ({
-      ...prev,
-      clientName: order.customerName || prev.clientName,
-      customerPhone: order.customerPhone || prev.customerPhone,
-      customerId: order.customerName ? null : prev.customerId,
-      location: order.location || prev.location,
-      deliveryGuy: order.deliveryPerson || prev.deliveryGuy,
-      date: order.date || prev.date,
-    }));
-    if (order.location || order.deliveryPerson) setShowDeliveryDetails(true);
-    setErrors({});
-
-    const notes = [...draft.warnings];
-    if (draft.splitNote) notes.unshift(draft.splitNote);
-    if (order.notes) notes.push(`Message note: ${order.notes}`);
-    setScanNotes(notes);
-    toast.success('Order read. Check the details, then record the sale.');
+  // After a failed save, take the user straight to the first thing to fix.
+  const focusFirstProblem = () => {
+    window.setTimeout(() => {
+      const form = formRef.current;
+      if (!form) return;
+      const target =
+        form.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+        form.querySelector<HTMLElement>('input[placeholder^="Select or enter"]');
+      target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      target?.focus({ preventScroll: true });
+    }, 60);
   };
 
   const handleScan = async (raw: string) => {
@@ -184,6 +164,7 @@ const MultiProductSalesForm: React.FC = () => {
         return;
       }
       setProducts(prev => addScannedProduct(prev, found, blankProduct));
+      haptic('tap');
       if (found.inStock <= 0) toast(`${found.name} shows no stock left`, { icon: '⚠️' });
       else toast.success(`Added ${found.name}`, { duration: 1500 });
     } catch (error) {
@@ -284,6 +265,7 @@ const MultiProductSalesForm: React.FC = () => {
     
     if (!validateForm()) {
       toast.error('Please fix the errors in the form');
+      focusFirstProblem();
       return;
     }
     
@@ -451,6 +433,9 @@ const MultiProductSalesForm: React.FC = () => {
       }
 
       trackEvent('sale_recorded', { productCount: validProducts.length, offline: offlineQueued });
+      // A recorded sale is the app's main moment of success: a short burst and a tap on the wrist.
+      haptic(offlineQueued ? 'tap' : 'success');
+      if (!offlineQueued) celebrate();
 
       if (offlineQueued) {
         toast.success("Saved offline — will sync when you're back online", { duration: 5000 });
@@ -469,7 +454,10 @@ const MultiProductSalesForm: React.FC = () => {
         };
         toast.custom((t) => (
           <div className={`bg-white rounded-lg shadow-lg border border-gray-200 px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1 ${t.visible ? 'animate-fade-in' : 'opacity-0'}`}>
-            <span className="text-sm text-gray-800 font-medium">Sale recorded successfully!</span>
+            <span className="inline-flex items-center gap-2 text-sm text-gray-800 font-medium">
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center animate-pop-check"><Check className="w-3 h-3" strokeWidth={3} /></span>
+              Sale recorded successfully!
+            </span>
             <button
               onClick={() => { printReceipt(receiptData); toast.dismiss(t.id); }}
               className="text-xs font-medium text-blue-600 hover:text-blue-800"
@@ -523,24 +511,7 @@ const MultiProductSalesForm: React.FC = () => {
     <div className="space-y-6">
       <PageHeader icon={Plus} title="Record New Sale" description="Add a sale with one or multiple products" />
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <ScanOrderCard onApply={applyScannedOrder} />
-
-        {/* What the scanned order needs checking */}
-        {scanNotes.length > 0 && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-sm font-semibold text-amber-900">Order read. Please check:</p>
-              <button type="button" onClick={() => setScanNotes([])} className="p-1 rounded hover:bg-amber-100" aria-label="Dismiss">
-                <X className="w-4 h-4 text-amber-700" />
-              </button>
-            </div>
-            <ul className="mt-1 list-disc pl-5 text-sm text-amber-900 space-y-0.5">
-              {scanNotes.map((note, i) => <li key={i}>{note}</li>)}
-            </ul>
-          </div>
-        )}
-
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-6" noValidate>
         {/* Barcode scan — a USB/Bluetooth scanner types the code and presses Enter,
             so this one box works for both. Each scan adds the product (or +1 qty). */}
         <Card>
@@ -592,13 +563,18 @@ const MultiProductSalesForm: React.FC = () => {
                 onRemove={() => removeProduct(product.id)}
                 canRemove={products.length > 1}
                 error={errors[`product_${index}_product`]}
+                fieldErrors={{
+                  sellingPrice: errors[`product_${index}_sellingPrice`],
+                  quantity: errors[`product_${index}_quantity`],
+                  buyingPrice: errors[`product_${index}_buyingPrice`],
+                }}
                 canSeeCosts={canSeeCosts}
               />
             ))}
           </div>
 
           {errors.product && (
-            <p className="text-sm text-red-600 mt-2">{errors.product}</p>
+            <p role="alert" className="text-sm text-red-600 mt-2">{errors.product}</p>
           )}
         </Card>
 
@@ -616,13 +592,15 @@ const MultiProductSalesForm: React.FC = () => {
                 type="date"
                 value={formData.date}
                 onChange={(e) => handleInputChange('date', e.target.value)}
+                aria-invalid={errors.date ? true : undefined}
+                aria-describedby={errors.date ? 'sale-date-error' : undefined}
                 className={`w-full px-3 py-2 border ${
                   errors.date ? 'border-red-500' : 'border-gray-300'
                 } rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                 required
               />
               {errors.date && (
-                <p className="mt-1 text-sm text-red-600">{errors.date}</p>
+                <p id="sale-date-error" role="alert" className="mt-1 text-sm text-red-600">{errors.date}</p>
               )}
             </div>
 
@@ -720,13 +698,15 @@ const MultiProductSalesForm: React.FC = () => {
                     step="0.01"
                     value={displayNumber(formData.deliveryFee)}
                     onChange={(e) => handleInputChange('deliveryFee', toNum(e.target.value))}
+                    aria-invalid={errors.deliveryFee ? true : undefined}
+                    aria-describedby={errors.deliveryFee ? 'delivery-fee-error' : undefined}
                     className={`w-full px-3 py-2 border ${
                       errors.deliveryFee ? 'border-red-500' : 'border-gray-300'
                     } rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                     placeholder="0.00"
                   />
                   {errors.deliveryFee && (
-                    <p className="mt-1 text-sm text-red-600">{errors.deliveryFee}</p>
+                    <p id="delivery-fee-error" role="alert" className="mt-1 text-sm text-red-600">{errors.deliveryFee}</p>
                   )}
                 </div>
 
@@ -758,6 +738,8 @@ const MultiProductSalesForm: React.FC = () => {
                     step="0.01"
                     value={displayNumber(formData.clientDeliveryCharge)}
                     onChange={(e) => handleInputChange('clientDeliveryCharge', toNum(e.target.value))}
+                    aria-invalid={errors.clientDeliveryCharge ? true : undefined}
+                    aria-describedby={errors.clientDeliveryCharge ? 'client-delivery-error' : undefined}
                     className={`w-full px-3 py-2 border ${
                       errors.clientDeliveryCharge ? 'border-red-500' : 'border-gray-300'
                     } rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
@@ -765,7 +747,7 @@ const MultiProductSalesForm: React.FC = () => {
                   />
                   <p className="mt-1 text-xs text-gray-400">Amount the customer pays for delivery. Adds to sale revenue.</p>
                   {errors.clientDeliveryCharge && (
-                    <p className="mt-1 text-sm text-red-600">{errors.clientDeliveryCharge}</p>
+                    <p id="client-delivery-error" role="alert" className="mt-1 text-sm text-red-600">{errors.clientDeliveryCharge}</p>
                   )}
                 </div>
 

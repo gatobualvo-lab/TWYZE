@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { User, UserPlus, Check, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { createCustomer, listCustomers, type Customer } from '../../services/customers/customerService';
+import { useFormErrors } from '../../hooks/useFormErrors';
+import FieldError from '../ui/FieldError';
 
 export interface PickedCustomer {
   name: string;
@@ -23,6 +25,7 @@ const CustomerPicker: React.FC<CustomerPickerProps> = ({ name, phone, onChange }
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState({ name: '', phone: '', email: '' });
   const wrapRef = useRef<HTMLDivElement>(null);
+  const { errors, fail, field, formRef } = useFormErrors<'name'>();
 
   useEffect(() => {
     listCustomers().then(setCustomers).catch(() => setCustomers([]));
@@ -59,7 +62,7 @@ const CustomerPicker: React.FC<CustomerPickerProps> = ({ name, phone, onChange }
   };
 
   const saveNew = async () => {
-    if (!draft.name.trim()) return toast.error('Enter the customer name');
+    if (!draft.name.trim()) return fail({ name: 'Enter the customer name' });
     setSaving(true);
     try {
       const created = await createCustomer(draft);
@@ -133,14 +136,15 @@ const CustomerPicker: React.FC<CustomerPickerProps> = ({ name, phone, onChange }
 
       {creating && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-sm p-5 space-y-3">
+          <div ref={formRef} className="bg-white rounded-xl w-full max-w-sm p-5 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-800">New customer</h3>
               <button type="button" onClick={() => setCreating(false)} className="p-1.5 rounded-lg hover:bg-gray-100" aria-label="Close">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <input type="text" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} className={input} placeholder="Name *" autoFocus />
+            <input {...field('name')} type="text" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} className={input} placeholder="Name *" autoFocus />
+            <FieldError name="name" message={errors.name} />
             <input type="tel" value={draft.phone} onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))} className={input} placeholder="Phone (for WhatsApp receipts)" />
             <input type="email" value={draft.email} onChange={e => setDraft(d => ({ ...d, email: e.target.value }))} className={input} placeholder="Email (optional)" />
             <div className="flex justify-end gap-2 pt-1">

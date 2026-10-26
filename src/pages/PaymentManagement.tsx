@@ -1,5 +1,8 @@
+import Spinner from '../components/ui/Spinner';
 import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useEffect, useState } from 'react';
+import { useFormErrors } from '../hooks/useFormErrors';
+import FieldError from '../components/ui/FieldError';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, CreditCard, CheckCircle, AlertCircle, Clock, XCircle, Upload, ExternalLink, Image as ImageIcon,
@@ -47,6 +50,7 @@ const PaymentManagement: React.FC = () => {
   const [transactionReference, setTransactionReference] = useState('');
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { errors, fail, field, formRef } = useFormErrors<'amount' | 'transactionReference'>();
 
   const [selectedPlan, setSelectedPlan] = useState<BillingPlanKey>('month2-3');
   const [checkoutMethod, setCheckoutMethod] = useState<CheckoutMethod | null>(null);
@@ -125,13 +129,12 @@ const PaymentManagement: React.FC = () => {
     e.preventDefault();
 
     const amountValue = Number(amount);
-    if (!amountValue || amountValue <= 0) {
-      toast.error('Enter a valid amount');
-      return;
-    }
-    if (!transactionReference.trim()) {
-      toast.error('Enter the transaction reference (e.g. M-Pesa code)');
-      return;
+    const problems: { amount?: string; transactionReference?: string } = {};
+    if (!amountValue || amountValue <= 0) problems.amount = 'Enter the amount you paid';
+    if (!transactionReference.trim()) problems.transactionReference = 'Enter the transaction reference (for example the M-Pesa code)';
+    if (Object.keys(problems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(problems);
     }
 
     try {
@@ -269,7 +272,7 @@ const PaymentManagement: React.FC = () => {
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium rounded-lg transition-colors"
           >
             {checkoutMethod === 'mpesa' ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <Spinner className="w-4 h-4" tone="light" />
             ) : (
               <Smartphone className="w-4 h-4" />
             )}
@@ -282,7 +285,7 @@ const PaymentManagement: React.FC = () => {
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
           >
             {checkoutMethod === 'card' ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <Spinner className="w-4 h-4" tone="light" />
             ) : (
               <CreditCard className="w-4 h-4" />
             )}
@@ -292,7 +295,7 @@ const PaymentManagement: React.FC = () => {
 
         {verifying && (
           <div className="mt-4 flex items-center gap-2 text-sm text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
-            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <Spinner className="w-4 h-4" tone="brand" />
             Confirming your payment with the provider…
           </div>
         )}
@@ -304,11 +307,11 @@ const PaymentManagement: React.FC = () => {
           <Upload className="w-5 h-5 text-blue-600" />
           Or, Submit Proof of a Manual Payment
         </h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form ref={formRef} noValidate onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Amount ({getAccountCurrency()}) *</label>
-              <input
+              <input {...field('amount')}
                 type="number"
                 min="1"
                 step="1"
@@ -317,6 +320,7 @@ const PaymentManagement: React.FC = () => {
                 placeholder="e.g. 500"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+              <FieldError name="amount" message={errors.amount} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method *</label>
@@ -334,13 +338,14 @@ const PaymentManagement: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Reference *</label>
-            <input
+            <input {...field('transactionReference')}
               type="text"
               value={transactionReference}
               onChange={(e) => setTransactionReference(e.target.value)}
               placeholder="e.g. M-Pesa confirmation code"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            <FieldError name="transactionReference" message={errors.transactionReference} />
           </div>
 
           <div>
@@ -363,7 +368,7 @@ const PaymentManagement: React.FC = () => {
             >
               {submitting ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <Spinner className="w-4 h-4" tone="light" />
                   Submitting...
                 </>
               ) : (

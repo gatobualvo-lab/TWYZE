@@ -1,6 +1,8 @@
+import Spinner from './ui/Spinner';
 import React, { useState, useEffect } from 'react';
 import { LayoutGrid, Table2, List } from 'lucide-react';
 import ReceiptActions from './ReceiptActions';
+import CountUp from './ui/CountUp';
 import { supabase } from '../utils/supabase';
 import { Search, Filter, ChevronDown, ChevronUp, Calendar, User, Truck, Package, Trash2, MapPin, ChevronRight, CreditCard as Edit, Check, DollarSign, Info, CreditCard, TrendingUp, AlertCircle, BarChart3, Undo, AlertTriangle, Archive } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -1114,7 +1116,7 @@ const SalesList: React.FC = () => {
                           >
                             {deletingSaleId === sale.id ? (
                               <>
-                                <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                                <Spinner className="w-3 h-3" tone="light" />
                                 Deleting...
                               </>
                             ) : (
@@ -1142,7 +1144,7 @@ const SalesList: React.FC = () => {
                 <Calendar className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{formatCurrency(overviewStats.todaySalesRevenue)}</p>
+                <p className="text-2xl font-bold"><CountUp value={overviewStats.todaySalesRevenue} format={formatCurrency} /></p>
                 <div className="flex items-center gap-1">
                   <p className="text-sm text-gray-600">Today's Gross</p>
                   <span className="text-sm font-medium text-blue-600">
@@ -1160,7 +1162,7 @@ const SalesList: React.FC = () => {
                 <BarChart3 className="w-5 h-5 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{formatCurrency(overviewStats.weekSalesRevenue)}</p>
+                <p className="text-2xl font-bold"><CountUp value={overviewStats.weekSalesRevenue} format={formatCurrency} /></p>
                 <div className="flex items-center gap-1">
                   <p className="text-sm text-gray-600">This Week's Gross</p>
                   <span className="text-sm font-medium text-green-600">
@@ -1178,7 +1180,7 @@ const SalesList: React.FC = () => {
                 <TrendingUp className="w-5 h-5 text-purple-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{formatCurrency(overviewStats.monthSalesRevenue)}</p>
+                <p className="text-2xl font-bold"><CountUp value={overviewStats.monthSalesRevenue} format={formatCurrency} /></p>
                 <div className="flex items-center gap-1">
                   <p className="text-sm text-gray-600">This Month's Net</p>
                   <span className="text-sm font-medium text-purple-600">
@@ -1197,7 +1199,7 @@ const SalesList: React.FC = () => {
                   <DollarSign className="w-5 h-5 text-orange-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{formatCurrency(overviewStats.amountOwedToVendors)}</p>
+                  <p className="text-2xl font-bold"><CountUp value={overviewStats.amountOwedToVendors} format={formatCurrency} /></p>
                   <p className="text-sm text-gray-600">Owed to Vendors</p>
                 </div>
               </div>
@@ -1359,7 +1361,7 @@ const SalesList: React.FC = () => {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 {bulkUnarchiving ? (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Spinner className="w-3.5 h-3.5" tone="light" />
                 ) : (
                   <Undo className="w-3.5 h-3.5" />
                 )}
@@ -1419,7 +1421,7 @@ const SalesList: React.FC = () => {
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
               >
                 {bulkDeleting ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Spinner className="w-4 h-4" tone="light" />
                 ) : (
                   <Trash2 className="w-4 h-4" />
                 )}
@@ -1460,7 +1462,7 @@ const SalesList: React.FC = () => {
                 className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors flex items-center gap-2"
               >
                 {bulkArchiving ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Spinner className="w-4 h-4" tone="light" />
                 ) : (
                   <Archive className="w-4 h-4" />
                 )}
@@ -1549,7 +1551,7 @@ const SalesList: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => openEditSale(sale)}
-                          className="ml-1 p-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white"
+                          className="ml-1 p-2.5 rounded bg-blue-600 hover:bg-blue-700 text-white touch-manipulation"
                           title="Edit"
                           aria-label="Edit sale"
                         >
@@ -1599,7 +1601,7 @@ const SalesList: React.FC = () => {
           </div>
         ) : (
           filteredSales.map((sale, index) => (
-            <div key={sale.id} className="animate-fade-in" ref={index === filteredSales.length - 1 ? lastSaleElementRef : undefined}>
+            <div key={sale.id} className="animate-slide-up" style={{ animationDelay: index < 12 ? `${index * 30}ms` : '0ms' }} ref={index === filteredSales.length - 1 ? lastSaleElementRef : undefined}>
               <div 
                 className={`bg-white rounded-lg shadow-sm border overflow-hidden transition-all duration-300 ${
                   (sale.amount_owed_to_vendor > 0 || !sale.delivery_fee_paid) 
@@ -1688,7 +1690,7 @@ const SalesList: React.FC = () => {
         {/* Loading indicator for infinite scroll */}
         {loadingMore && (
           <div className="flex justify-center py-4">
-            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <Spinner className="w-6 h-6" tone="brand" />
           </div>
         )}
       </div>
@@ -1716,7 +1718,7 @@ const SalesList: React.FC = () => {
 
                 {loadingEditItems ? (
                   <div className="flex items-center justify-center py-6">
-                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <Spinner className="w-5 h-5" tone="brand" />
                   </div>
                 ) : (
                   editItems.map((item, idx) => (
@@ -1879,7 +1881,7 @@ const SalesList: React.FC = () => {
                 >
                   {savingEdit ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <Spinner className="w-4 h-4" tone="light" />
                       Saving...
                     </>
                   ) : (

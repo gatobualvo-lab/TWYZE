@@ -1,6 +1,9 @@
+import { useFormErrors } from '../../hooks/useFormErrors';
+import FieldError from '../ui/FieldError';
+import Spinner from '../ui/Spinner';
 import { getAccountCurrency } from '../../utils/accountCurrency';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, DollarSign, CheckCircle, Calendar, Package, Filter, ChevronDown, ChevronRight, Search, Plus, Share2, X, Loader2, CreditCard as Edit, Save, Truck, Trash2, CheckCircle2 } from 'lucide-react';
+import { User, DollarSign, CheckCircle, Calendar, Package, Filter, ChevronDown, ChevronRight, Search, Plus, Share2, X, CreditCard as Edit, Save, Truck, Trash2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../utils/supabase';
 import LoadingScreen from '../LoadingScreen';
 import VendorStatement from './VendorStatement';
@@ -83,6 +86,7 @@ const VendorTransactions: React.FC = () => {
   const [allSales, setAllSales] = useState<{[key: string]: SaleData}>({});
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [selectedVendorForExpense, setSelectedVendorForExpense] = useState<string>('');
+  const { errors, fail, field } = useFormErrors<'edit_date' | 'edit_type' | 'edit_amount' | 'add_type' | 'add_amount'>();
   const [addExpenseForm, setAddExpenseForm] = useState<AddExpenseForm>({
     expense_type: '',
     amount: 0,
@@ -662,9 +666,13 @@ const VendorTransactions: React.FC = () => {
     if (!editingExpenseId) return;
 
     // Validation
-    if (!editExpenseForm.date || !editExpenseForm.expense_type || editExpenseForm.amount <= 0) {
-      toast.error('Please fill in all required fields');
-      return;
+    const editProblems: { edit_date?: string; edit_type?: string; edit_amount?: string } = {};
+    if (!editExpenseForm.date) editProblems.edit_date = 'Pick the date';
+    if (!editExpenseForm.expense_type) editProblems.edit_type = 'Enter the expense type';
+    if (editExpenseForm.amount <= 0) editProblems.edit_amount = 'Enter an amount greater than 0';
+    if (Object.keys(editProblems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(editProblems);
     }
 
     try {
@@ -721,9 +729,12 @@ const VendorTransactions: React.FC = () => {
   };
 
   const submitAddExpense = async () => {
-    if (!addExpenseForm.expense_type || addExpenseForm.amount <= 0) {
-      toast.error('Please fill in all required fields');
-      return;
+    const addProblems: { add_type?: string; add_amount?: string } = {};
+    if (!addExpenseForm.expense_type) addProblems.add_type = 'Enter the expense type';
+    if (addExpenseForm.amount <= 0) addProblems.add_amount = 'Enter an amount greater than 0';
+    if (Object.keys(addProblems).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return fail(addProblems);
     }
 
     try {
@@ -1455,7 +1466,7 @@ const VendorTransactions: React.FC = () => {
                             {/* Loading indicator for purchases */}
                             {vendor.loadingPurchases && (
                               <div className="flex justify-center py-3">
-                                <Loader2 className="w-6 h-6 text-purple-600 animate-spin" />
+                                <Spinner className="w-6 h-6" tone="brand" />
                               </div>
                             )}
                             
@@ -1554,25 +1565,26 @@ const VendorTransactions: React.FC = () => {
                                     <div className="flex justify-between items-center mb-3">
                                       <h4 className="font-medium text-blue-800">Edit Expense</h4>
                                       {savingExpenseId === expense.id && (
-                                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                        <Spinner className="w-4 h-4" tone="brand" />
                                       )}
                                     </div>
                                     
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                       <div>
                                         <label className="block text-xs font-medium text-gray-700 mb-1">Date *</label>
-                                        <input
+                                        <input {...field('edit_date')}
                                           type="date"
                                           value={editExpenseForm.date}
                                           onChange={(e) => setEditExpenseForm(prev => ({ ...prev, date: e.target.value }))}
                                           className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                           disabled={savingExpenseId === expense.id}
                                         />
+                                        <FieldError name="edit_date" message={errors.edit_date} />
                                       </div>
                                       
                                       <div>
                                         <label className="block text-xs font-medium text-gray-700 mb-1">Expense Type *</label>
-                                        <input
+                                        <input {...field('edit_type')}
                                           type="text"
                                           value={editExpenseForm.expense_type}
                                           onChange={(e) => setEditExpenseForm(prev => ({ ...prev, expense_type: e.target.value }))}
@@ -1580,11 +1592,12 @@ const VendorTransactions: React.FC = () => {
                                           placeholder="Expense type"
                                           disabled={savingExpenseId === expense.id}
                                         />
+                                        <FieldError name="edit_type" message={errors.edit_type} />
                                       </div>
                                       
                                       <div>
                                         <label className="block text-xs font-medium text-gray-700 mb-1">Amount *</label>
-                                        <input
+                                        <input {...field('edit_amount')}
                                           type="number"
                                           min="0"
                                           step="0.01"
@@ -1594,6 +1607,7 @@ const VendorTransactions: React.FC = () => {
                                           placeholder="0.00"
                                           disabled={savingExpenseId === expense.id}
                                         />
+                                        <FieldError name="edit_amount" message={errors.edit_amount} />
                                       </div>
                                       
                                       <div>
@@ -1627,7 +1641,7 @@ const VendorTransactions: React.FC = () => {
                                       >
                                         {savingExpenseId === expense.id ? (
                                           <>
-                                            <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                                            <Spinner className="w-3 h-3" tone="light" />
                                             Saving...
                                           </>
                                         ) : (
@@ -1730,7 +1744,7 @@ const VendorTransactions: React.FC = () => {
                             {/* Loading indicator for expenses */}
                             {vendor.loadingExpenses && (
                               <div className="flex justify-center py-3">
-                                <Loader2 className="w-6 h-6 text-purple-600 animate-spin" />
+                                <Spinner className="w-6 h-6" tone="brand" />
                               </div>
                             )}
                             
@@ -1789,7 +1803,7 @@ const VendorTransactions: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Expense Type *
                 </label>
-                <select
+                <select {...field('add_type')}
                   value={addExpenseForm.expense_type}
                   onChange={(e) => handleAddExpenseFormChange('expense_type', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -1800,6 +1814,7 @@ const VendorTransactions: React.FC = () => {
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
+                <FieldError name="add_type" message={errors.add_type} />
               </div>
 
               {/* Amount */}
@@ -1807,7 +1822,7 @@ const VendorTransactions: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Amount ({getAccountCurrency()}) *
                 </label>
-                <input
+                <input {...field('add_amount')}
                   type="number"
                   min="0"
                   step="0.01"
@@ -1817,6 +1832,7 @@ const VendorTransactions: React.FC = () => {
                   placeholder="0.00"
                   required
                 />
+                <FieldError name="add_amount" message={errors.add_amount} />
               </div>
 
               {/* Date */}
@@ -1863,7 +1879,7 @@ const VendorTransactions: React.FC = () => {
               >
                 {submittingExpense ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Spinner className="w-4 h-4" tone="current" />
                     Adding...
                   </>
                 ) : (

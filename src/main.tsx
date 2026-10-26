@@ -6,7 +6,10 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { MetricsProvider } from './services/metrics/MetricsProvider';
 import { initSentry } from './lib/sentry';
 import { initAnalytics } from './lib/analytics';
+import { ensureRandomUUID } from './utils/polyfills';
 
+// Older iPhones and Android WebViews lack crypto.randomUUID(), which record IDs depend on.
+ensureRandomUUID();
 initSentry();
 initAnalytics();
 

@@ -1,3 +1,4 @@
+import Spinner from '../ui/Spinner';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../utils/supabase';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -13,7 +14,6 @@ import {
   CreditCard,
   FileText,
   Palette,
-  Loader,
   Image as ImageIcon,
   Upload,
   X,
@@ -227,7 +227,7 @@ export default function BusinessSettings() {
     return (
       <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="flex flex-col items-center gap-4">
-          <Loader className="w-8 h-8 animate-spin text-blue-500" />
+          <Spinner className="w-8 h-8" tone="brand" />
           <p className={isDark ? 'text-gray-300' : 'text-gray-600'}>
             Loading settings...
           </p>
@@ -411,7 +411,7 @@ export default function BusinessSettings() {
                   ? 'border-gray-600 text-gray-200 hover:bg-gray-700'
                   : 'border-gray-300 text-gray-700 hover:bg-gray-50'
               } ${uploadingLogo ? 'opacity-60 pointer-events-none' : ''}`}>
-                {uploadingLogo ? <Loader className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {uploadingLogo ? <Spinner className="w-4 h-4" tone="current" /> : <Upload className="w-4 h-4" />}
                 {uploadingLogo ? 'Uploading...' : settings.logo_url ? 'Replace Logo' : 'Upload Logo'}
                 <input
                   type="file"
@@ -825,7 +825,7 @@ export default function BusinessSettings() {
             disabled={saving}
             className="px-6 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
           >
-            {saving && <Loader className="w-4 h-4 animate-spin" />}
+            {saving && <Spinner className="w-4 h-4" tone="current" />}
             {saving ? 'Saving...' : 'Save Settings'}
           </button>
         </div>

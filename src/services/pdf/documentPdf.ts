@@ -91,7 +91,7 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Blob> {
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const M = 15;
-  const accent: [number, number, number] = [37, 99, 235];
+  const accent: [number, number, number] = [10, 127, 86];
 
   let y = M;
 

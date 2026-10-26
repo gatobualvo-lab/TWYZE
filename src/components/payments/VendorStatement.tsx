@@ -1,5 +1,6 @@
+import Spinner from '../ui/Spinner';
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Printer, MessageCircle, X, Package, DollarSign, User, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { Calendar, Printer, MessageCircle, X, Package, DollarSign, User, CheckCircle, AlertTriangle } from 'lucide-react';
 import { printHtml } from '../../services/printing/printHtml';
 import { supabase } from '../../utils/supabase';
 import toast from 'react-hot-toast';
@@ -223,7 +224,7 @@ const VendorStatement: React.FC<VendorStatementProps> = ({
           .header-left h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
           .header-left p { font-size: 13px; color: #666; margin: 3px 0; }
           .header-right { text-align: right; }
-          .doc-type { font-size: 24px; font-weight: 700; color: #1e40af; margin-bottom: 10px; }
+          .doc-type { font-size: 24px; font-weight: 700; color: #086646; margin-bottom: 10px; }
           .doc-number { font-size: 14px; color: #333; font-weight: 600; }
           .doc-date { font-size: 13px; color: #666; margin-top: 5px; }
           table { width: 100%; margin: 20px 0; border-collapse: collapse; }
@@ -512,7 +513,7 @@ ${remaining > 0 ? `\n…and ${remaining} more. See the full printed statement fo
         <div className="p-6 overflow-y-auto flex-1">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-8 text-gray-500 gap-2">
-              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+              <Spinner className="w-6 h-6" tone="brand" />
               Loading transactions…
             </div>
           ) : filteredTransactions.length === 0 ? (

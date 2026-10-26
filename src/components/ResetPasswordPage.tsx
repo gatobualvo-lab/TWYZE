@@ -1,3 +1,4 @@
+import Spinner from './ui/Spinner';
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
@@ -91,7 +92,7 @@ const ResetPasswordPage: React.FC = () => {
   if (checkingSession) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-sky-100 flex items-center justify-center p-4">
-        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <Spinner className="w-8 h-8" tone="brand" />
       </div>
     );
   }
@@ -194,7 +195,7 @@ const ResetPasswordPage: React.FC = () => {
             >
               {isSubmitting ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Spinner className="w-4 h-4" tone="light" />
                   Updating...
                 </>
               ) : (
