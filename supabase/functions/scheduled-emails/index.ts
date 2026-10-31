@@ -9,15 +9,21 @@
 // Self-contained on purpose (no ../_shared imports) so it can be pasted into the
 // Supabase dashboard editor as a single file.
 //
-// Who may call it: the service role key (what the cron job sends) or a signed-in
-// admin. Secrets used: SENDGRID_API_KEY (same one the other email functions use);
-// SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are provided by Supabase.
+// Who may call it: the cron job (it sends an `x-cron-secret` header matching the
+// CRON_SECRET secret; the service role key also works) or a signed-in admin.
+// Secrets used: SENDGRID_API_KEY (same one the other email functions use) and
+// CRON_SECRET (any long random text you invent); SUPABASE_URL /
+// SUPABASE_SERVICE_ROLE_KEY are provided by Supabase.
 //
 // Manual test (admin or service role), body JSON:
 //   { "task": "reports", "date": "2027-01-02", "dryRun": true }   -> lists what WOULD be sent
 //   { "task": "reports", "onlyUser": "<user uuid>", "force": true } -> resend to one user
 //
 // Pure helpers are exported at the bottom of the logic so they can be unit tested.
+
+// A normal static import, as in the other functions. (An import loaded through a
+// variable is not found once deployed.) The tests alias this to a stub.
+import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const FROM_EMAIL = 'notifications@trackwyze.com';
 const FROM_NAME = 'TrackWyze';
@@ -89,6 +95,15 @@ export function previousPeriod(start: string, end: string): { start: string; end
   const prevEnd = new Date(s.getTime() - 86_400_000);
   const prevStart = new Date(prevEnd.getTime() - (days - 1) * 86_400_000);
   return { start: iso(prevStart), end: iso(prevEnd) };
+}
+
+/** True only when a secret is configured (at least 16 characters, so a typo'd short one can't be guessed) and the caller sent exactly it. */
+export function isCronSecretValid(provided: string | null | undefined, expected: string | null | undefined): boolean {
+  if (!provided || !expected || expected.length < 16) return false;
+  if (provided.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) diff |= provided.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0;
 }
 
 export function pctChange(current: number, previous: number): number | null {
@@ -441,15 +456,14 @@ async function handler(req: Request): Promise<Response> {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    // A non-literal specifier keeps tooling that cannot resolve jsr: from choking on this file in tests.
-    const sdk = 'jsr:@supabase/supabase-js@2';
-    const { createClient } = await import(/* @vite-ignore */ sdk);
     const db: Db = createClient(supabaseUrl, serviceKey);
 
-    // Caller must be the service role (cron) or a signed-in admin.
+    // Caller must be the cron job (shared secret, or the service role key), or a signed-in admin.
     const authHeader = req.headers.get('Authorization') ?? '';
     const token = authHeader.replace(/^Bearer\s+/i, '');
-    let authorised = token !== '' && token === serviceKey;
+    let authorised =
+      isCronSecretValid(req.headers.get('x-cron-secret'), Deno.env.get('CRON_SECRET')) ||
+      (token !== '' && token === serviceKey);
     if (!authorised && token) {
       const { data: userData } = await db.auth.getUser(token);
       if (userData?.user) {

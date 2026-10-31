@@ -4,6 +4,7 @@ import {
   buildReportEmail,
   duePeriods,
   hasActivity,
+  isCronSecretValid,
   money,
   pctChange,
   previousPeriod,
@@ -45,6 +46,26 @@ describe('previousPeriod', () => {
   it('returns the period of equal length just before', () => {
     expect(previousPeriod('2026-10-01', '2026-12-31')).toEqual({ start: '2026-07-01', end: '2026-09-30' });
     expect(previousPeriod('2026-01-01', '2026-12-31')).toEqual({ start: '2025-01-01', end: '2025-12-31' });
+  });
+});
+
+describe('isCronSecretValid', () => {
+  const secret = 'a-long-random-secret-123';
+  it('accepts the exact configured secret', () => {
+    expect(isCronSecretValid(secret, secret)).toBe(true);
+  });
+
+  it('rejects a wrong, missing or empty secret', () => {
+    expect(isCronSecretValid('a-long-random-secret-124', secret)).toBe(false);
+    expect(isCronSecretValid('short', secret)).toBe(false);
+    expect(isCronSecretValid(null, secret)).toBe(false);
+    expect(isCronSecretValid('', secret)).toBe(false);
+  });
+
+  it('never lets anyone in when no secret (or a weak one) is configured', () => {
+    expect(isCronSecretValid('anything', undefined)).toBe(false);
+    expect(isCronSecretValid('', '')).toBe(false);
+    expect(isCronSecretValid('tooshort', 'tooshort')).toBe(false);
   });
 });
 
