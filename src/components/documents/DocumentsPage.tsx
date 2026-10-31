@@ -131,14 +131,14 @@ const DocumentsPage: React.FC<DocumentsPageProps> = ({ initialTab }) => {
   return (
     <div className="space-y-6">
       {/* Tab Navigation */}
-      <div className={`rounded-xl shadow-sm border p-1 inline-flex gap-1 ${
+      <div className={`rounded-xl shadow-sm border p-1 flex w-fit max-w-full overflow-x-auto gap-1 ${
         theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
       }`}>
         {tabs.map(tab => (
           <button
             key={tab.key}
             onClick={() => handleTabChange(tab.key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap shrink-0 transition-colors ${
               activeDocType === tab.key
                 ? 'bg-blue-600 text-white shadow-sm'
                 : theme === 'dark'
@@ -152,7 +152,7 @@ const DocumentsPage: React.FC<DocumentsPageProps> = ({ initialTab }) => {
         ))}
         <button
           onClick={() => setView('settings')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap shrink-0 transition-colors ${
             theme === 'dark' ? 'text-gray-300 hover:bg-slate-700' : 'text-gray-600 hover:bg-gray-100'
           }`}
         >

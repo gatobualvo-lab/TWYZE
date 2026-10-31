@@ -5,6 +5,7 @@ import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import { uploadPublicImage, ImageUploadError } from '../services/storage/publicImageUpload';
 import { toNum, parseInput, NumericInput } from '../utils/numberInput';
+import CategorySelect from './inventory/CategorySelect';
 
 interface NewProductDetails {
   sku: string;
@@ -599,13 +600,11 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <input
-                  type="text"
+                <label htmlFor="new-product-category" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <CategorySelect
+                  id="new-product-category"
                   value={newDetails.category}
-                  onChange={(e) => setNewDetails(prev => ({ ...prev, category: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="e.g., Clothing"
+                  onChange={(category) => setNewDetails(prev => ({ ...prev, category }))}
                 />
               </div>
 

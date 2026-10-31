@@ -420,7 +420,9 @@ input[type='month'] {
   color: #dbe4f0;
   border-right: 1px solid rgb(255 255 255 / 0.06) !important;
   box-shadow: 0 0 60px -10px rgb(0 0 0 / 0.55);
-  position: relative;
+  /* No `position` here: the sidebar is fixed (phone drawer) or sticky (desktop), set with
+     utility classes. A `position: relative` in this rule would override them and put the
+     menu in the page flow, pushing the page sideways and leaving it at the top. */
   overflow: hidden;
 }
 /* A slow light bloom behind the logo. */

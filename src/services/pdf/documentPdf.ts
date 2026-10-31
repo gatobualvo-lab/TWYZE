@@ -221,7 +221,7 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Blob> {
 
   // Item photos are optional; one that fails to load simply leaves its row text-only.
   const itemImages = await Promise.all(items.map(item => loadImageForPdf(item.image_url)));
-  const IMAGE_BOX = 10;
+  const IMAGE_BOX = 15;
 
   // Items. "solid" paints the head in the brand colour, "light" in a pale wash with an accent
   // rule, "lines" leaves the head bare and rules every row.

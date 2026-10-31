@@ -195,7 +195,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       .map(
         (item) => `
       <tr>
-        <td class="border-b border-gray-300 py-3 px-4 text-left">${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="" style="width:36px;height:36px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px">` : ''}${escapeHtml(item.product_name)}</td>
+        <td class="border-b border-gray-300 py-3 px-4 text-left">${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:10px">` : ''}${escapeHtml(item.product_name)}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-sm text-gray-600">${escapeHtml(item.description)}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-right">${safeNum(item.quantity)}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-right">${formatCurrency(safeNum(item.unit_price))}</td>
@@ -735,7 +735,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                     >
                       <td className={`py-3 px-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         <span className="inline-flex items-center gap-2">
-                          {item.image_url && <img src={item.image_url} alt="" className="w-9 h-9 rounded object-cover" />}
+                          {item.image_url && <img src={item.image_url} alt="" className="w-14 h-14 rounded object-cover" />}
                           {item.product_name}
                         </span>
                       </td>

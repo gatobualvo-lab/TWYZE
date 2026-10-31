@@ -10,3 +10,4 @@ export { default as Spinner } from './Spinner';
 export { default as Sparkline } from './Sparkline';
 export { default as TopProgress } from './TopProgress';
 export { default as FieldError } from './FieldError';
+export { default as PeriodPicker } from './PeriodPicker';

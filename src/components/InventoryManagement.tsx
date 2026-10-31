@@ -12,6 +12,9 @@ import { syncProductCatalog } from '../services/inventory/productCatalog';
 import CameraBarcodeScanner, { isCameraScanSupported } from './CameraBarcodeScanner';
 import { useFormErrors } from '../hooks/useFormErrors';
 import FieldError from './ui/FieldError';
+import CategorySelect from './inventory/CategorySelect';
+import { mergeCategories } from '../services/inventory/categories';
+import ProductPerformance from './inventory/ProductPerformance';
 
 interface InventoryItem {
   id: string;
@@ -61,6 +64,7 @@ const InventoryManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [showLowStock, setShowLowStock] = useState(false);
+  const [view, setView] = useState<'stock' | 'performance'>('stock');
   const [salesProduct, setSalesProduct] = useState<InventoryItem | null>(null);
   const [salesRows, setSalesRows] = useState<ProductSaleRow[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
@@ -154,7 +158,7 @@ const InventoryManagement: React.FC = () => {
 
     // Category filter
     if (filterCategory) {
-      filtered = filtered.filter(item => item.category === filterCategory);
+      filtered = filtered.filter(item => (item.category ?? '').trim().toLowerCase() === filterCategory.toLowerCase());
     }
 
     // Low stock filter
@@ -396,7 +400,7 @@ const InventoryManagement: React.FC = () => {
     setSalesRows([]);
   };
 
-  const categories = [...new Set(items.map(item => item.category).filter(Boolean))];
+  const categories = mergeCategories(items.map(item => item.category));
   const lowStockItems = items.filter(item => item.item_type !== 'service' && item.current_stock <= item.reorder_level);
   const totalValue = items.reduce((sum, item) => sum + (item.item_type === 'service' ? 0 : item.current_stock * item.cost_price), 0);
 
@@ -445,8 +449,32 @@ const InventoryManagement: React.FC = () => {
         </div>
       </div>
 
+      {/* Stock list or sales performance */}
+      <div role="tablist" aria-label="Inventory view" className="inline-flex rounded-xl border border-gray-200 bg-white p-1 gap-1">
+        {([['stock', 'Stock'], ['performance', 'Performance']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={view === id}
+            onClick={() => setView(id)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${view === id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'performance' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h2 className="text-xl font-bold text-gray-800 mb-1" style={{ color: '#374151' }}>How your products are selling</h2>
+          <p className="text-sm text-gray-500 mb-5">Best and slowest sellers, by product and by category.</p>
+          <ProductPerformance items={items} />
+        </div>
+      )}
+
       {/* Controls */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+      <div className={`${view === 'performance' ? 'hidden' : ''} bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200`}>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
           <h2 className="text-xl font-bold text-gray-800" style={{ color: '#374151' }}>Inventory Items</h2>
           <button
@@ -566,13 +594,12 @@ const InventoryManagement: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <input
-                  type="text"
+                <label htmlFor="item-category" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <CategorySelect
+                  id="item-category"
                   value={formData.category}
-                  onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="e.g., Clothing"
+                  categories={categories}
+                  onChange={(category) => setFormData(prev => ({ ...prev, category }))}
                 />
               </div>
 

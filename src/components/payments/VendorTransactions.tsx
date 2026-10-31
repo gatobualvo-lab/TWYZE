@@ -1,6 +1,8 @@
 import { useFormErrors } from '../../hooks/useFormErrors';
 import FieldError from '../ui/FieldError';
 import Spinner from '../ui/Spinner';
+import PeriodPicker from '../ui/PeriodPicker';
+import { periodFor, isWithin, describePeriod, type Period } from '../../utils/period';
 import { getAccountCurrency } from '../../utils/accountCurrency';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, DollarSign, CheckCircle, Calendar, Package, Filter, ChevronDown, ChevronRight, Search, Plus, Share2, X, CreditCard as Edit, Save, Truck, Trash2, CheckCircle2 } from 'lucide-react';
@@ -57,7 +59,12 @@ interface FilterState {
 
 interface VendorData {
   name: string;
+  /** Unpaid purchases (what is still owed to the vendor). */
   totalPurchases: number;
+  /** Every purchase in the period, paid or not. */
+  purchasesTotal: number;
+  purchaseCount: number;
+  expenseCount: number;
   totalExpenses: number;
   netOwed: number;
   purchaseItems: VendorSaleItem[];
@@ -131,6 +138,7 @@ const VendorTransactions: React.FC = () => {
     searchTerm: ''
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [period, setPeriod] = useState<Period>(() => periodFor('all'));
   
   // References for infinite scroll
   const purchaseObserverRef = useRef<IntersectionObserver | null>(null);
@@ -194,7 +202,7 @@ const VendorTransactions: React.FC = () => {
     setPendingMarkAllPaidVendor(null);
   }, [expandedVendor]);
 
-  const fetchVendorData = async () => {
+  const fetchVendorData = async (activeFilters: FilterState = filters) => {
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
@@ -259,7 +267,7 @@ const VendorTransactions: React.FC = () => {
       
       // Filter out items with empty vendor names and ensure strict vendor matching
       const validSaleItems = (saleItemsData || []).filter(item => 
-        item.vendor && item.vendor.trim() !== '' && passesFilters(item, 'purchase')
+        item.vendor && item.vendor.trim() !== '' && passesFilters(item, 'purchase', activeFilters)
       );
 
       // Fetch vendor expenses
@@ -287,6 +295,9 @@ const VendorTransactions: React.FC = () => {
           vendorGroups[vendorName] = {
             name: vendorName,
             totalPurchases: 0,
+            purchasesTotal: 0,
+            purchaseCount: 0,
+            expenseCount: 0,
             totalExpenses: 0,
             netOwed: 0,
             purchaseItems: [],
@@ -305,19 +316,24 @@ const VendorTransactions: React.FC = () => {
         // Credit this specific item's buying price only to this vendor
         const itemTotalPrice = (item.buying_price ?? 0) * (item.quantity ?? 0);
         
+        vendorGroups[vendorName].purchasesTotal += itemTotalPrice;
+        vendorGroups[vendorName].purchaseCount += 1;
         if (item.vendor_payment_status === 'Unpaid') {
           vendorGroups[vendorName].totalPurchases += itemTotalPrice;
         }
       });
       
       // Process vendor expenses
-      (vendorExpensesData || []).filter(expense => passesFilters(expense, 'expense')).forEach(expense => {
+      (vendorExpensesData || []).filter(expense => passesFilters(expense, 'expense', activeFilters)).forEach(expense => {
         const vendorName = expense.vendor_name?.trim() || '';
         
         if (!vendorGroups[vendorName]) {
           vendorGroups[vendorName] = {
             name: vendorName,
             totalPurchases: 0,
+            purchasesTotal: 0,
+            purchaseCount: 0,
+            expenseCount: 0,
             totalExpenses: 0,
             netOwed: 0,
             purchaseItems: [],
@@ -335,6 +351,7 @@ const VendorTransactions: React.FC = () => {
         
         // All expenses count toward total (no is_reimbursed field in new schema)
         vendorGroups[vendorName].totalExpenses += expense.amount_kes || 0;
+        vendorGroups[vendorName].expenseCount += 1;
       });
       
       // Calculate net owed for each vendor
@@ -360,41 +377,49 @@ const VendorTransactions: React.FC = () => {
     }
   };
 
-  const passesFilters = (item: any, type: 'purchase' | 'expense'): boolean => {
+  const passesFilters = (item: any, type: 'purchase' | 'expense', f: FilterState = filters): boolean => {
     // Date range filter — purchases are dated by the underlying sale (not
     // when the sale_item row happened to be inserted), expenses by
     // occurred_on (VendorExpense has no `date` field, so reading one
     // silently matched everything before this fix).
     const itemDate = type === 'purchase' ? (item.sales?.date || item.created_at) : item.occurred_on;
-    if (filters.dateRange.start && itemDate < filters.dateRange.start) return false;
-    if (filters.dateRange.end && itemDate > filters.dateRange.end) return false;
+    if (!isWithin(itemDate, f.dateRange)) return false;
     
     // Payment status filter
     if (type === 'purchase') {
       const isPaid = item.vendor_payment_status === 'Paid';
-      if (isPaid && !filters.paymentStatus.paidPurchases) return false;
-      if (!isPaid && !filters.paymentStatus.unpaidPurchases) return false;
+      if (isPaid && !f.paymentStatus.paidPurchases) return false;
+      if (!isPaid && !f.paymentStatus.unpaidPurchases) return false;
     }
     // Expenses have no paid/unpaid distinction at the filter-panel level —
     // "cleared" status is a per-vendor visibility toggle instead (see
     // showClearedExpenses), not something this top-level filter offers.
     
     // Search filter (only for purchases by product name)
-    if (type === 'purchase' && filters.searchTerm) {
+    if (type === 'purchase' && f.searchTerm) {
       const productName = item.product_name || '';
-      if (!productName.toLowerCase().includes(filters.searchTerm.toLowerCase())) return false;
+      if (!productName.toLowerCase().includes(f.searchTerm.toLowerCase())) return false;
     }
     
     return true;
   };
 
   const applyFilters = () => {
+    // Dates typed into the filter panel become a custom period so the summary above matches.
+    setPeriod({ preset: 'custom', start: filters.dateRange.start, end: filters.dateRange.end });
     fetchVendorData();
     toast.success('Filters applied');
   };
 
+  const changePeriod = (next: Period) => {
+    setPeriod(next);
+    const nextFilters = { ...filters, dateRange: { start: next.start, end: next.end } };
+    setFilters(nextFilters);
+    fetchVendorData(nextFilters);
+  };
+
   const clearFilters = () => {
-    setFilters({
+    const cleared: FilterState = {
       dateRange: {
         start: '',
         end: ''
@@ -404,8 +429,10 @@ const VendorTransactions: React.FC = () => {
         paidPurchases: true
       },
       searchTerm: ''
-    });
-    fetchVendorData();
+    };
+    setFilters(cleared);
+    setPeriod(periodFor('all'));
+    fetchVendorData(cleared);
     toast.success('Filters cleared');
   };
 
@@ -1060,6 +1087,32 @@ const VendorTransactions: React.FC = () => {
         </div>
       </div>
 
+      {/* Period and its totals */}
+      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <PeriodPicker value={period} onChange={changePeriod} />
+        {(() => {
+          const all = Object.values(vendors);
+          const sum = (pick: (v: VendorData) => number) => all.reduce((total, v) => total + pick(v), 0);
+          const cards = [
+            { label: 'Purchases', value: formatCurrency(sum(v => v.purchasesTotal)), note: `${sum(v => v.purchaseCount)} items`, tone: 'text-gray-800' },
+            { label: 'Still unpaid', value: formatCurrency(sum(v => v.totalPurchases)), note: 'owed to vendors', tone: 'text-red-600' },
+            { label: 'Expenses', value: formatCurrency(sum(v => v.totalExpenses)), note: `${sum(v => v.expenseCount)} entries`, tone: 'text-green-600' },
+            { label: 'Net owed', value: formatCurrency(sum(v => v.netOwed)), note: `${all.length} vendor${all.length === 1 ? '' : 's'}`, tone: sum(v => v.netOwed) > 0 ? 'text-red-600' : 'text-gray-800' },
+          ];
+          return (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5" aria-label={`Vendor totals for ${describePeriod(period)}`}>
+              {cards.map(card => (
+                <div key={card.label} className="rounded-lg bg-gray-50 border border-gray-100 p-3 min-w-0">
+                  <p className="text-xs text-gray-500">{card.label}</p>
+                  <p className={`text-lg font-bold truncate ${card.tone}`}>{card.value}</p>
+                  <p className="text-xs text-gray-400">{card.note}</p>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </div>
+
       {/* Filter Controls */}
       <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
         <div 
@@ -1285,6 +1338,10 @@ const VendorTransactions: React.FC = () => {
 
               {/* Vendor Summary */}
               <div className="p-5 border-t border-gray-200 bg-gray-50">
+                <p className="text-xs text-gray-500 mb-3">
+                  {describePeriod(period)}: {vendor.purchaseCount} purchase{vendor.purchaseCount === 1 ? '' : 's'} totalling {formatCurrency(vendor.purchasesTotal)}
+                  {vendor.expenseCount > 0 ? ` · ${vendor.expenseCount} expense${vendor.expenseCount === 1 ? '' : 's'}` : ''}
+                </p>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <p className="text-xs text-gray-500">Unpaid Purchases</p>

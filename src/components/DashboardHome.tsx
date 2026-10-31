@@ -803,7 +803,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addTask()}
                 placeholder="Add a task..."
-                className={`flex-1 text-sm px-3 py-2 rounded-lg border ${
+                className={`flex-1 min-w-0 text-sm px-3 py-2 rounded-lg border ${
                   isDark ? 'bg-slate-700 border-slate-600 text-gray-200 placeholder:text-gray-500' : 'border-gray-200 placeholder:text-gray-400'
                 }`}
               />
@@ -811,11 +811,12 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                 Add
               </button>
             </div>
-            <div className="flex gap-2 mt-2">
+            {/* Two columns on a phone so the four controls fit its width; a wider row would stretch the whole page. */}
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mt-2">
               <select
                 value={newTaskType}
                 onChange={(e) => setNewTaskType(e.target.value)}
-                className={`text-xs px-2 py-2 rounded-lg border ${
+                className={`w-full min-w-0 sm:w-auto text-xs px-2 py-2 rounded-lg border ${
                   isDark ? 'bg-slate-700 border-slate-600 text-gray-300' : 'border-gray-200 text-gray-600'
                 }`}
               >
@@ -830,7 +831,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                 value={newTaskDueDate}
                 onChange={(e) => setNewTaskDueDate(e.target.value)}
                 title="Due date (optional) — shows this task on the Business Calendar"
-                className={`text-xs px-2 py-2 rounded-lg border ${
+                className={`w-full min-w-0 sm:w-auto text-xs px-2 py-2 rounded-lg border ${
                   isDark ? 'bg-slate-700 border-slate-600 text-gray-300' : 'border-gray-200 text-gray-600'
                 }`}
               />
@@ -840,7 +841,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                 onChange={(e) => setNewTaskDueTime(e.target.value)}
                 disabled={!newTaskDueDate}
                 title="Time (optional)"
-                className={`text-xs px-2 py-2 rounded-lg border disabled:opacity-50 ${
+                className={`w-full min-w-0 sm:w-auto text-xs px-2 py-2 rounded-lg border disabled:opacity-50 ${
                   isDark ? 'bg-slate-700 border-slate-600 text-gray-300' : 'border-gray-200 text-gray-600'
                 }`}
               />
@@ -849,7 +850,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                 onChange={(e) => setNewTaskRemind(e.target.value === '' ? null : Number(e.target.value))}
                 disabled={!newTaskDueDate}
                 title="Remind me (needs a due date)"
-                className={`text-xs px-2 py-2 rounded-lg border disabled:opacity-50 ${
+                className={`w-full min-w-0 sm:w-auto text-xs px-2 py-2 rounded-lg border disabled:opacity-50 ${
                   isDark ? 'bg-slate-700 border-slate-600 text-gray-300' : 'border-gray-200 text-gray-600'
                 }`}
               >

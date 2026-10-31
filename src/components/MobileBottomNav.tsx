@@ -24,7 +24,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, onNavigate
     { id: 'cash-position', label: 'Money', icon: Wallet },
   ];
   return (
-  <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 px-3 pb-2 pt-1 safe-pb pointer-events-none">
+  <nav className="fixed bottom-0 left-0 right-0 z-20 px-3 pb-2 pt-1 safe-pb pointer-events-none">
     <div className="pointer-events-auto flex items-stretch justify-around rounded-2xl bg-white/85 backdrop-blur-xl shadow-xl border border-white/70 ring-1 ring-gray-200/70 px-1">
       {TABS.map(tab => {
         const isActive = activeTab === tab.id;

@@ -36,3 +36,32 @@ export function shortcutModifierLabel(platform: PlatformName = detectPlatform())
 export function isDesktopApp(): boolean {
   return typeof window !== 'undefined' && (window as { trackwyze?: { isDesktop?: boolean } }).trackwyze?.isDesktop === true;
 }
+
+interface ViewportLike {
+  innerWidth: number;
+  matchMedia?: (query: string) => { matches: boolean };
+}
+
+interface ScreenLike {
+  width: number;
+  height: number;
+}
+
+/** Widths below this get the phone layout (drawer menu, bottom bar). Matches Tailwind's md. */
+export const PHONE_MAX_WIDTH = 768;
+
+/**
+ * True on a phone (or small touch tablet) or in a narrow window.
+ *
+ * Judged by the device's real screen as well as the page width: when something on a page runs
+ * wider than the screen, mobile browsers widen the page to fit it and report that wider number,
+ * which used to flip a phone into the desktop layout (menu pushing the page sideways).
+ */
+export function detectPhone(
+  win: ViewportLike = typeof window !== 'undefined' ? window : { innerWidth: 1280 },
+  scr: ScreenLike = typeof screen !== 'undefined' ? screen : { width: 1920, height: 1080 }
+): boolean {
+  if (win.innerWidth < PHONE_MAX_WIDTH) return true;
+  const touch = win.matchMedia?.('(pointer: coarse)').matches ?? false;
+  return touch && Math.min(scr.width, scr.height) < PHONE_MAX_WIDTH;
+}

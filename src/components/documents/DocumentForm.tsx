@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../utils/supabase';
 import { useTheme } from '../../contexts/ThemeContext';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, Send, Save } from 'lucide-react';
+import { Plus, Trash2, Send, Save, Image as ImageIcon, X } from 'lucide-react';
 import { listProjects, type Project } from '../../services/projects/projectService';
 import { useAccountCurrency } from '../../utils/accountCurrency';
 import { useFormErrors } from '../../hooks/useFormErrors';
@@ -474,7 +474,7 @@ export default function DocumentForm({
         </div>
 
         {/* Main Form */}
-        <div className={`${cardClass} rounded-lg shadow-md p-8 mb-6`}>
+        <div className={`${cardClass} rounded-lg shadow-md p-4 sm:p-8 mb-6`}>
           {/* Customer Section */}
           <div className="mb-8">
             <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
@@ -570,6 +570,7 @@ export default function DocumentForm({
               <table className={`w-full text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
                 <thead>
                   <tr className={isDark ? 'border-b border-gray-700' : 'border-b border-gray-300'}>
+                    <th className="text-center py-2 px-2">Photo</th>
                     <th className="text-left py-2 px-2">Product Name</th>
                     <th className="text-left py-2 px-2">Description</th>
                     <th className="text-right py-2 px-2">Qty</th>
@@ -598,6 +599,51 @@ export default function DocumentForm({
                         key={index}
                         className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
                       >
+                        <td className="py-3 px-2 align-top">
+                          {/* A large, separate photo tile: easy to tap on a phone, and clear of the name field. */}
+                          <div className="relative w-20 h-20 mx-auto">
+                            <label
+                              className={`flex w-full h-full flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed overflow-hidden cursor-pointer text-[11px] transition-colors ${
+                                item.image_url
+                                  ? 'border-transparent'
+                                  : isDark
+                                    ? 'border-gray-600 text-gray-400 hover:border-blue-400'
+                                    : 'border-gray-300 text-gray-500 hover:border-blue-400 hover:bg-blue-50'
+                              } ${uploadingImageIndex === index ? 'opacity-60 pointer-events-none' : ''}`}
+                            >
+                              {item.image_url ? (
+                                <img src={item.image_url} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <>
+                                  <ImageIcon className="w-6 h-6" aria-hidden="true" />
+                                  {uploadingImageIndex === index ? 'Uploading...' : 'Add photo'}
+                                </>
+                              )}
+                              <span className="sr-only">{item.image_url ? 'Change photo' : 'Add photo'} for line {index + 1}</span>
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                className="sr-only"
+                                disabled={uploadingImageIndex === index}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  e.target.value = '';
+                                  handleItemImage(index, file);
+                                }}
+                              />
+                            </label>
+                            {item.image_url && (
+                              <button
+                                type="button"
+                                onClick={() => updateItem(index, 'image_url', undefined)}
+                                aria-label={`Remove photo from line ${index + 1}`}
+                                className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white border border-gray-300 shadow flex items-center justify-center text-red-500 hover:text-red-700"
+                              >
+                                <X className="w-4 h-4" aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3 px-2">
                           <input
                             type="text"
@@ -609,30 +655,6 @@ export default function DocumentForm({
                             className={`w-full px-2 py-1 border rounded ${inputClass} text-sm focus:outline-none focus:ring-1 focus:ring-blue-500`}
                             placeholder="Product name"
                           />
-                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                            {item.image_url && (
-                              <img src={item.image_url} alt="" className="w-8 h-8 rounded object-cover border border-gray-200" />
-                            )}
-                            <label className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer">
-                              {uploadingImageIndex === index ? 'Uploading...' : item.image_url ? 'Change photo' : '+ Add photo'}
-                              <input
-                                type="file"
-                                accept="image/png,image/jpeg,image/webp"
-                                className="hidden"
-                                disabled={uploadingImageIndex === index}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  e.target.value = '';
-                                  handleItemImage(index, file);
-                                }}
-                              />
-                            </label>
-                            {item.image_url && (
-                              <button type="button" onClick={() => updateItem(index, 'image_url', undefined)} className="text-xs text-red-500 hover:text-red-600">
-                                Remove
-                              </button>
-                            )}
-                          </div>
                         </td>
                         <td className="py-3 px-2">
                           <input
@@ -920,10 +942,10 @@ export default function DocumentForm({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-3 sm:gap-4">
             <button
               onClick={onCancel}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition ${
+              className={`flex items-center gap-2 px-4 sm:px-6 py-3 rounded-lg font-medium transition ${
                 isDark
                   ? 'bg-gray-700 text-white hover:bg-gray-600'
                   : 'bg-gray-300 text-gray-900 hover:bg-gray-400'
@@ -934,7 +956,7 @@ export default function DocumentForm({
             <button
               onClick={() => handleSave('draft')}
               disabled={isLoading}
-              className="flex items-center gap-2 px-6 py-3 bg-gray-500 text-white rounded-lg font-medium hover:bg-gray-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 sm:px-6 py-3 bg-gray-500 text-white rounded-lg font-medium hover:bg-gray-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save size={18} />
               {isLoading ? 'Saving...' : 'Save as Draft'}
@@ -942,7 +964,7 @@ export default function DocumentForm({
             <button
               onClick={() => handleSave('sent')}
               disabled={isLoading}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 sm:px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send size={18} />
               {isLoading ? 'Saving...' : 'Save & Send'}

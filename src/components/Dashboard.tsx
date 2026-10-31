@@ -59,6 +59,7 @@ import { setAccountCurrency, useAccountCurrency } from '../utils/accountCurrency
 import { useTaskReminders } from '../services/tasks/useTaskReminders';
 import TopProgress from './ui/TopProgress';
 import { LogoMark, Wordmark } from './brand/Logo';
+import { detectPhone } from '../utils/platform';
 
 interface UserProfile {
   id: string;
@@ -361,7 +362,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
     }
     return state;
   });
-  const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
+  const [isMobileView, setIsMobileView] = useState(() => detectPhone());
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   // Download modal state
@@ -470,11 +471,15 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
     
     // Add window resize listener for mobile view detection
     const handleResize = () => {
-      setIsMobileView(window.innerWidth < 768);
+      setIsMobileView(detectPhone());
     };
     
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
   }, [navigate]);
   
   // Update active tab when location changes
@@ -500,6 +505,16 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMobileMenuOpen]);
 
+  // While the drawer is open the page behind it should not scroll, and the drawer never
+  // outlives a switch to the desktop layout.
+  useEffect(() => {
+    if (!isMobileView && isMobileMenuOpen) setIsMobileMenuOpen(false);
+    if (!isMobileMenuOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [isMobileMenuOpen, isMobileView]);
+
   return (
     <>
     <div className="min-h-screen flex transition-colors duration-200 bg-transparent">
@@ -509,7 +524,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
       
       {/* Mobile Menu Button */}
       <div
-        className="md:hidden fixed left-4 z-20 safe-top"
+        className={`fixed left-4 z-[60] safe-top ${isMobileView ? '' : 'hidden'}`}
         style={{ left: 'calc(env(safe-area-inset-left, 0px) + 1rem)' }}
       >
         <button
@@ -530,7 +545,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
       {/* Mobile sidebar backdrop */}
       {isMobileMenuOpen && isMobileView && (
         <div
-          className="fixed inset-0 bg-black/40 z-[9] md:hidden animate-fade-in"
+          className="fixed inset-0 bg-black/40 z-[40] animate-fade-in"
           onClick={() => setIsMobileMenuOpen(false)}
           aria-hidden="true"
         />
@@ -546,20 +561,20 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
       >
         <div
           ref={sidebarRef}
-          className={`sidebar-dark fixed md:sticky top-0 left-0 h-screen z-10 transition-all duration-300 safe-pb ${
-            isSidebarCollapsed ? 'w-20' : 'w-64'
+          className={`sidebar-dark top-0 left-0 h-screen transition-all duration-300 safe-pb ${
+            isMobileView ? 'fixed z-[50] w-72 max-w-[85vw] shadow-2xl' : `sticky z-10 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`
           } flex flex-col`}
           style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
         >
           {/* Sidebar Header */}
-          <div className={`p-4 md:pl-4 pl-[76px] border-b flex items-center justify-between ${theme === 'dark' ? 'border-slate-700' : ''}`}>
+          <div className={`p-4 ${isMobileView ? 'pl-[76px]' : ''} border-b flex items-center justify-between ${theme === 'dark' ? 'border-slate-700' : ''}`}>
             <div className="flex items-center gap-3" aria-label="TrackWyze">
               <LogoMark variant="dark" className="w-10 h-10 drop-shadow-lg" />
               {!isSidebarCollapsed && <Wordmark onDark className="text-[24px]" />}
             </div>
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="p-1 rounded-lg hover:bg-gray-100 hidden md:block"
+              className={`p-1 rounded-lg hover:bg-gray-100 ${isMobileView ? 'hidden' : 'block'}`}
             >
               {isSidebarCollapsed ? (
                 <ChevronRight className="w-5 h-5 text-gray-600" />
@@ -762,7 +777,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
 
       {/* Main Content */}
       <div
-        className="flex-1 min-w-0 max-w-[1480px] mx-auto p-4 md:p-6 pb-20 md:pb-6 transition-all duration-300"
+        className={`flex-1 min-w-0 max-w-[1480px] mx-auto p-4 md:p-6 ${isMobileView ? 'pb-24' : 'md:pb-6'} transition-all duration-300`}
         style={isMobileView ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4.5rem)' } : undefined}
       >
         {/* User Profile Bar */}
@@ -885,7 +900,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
       </div>
     </div>
 
-    {!isMobileMenuOpen && <MobileBottomNav activeTab={activeTab} onNavigate={handleSidebarNavigate} onMore={() => setIsMobileMenuOpen(true)} businessCategory={user?.profile?.business_category} />}
+    {isMobileView && !isMobileMenuOpen && <MobileBottomNav activeTab={activeTab} onNavigate={handleSidebarNavigate} onMore={() => setIsMobileMenuOpen(true)} businessCategory={user?.profile?.business_category} />}
 
     {/* Download Modal (triggered by button) */}
     <DownloadModal isOpen={showDownloadModal} onClose={() => setShowDownloadModal(false)} />
