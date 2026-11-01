@@ -147,6 +147,24 @@ describe('PDF generation', () => {
       expect(text).toMatch(/\/MediaBox\s*\[\s*0\s+0\s+595\.?\d*\s+841\.?\d*\s*\]/);
     });
 
+    it('leaves out the discount and tax columns when no line uses them', async () => {
+      const text = await (await buildDocumentPdf({ ...base, business: { business_name: 'Acme' } })).text();
+      expect(text).toContain('Unit price');
+      expect(text).not.toContain('Disc %');
+      expect(text).not.toContain('Tax %');
+    });
+
+    it('shows a column once any line uses it', async () => {
+      const items = [...base.items, { product_name: 'Chair', quantity: 1, unit_price: 100, total: 116, tax_percent: 16 }];
+      const text = await (await buildDocumentPdf({ ...base, items, business: { business_name: 'Acme' } })).text();
+      expect(text).toContain('Tax %');
+      expect(text).not.toContain('Disc %');
+      const both = [{ ...base.items[0], discount_percent: 10, tax_percent: 16 }];
+      const bothText = await (await buildDocumentPdf({ ...base, items: both, business: { business_name: 'Acme' } })).text();
+      expect(bothText).toContain('Disc %');
+      expect(bothText).toContain('Tax %');
+    });
+
     it('hides tax ids when switched off', async () => {
       const business = { business_name: 'Acme', kra_pin: 'A123456789Z', vat_number: 'V999' };
       const shown = await (await buildDocumentPdf({ ...base, business })).text();

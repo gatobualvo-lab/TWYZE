@@ -8,7 +8,16 @@
 // profile under normal RLS, which is exactly the point.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
-import { sendEmail, emailLayout, EmailSendError } from '../_shared/sendgrid.ts';
+import { sendEmail, emailLayout, EmailSendError, APP_URL } from '../_shared/sendgrid.ts';
+
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -53,16 +62,19 @@ Deno.serve(async (req) => {
     const amountLabel = amount && currency ? `${currency} ${amount.toLocaleString()}` : 'your payment';
     const subject = 'Payment confirmed — TrackWyze';
     const bodyHtml = `
-      <p>Hi ${profile?.full_name || 'there'},</p>
-      <p>We've confirmed ${amountLabel}${planLabel ? ` for the ${planLabel}` : ''}. Your TrackWyze subscription is active — thank you for staying with us.</p>
+      <p style="margin:0 0 14px;">Hi ${escapeHtml(profile?.full_name || 'there')},</p>
+      <p style="margin:0 0 14px;">We've confirmed ${escapeHtml(amountLabel)}${planLabel ? ` for the ${escapeHtml(planLabel)}` : ''}. Your TrackWyze subscription is active. Thank you for staying with us.</p>
     `;
 
     await sendEmail({
       apiKey,
       to: toEmail,
       subject,
-      html: emailLayout(subject, bodyHtml),
-      text: `Hi ${profile?.full_name || 'there'},\n\nWe've confirmed ${amountLabel}. Your TrackWyze subscription is active.`,
+      html: emailLayout(subject, bodyHtml, {
+        preheader: 'Your subscription is active. Thank you.',
+        cta: { label: 'Open TrackWyze', url: APP_URL },
+      }),
+      text: `Hi ${profile?.full_name || 'there'},\n\nWe've confirmed ${amountLabel}. Your TrackWyze subscription is active.\n\nOpen TrackWyze: ${APP_URL}`,
     });
 
     return json({ sent: true });

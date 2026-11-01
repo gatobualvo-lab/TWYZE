@@ -11,7 +11,11 @@
 // this request — Flutterwave's servers are calling us, not the client app.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { BILLING_PLANS, isBillingPlanKey } from '../_shared/plans.ts';
-import { sendEmail, emailLayout } from '../_shared/sendgrid.ts';
+import { sendEmail, emailLayout, APP_URL } from '../_shared/sendgrid.ts';
+
+function escapeHtml(input: string): string {
+  return input.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 function ok(): Response {
   // Always 200 once the signature check passes, even on business-logic
@@ -150,7 +154,11 @@ Deno.serve(async (req) => {
         apiKey: sendGridKey,
         to: profile.email,
         subject,
-        html: emailLayout(subject, `<p>Hi ${profile.full_name || 'there'},</p><p>We've confirmed ${amountLabel} for the ${BILLING_PLANS[planKey].label}. Your TrackWyze subscription is active — thank you for staying with us.</p>`),
+        html: emailLayout(
+          subject,
+          `<p style="margin:0 0 14px;">Hi ${escapeHtml(profile.full_name || 'there')},</p><p style="margin:0 0 6px;">We've confirmed ${escapeHtml(amountLabel)} for the ${escapeHtml(BILLING_PLANS[planKey].label)}. Your TrackWyze subscription is active. Thank you for staying with us.</p>`,
+          { preheader: 'Your subscription is active. Thank you.', cta: { label: 'Open TrackWyze', url: APP_URL } }
+        ),
         text: `Hi ${profile.full_name || 'there'},\n\nWe've confirmed ${amountLabel} for the ${BILLING_PLANS[planKey].label}. Your TrackWyze subscription is active.`,
       });
     } catch (err) {

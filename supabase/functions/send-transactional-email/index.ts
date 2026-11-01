@@ -14,7 +14,7 @@
 // to MANY users at once (an admin announcement), see send-broadcast-email.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
-import { sendEmail, emailLayout, EmailSendError } from '../_shared/sendgrid.ts';
+import { sendEmail, emailLayout, EmailSendError, APP_URL } from '../_shared/sendgrid.ts';
 
 type EmailType = 'welcome' | 'subscription_expiry_warning' | 'opportunity_alert';
 
@@ -40,38 +40,54 @@ function buildEmail(type: EmailType, name: string, alert?: { title: string; body
   if (type === 'welcome') {
     const subject = 'Welcome to TrackWyze';
     const bodyHtml = `
-      <p>Hi ${name || 'there'},</p>
-      <p>Your TrackWyze account is ready. Start by recording your first sale or adding your inventory — everything else (profit tracking, reports, reminders) builds from there.</p>
+      <p style="margin:0 0 14px;">Hi ${escapeHtml(name || 'there')},</p>
+      <p style="margin:0 0 14px;">Your TrackWyze account is ready. Here is the quickest way to get going:</p>
+      <ol style="margin:0 0 6px;padding-left:20px;">
+        <li style="margin:0 0 6px;">Add your products under <strong>Inventory</strong>.</li>
+        <li style="margin:0 0 6px;">Record your first sale under <strong>Sales</strong>.</li>
+        <li style="margin:0 0 6px;">Watch your daily profit build up on the <strong>Dashboard</strong>.</li>
+      </ol>
     `;
     return {
       subject,
-      html: emailLayout(subject, bodyHtml),
-      text: `Hi ${name || 'there'},\n\nYour TrackWyze account is ready. Start by recording your first sale or adding your inventory.`,
+      html: emailLayout(subject, bodyHtml, {
+        preheader: 'Your account is ready. Add your products and record your first sale.',
+        cta: { label: 'Open TrackWyze', url: APP_URL },
+      }),
+      text: `Hi ${name || 'there'},\n\nYour TrackWyze account is ready. Add your products, record your first sale, and watch your daily profit build up.\n\nOpen TrackWyze: ${APP_URL}`,
     };
   }
   if (type === 'subscription_expiry_warning') {
     const subject = 'Your TrackWyze subscription has expired';
+    const renewUrl = `${APP_URL}/?tab=payment-management`;
     const bodyHtml = `
-      <p>Hi ${name || 'there'},</p>
-      <p>Your TrackWyze subscription expired. You have a few days of grace before your account moves to view-only mode — renew now to keep everything running smoothly.</p>
+      <p style="margin:0 0 14px;">Hi ${escapeHtml(name || 'there')},</p>
+      <p style="margin:0 0 14px;">Your TrackWyze subscription has expired. You have a few days of grace before your account moves to view-only mode, so renew now to keep adding sales, expenses and stock.</p>
+      <p style="margin:0;">Your records stay safe either way.</p>
     `;
     return {
       subject,
-      html: emailLayout(subject, bodyHtml),
-      text: `Hi ${name || 'there'},\n\nYour TrackWyze subscription expired. Renew soon to avoid losing access to adding new records.`,
+      html: emailLayout(subject, bodyHtml, {
+        preheader: 'Renew to keep recording sales, expenses and stock.',
+        cta: { label: 'Renew subscription', url: renewUrl },
+      }),
+      text: `Hi ${name || 'there'},\n\nYour TrackWyze subscription has expired. Renew soon to keep adding new records. Your records stay safe either way.\n\nRenew: ${renewUrl}`,
     };
   }
   if (type === 'opportunity_alert' && alert) {
     const subject = alert.title;
+    const detailsUrl = `${APP_URL}/?tab=notifications`;
     const bodyHtml = `
-      <p>Hi ${name || 'there'},</p>
-      <p>${escapeHtml(alert.body)}</p>
-      <p>Open TrackWyze to see the details.</p>
+      <p style="margin:0 0 14px;">Hi ${escapeHtml(name || 'there')},</p>
+      <p style="margin:0 0 6px;">${escapeHtml(alert.body)}</p>
     `;
     return {
       subject,
-      html: emailLayout(escapeHtml(alert.title), bodyHtml),
-      text: `Hi ${name || 'there'},\n\n${alert.body}\n\nOpen TrackWyze to see the details.`,
+      html: emailLayout(escapeHtml(alert.title), bodyHtml, {
+        preheader: alert.body,
+        cta: { label: 'View details', url: detailsUrl },
+      }),
+      text: `Hi ${name || 'there'},\n\n${alert.body}\n\nView details: ${detailsUrl}`,
     };
   }
   return null;

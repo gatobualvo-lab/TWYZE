@@ -2,6 +2,7 @@ import { getAccountCurrency } from '../../utils/accountCurrency';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { loadImageForPdf } from './pdfImages';
 import { pdfText } from './pdfText';
+import { lineColumns } from '../../utils/documentColumns';
 import { PDF_FONTS, documentColors, documentTitle, hexToRgb, resolveDocumentStyle, type Rgb } from '../../utils/documentTheme';
 
 export interface DocumentPdfItem {
@@ -221,6 +222,8 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Blob> {
 
   // Item photos are optional; one that fails to load simply leaves its row text-only.
   const itemImages = await Promise.all(items.map(item => loadImageForPdf(item.image_url)));
+  // Discount and tax columns are left out when no line uses them.
+  const cols = lineColumns(items);
   const IMAGE_BOX = 15;
 
   // Items. "solid" paints the head in the brand colour, "light" in a pale wash with an accent
@@ -232,13 +235,13 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Blob> {
   autoTable(doc, {
     startY: y,
     margin: { left: M, right: M, bottom: 20 },
-    head: [['Item', 'Qty', 'Unit price', 'Disc %', 'Tax %', 'Total']],
+    head: [['Item', 'Qty', 'Unit price', ...(cols.showDiscount ? ['Disc %'] : []), ...(cols.showTax ? ['Tax %'] : []), 'Total']],
     body: items.map((item) => [
       pdfText(item.description ? `${item.product_name}\n${item.description}` : item.product_name),
       String(num(item.quantity)),
       money(item.unit_price),
-      num(item.discount_percent) ? `${num(item.discount_percent)}%` : '-',
-      num(item.tax_percent) ? `${num(item.tax_percent)}%` : '-',
+      ...(cols.showDiscount ? [num(item.discount_percent) ? `${num(item.discount_percent)}%` : '-'] : []),
+      ...(cols.showTax ? [num(item.tax_percent) ? `${num(item.tax_percent)}%` : '-'] : []),
       money(item.total),
     ]),
     styles: { font, fontSize: 9, cellPadding: 2.4, textColor: 30 },
@@ -270,13 +273,10 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Blob> {
       const h = image.height * scale;
       doc.addImage(image.dataUrl, image.format, x + 2 + (IMAGE_BOX - w) / 2, cellY + 2 + (IMAGE_BOX - h) / 2, w, h);
     },
-    columnStyles: {
-      1: { halign: 'right', cellWidth: 16 },
-      2: { halign: 'right', cellWidth: 28 },
-      3: { halign: 'right', cellWidth: 16 },
-      4: { halign: 'right', cellWidth: 16 },
-      5: { halign: 'right', cellWidth: 30 },
-    },
+    // Column positions shift when discount/tax are left out, so the widths are laid out in order.
+    columnStyles: Object.fromEntries(
+      [16, 28, ...(cols.showDiscount ? [16] : []), ...(cols.showTax ? [16] : []), 30].map((width, i) => [i + 1, { halign: 'right', cellWidth: width }])
+    ),
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   y = ((doc as any).lastAutoTable?.finalY ?? y) + 6;

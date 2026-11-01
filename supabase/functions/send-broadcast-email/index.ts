@@ -11,7 +11,7 @@
 // function doesn't touch the email_broadcasts table itself.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
-import { sendBulkEmail, emailLayout, EmailSendError } from '../_shared/sendgrid.ts';
+import { sendBulkEmail, emailLayout, EmailSendError, APP_URL } from '../_shared/sendgrid.ts';
 
 type Audience = 'all' | 'active' | 'trial' | 'expired';
 const AUDIENCES: Audience[] = ['all', 'active', 'trial', 'expired'];
@@ -94,7 +94,10 @@ Deno.serve(async (req) => {
       apiKey,
       recipients,
       subject: trimmedSubject,
-      html: emailLayout(escapeHtml(trimmedSubject), textToHtmlParagraphs(trimmedBody)),
+      html: emailLayout(escapeHtml(trimmedSubject), textToHtmlParagraphs(trimmedBody), {
+        preheader: trimmedBody.slice(0, 120),
+        cta: { label: 'Open TrackWyze', url: APP_URL },
+      }),
       text: trimmedBody,
     });
 

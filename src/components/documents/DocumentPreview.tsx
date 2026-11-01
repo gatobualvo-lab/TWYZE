@@ -7,6 +7,7 @@ import { buildDocumentPdf } from '../../services/pdf/documentPdf';
 import { downloadBlob, pdfFilename, sharePdf } from '../../services/pdf/pdfShare';
 import { formatInCurrency } from '../../utils/currency';
 import { printHtml } from '../../services/printing/printHtml';
+import { lineColumns } from '../../utils/documentColumns';
 import { FONT_STACKS, documentColors, documentTitle, resolveDocumentStyle } from '../../utils/documentTheme';
 import { documentPrintCss } from './documentPrintCss';
 
@@ -115,6 +116,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   const formatCurrency = (amount: number) => formatInCurrency(amount, document?.currency, document?.exchange_rate);
   const [loading, setLoading] = useState(true);
   const [marking, setMarking] = useState(false);
+  // Discount and tax columns only appear when some line uses them.
+  const cols = lineColumns(items);
 
   useEffect(() => {
     fetchData();
@@ -199,8 +202,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
         <td class="border-b border-gray-300 py-3 px-4 text-sm text-gray-600">${escapeHtml(item.description)}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-right">${safeNum(item.quantity)}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-right">${formatCurrency(safeNum(item.unit_price))}</td>
-        <td class="border-b border-gray-300 py-3 px-4 text-right">${safeNum(item.discount_percent)}%</td>
-        <td class="border-b border-gray-300 py-3 px-4 text-right">${safeNum(item.tax_percent)}%</td>
+        ${cols.showDiscount ? `<td class="border-b border-gray-300 py-3 px-4 text-right">${safeNum(item.discount_percent)}%</td>` : ''}
+        ${cols.showTax ? `<td class="border-b border-gray-300 py-3 px-4 text-right">${safeNum(item.tax_percent)}%</td>` : ''}
         <td class="border-b border-gray-300 py-3 px-4 text-right font-semibold">${formatCurrency(safeNum(item.total))}</td>
       </tr>
     `
@@ -272,8 +275,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                   <th>Description</th>
                   <th>Qty</th>
                   <th>Unit Price</th>
-                  <th>Discount %</th>
-                  <th>Tax %</th>
+                  ${cols.showDiscount ? '<th>Discount %</th>' : ''}
+                  ${cols.showTax ? '<th>Tax %</th>' : ''}
                   <th>Total</th>
                 </tr>
               </thead>
@@ -716,12 +719,16 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                     <th className={`text-right py-2 px-2 font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                       Unit Price
                     </th>
-                    <th className={`text-right py-2 px-2 font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Discount %
-                    </th>
-                    <th className={`text-right py-2 px-2 font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Tax %
-                    </th>
+                    {cols.showDiscount && (
+                      <th className={`text-right py-2 px-2 font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Discount %
+                      </th>
+                    )}
+                    {cols.showTax && (
+                      <th className={`text-right py-2 px-2 font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Tax %
+                      </th>
+                    )}
                     <th className={`text-right py-2 px-2 font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                       Total
                     </th>
@@ -748,12 +755,16 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                       <td className={`py-3 px-2 text-right ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                         {formatCurrency(safeNum(item.unit_price))}
                       </td>
-                      <td className={`py-3 px-2 text-right ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {safeNum(item.discount_percent)}%
-                      </td>
-                      <td className={`py-3 px-2 text-right ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {safeNum(item.tax_percent)}%
-                      </td>
+                      {cols.showDiscount && (
+                        <td className={`py-3 px-2 text-right ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {safeNum(item.discount_percent)}%
+                        </td>
+                      )}
+                      {cols.showTax && (
+                        <td className={`py-3 px-2 text-right ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {safeNum(item.tax_percent)}%
+                        </td>
+                      )}
                       <td className={`py-3 px-2 text-right font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {formatCurrency(safeNum(item.total))}
                       </td>
