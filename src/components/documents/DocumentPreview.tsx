@@ -8,6 +8,7 @@ import { downloadBlob, pdfFilename, sharePdf } from '../../services/pdf/pdfShare
 import { formatInCurrency } from '../../utils/currency';
 import { printHtml } from '../../services/printing/printHtml';
 import { lineColumns } from '../../utils/documentColumns';
+import { describeDiscount, totalsDifference } from '../../utils/documentTotals';
 import { FONT_STACKS, documentColors, documentTitle, resolveDocumentStyle } from '../../utils/documentTheme';
 import { documentPrintCss } from './documentPrintCss';
 
@@ -18,6 +19,8 @@ interface DocumentItem {
   quantity: number;
   unit_price: number;
   discount_percent: number;
+  discount_amount?: number;
+  discount_mode?: string;
   tax_percent: number;
   total: number;
   sort_order: number;
@@ -202,7 +205,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
         <td class="border-b border-gray-300 py-3 px-4 text-sm text-gray-600">${escapeHtml(item.description)}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-right">${safeNum(item.quantity)}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-right">${formatCurrency(safeNum(item.unit_price))}</td>
-        ${cols.showDiscount ? `<td class="border-b border-gray-300 py-3 px-4 text-right">${safeNum(item.discount_percent)}%</td>` : ''}
+        ${cols.showDiscount ? `<td class="border-b border-gray-300 py-3 px-4 text-right">${escapeHtml(describeDiscount(item, formatCurrency))}</td>` : ''}
         ${cols.showTax ? `<td class="border-b border-gray-300 py-3 px-4 text-right">${safeNum(item.tax_percent)}%</td>` : ''}
         <td class="border-b border-gray-300 py-3 px-4 text-right font-semibold">${formatCurrency(safeNum(item.total))}</td>
       </tr>
@@ -275,7 +278,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                   <th>Description</th>
                   <th>Qty</th>
                   <th>Unit Price</th>
-                  ${cols.showDiscount ? '<th>Discount %</th>' : ''}
+                  ${cols.showDiscount ? '<th>Discount</th>' : ''}
                   ${cols.showTax ? '<th>Tax %</th>' : ''}
                   <th>Total</th>
                 </tr>
@@ -513,6 +516,9 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
   const docStyle = resolveDocumentStyle(businessSettings);
   const colors = documentColors(docStyle);
+  // Documents saved before line discounts were counted can show a total that the lines do not add up to.
+  const mismatch = items.length > 0 ? totalsDifference(document, items) : null;
+  const hasMismatch = !!mismatch && Math.abs(mismatch.difference) >= 0.01;
   const docTitle = documentTitle(docStyle, document.document_type);
   const band = docStyle.headerStyle === 'band';
   // The sheet is dark in dark mode, so the brand colour is lightened to stay readable on it.
@@ -617,6 +623,16 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       <div
         className={`flex-1 overflow-auto p-6 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}
       >
+        {hasMismatch && mismatch && (
+          <div role="status" className="max-w-4xl mx-auto mb-4 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 p-4 text-sm">
+            <p className="font-semibold">The total on this document does not match its lines</p>
+            <p className="mt-1">
+              It was saved as {formatCurrency(safeNum(document.total))}, but its lines add up to {formatCurrency(mismatch.expected)}
+              {' '}({formatCurrency(Math.abs(mismatch.difference))} {mismatch.difference > 0 ? 'more' : 'less'}). Documents saved before discounts were fully counted can be out like this.
+              To correct it, press <strong>Edit</strong>, check the figures and <strong>Save</strong>. This notice is not printed.
+            </p>
+          </div>
+        )}
         <div
           className={`max-w-4xl mx-auto rounded-lg shadow-lg overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'}`}
           style={{ fontFamily: FONT_STACKS[docStyle.font] }}
@@ -721,7 +737,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                     </th>
                     {cols.showDiscount && (
                       <th className={`text-right py-2 px-2 font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Discount %
+                        Discount
                       </th>
                     )}
                     {cols.showTax && (
@@ -757,7 +773,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                       </td>
                       {cols.showDiscount && (
                         <td className={`py-3 px-2 text-right ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {safeNum(item.discount_percent)}%
+                          {describeDiscount(item, formatCurrency)}
                         </td>
                       )}
                       {cols.showTax && (

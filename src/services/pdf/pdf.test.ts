@@ -150,7 +150,7 @@ describe('PDF generation', () => {
     it('leaves out the discount and tax columns when no line uses them', async () => {
       const text = await (await buildDocumentPdf({ ...base, business: { business_name: 'Acme' } })).text();
       expect(text).toContain('Unit price');
-      expect(text).not.toContain('Disc %');
+      expect(text).not.toContain('Discount');
       expect(text).not.toContain('Tax %');
     });
 
@@ -158,11 +158,19 @@ describe('PDF generation', () => {
       const items = [...base.items, { product_name: 'Chair', quantity: 1, unit_price: 100, total: 116, tax_percent: 16 }];
       const text = await (await buildDocumentPdf({ ...base, items, business: { business_name: 'Acme' } })).text();
       expect(text).toContain('Tax %');
-      expect(text).not.toContain('Disc %');
+      expect(text).not.toContain('Discount');
       const both = [{ ...base.items[0], discount_percent: 10, tax_percent: 16 }];
       const bothText = await (await buildDocumentPdf({ ...base, items: both, business: { business_name: 'Acme' } })).text();
-      expect(bothText).toContain('Disc %');
+      expect(bothText).toContain('Discount');
       expect(bothText).toContain('Tax %');
+    });
+
+    it('shows a discount typed as money as that figure, not as a percentage', async () => {
+      const items = [{ product_name: 'Desk', quantity: 1, unit_price: 1000, total: 850, discount_mode: 'amount', discount_amount: 150, discount_percent: 15 }];
+      const text = await (await buildDocumentPdf({ ...base, items, business: { business_name: 'Acme' }, formatMoney: (n) => `KES ${n.toFixed(2)}` })).text();
+      expect(text).toContain('Discount');
+      expect(text).toContain('KES 150.00');
+      expect(text).not.toContain('15%');
     });
 
     it('hides tax ids when switched off', async () => {

@@ -3,6 +3,8 @@
 
 interface LineLike {
   discount_percent?: number | string | null;
+  discount_amount?: number | string | null;
+  discount_mode?: string | null;
   tax_percent?: number | string | null;
 }
 
@@ -18,7 +20,7 @@ export interface LineColumns {
 
 export function lineColumns(items: LineLike[]): LineColumns {
   return {
-    showDiscount: items.some(item => nonZero(item.discount_percent)),
+    showDiscount: items.some(item => (item.discount_mode === 'amount' ? nonZero(item.discount_amount) : nonZero(item.discount_percent))),
     showTax: items.some(item => nonZero(item.tax_percent)),
   };
 }

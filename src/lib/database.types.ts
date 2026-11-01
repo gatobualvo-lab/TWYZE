@@ -497,6 +497,8 @@ export type Database = {
           created_at: string | null
           description: string | null
           discount_percent: number | null
+          discount_amount: number
+          discount_mode: string
           document_id: string
           entered_by: string | null
           id: string
@@ -513,6 +515,8 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           discount_percent?: number | null
+          discount_amount?: number
+          discount_mode?: string
           document_id: string
           entered_by?: string | null
           id?: string
@@ -529,6 +533,8 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           discount_percent?: number | null
+          discount_amount?: number
+          discount_mode?: string
           document_id?: string
           entered_by?: string | null
           id?: string

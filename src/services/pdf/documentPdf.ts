@@ -3,6 +3,7 @@ import { formatCurrency, formatDate } from '../../utils/format';
 import { loadImageForPdf } from './pdfImages';
 import { pdfText } from './pdfText';
 import { lineColumns } from '../../utils/documentColumns';
+import { describeDiscount, lineAmounts } from '../../utils/documentTotals';
 import { PDF_FONTS, documentColors, documentTitle, hexToRgb, resolveDocumentStyle, type Rgb } from '../../utils/documentTheme';
 
 export interface DocumentPdfItem {
@@ -11,6 +12,9 @@ export interface DocumentPdfItem {
   quantity: number | string;
   unit_price: number | string;
   discount_percent?: number | string | null;
+  /** A discount keyed in as money for the whole line (when discount_mode is 'amount'). */
+  discount_amount?: number | string | null;
+  discount_mode?: string | null;
   tax_percent?: number | string | null;
   total: number | string;
   /** Optional photo drawn beside the item name. */
@@ -235,12 +239,12 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Blob> {
   autoTable(doc, {
     startY: y,
     margin: { left: M, right: M, bottom: 20 },
-    head: [['Item', 'Qty', 'Unit price', ...(cols.showDiscount ? ['Disc %'] : []), ...(cols.showTax ? ['Tax %'] : []), 'Total']],
+    head: [['Item', 'Qty', 'Unit price', ...(cols.showDiscount ? ['Discount'] : []), ...(cols.showTax ? ['Tax %'] : []), 'Total']],
     body: items.map((item) => [
       pdfText(item.description ? `${item.product_name}\n${item.description}` : item.product_name),
       String(num(item.quantity)),
       money(item.unit_price),
-      ...(cols.showDiscount ? [num(item.discount_percent) ? `${num(item.discount_percent)}%` : '-'] : []),
+      ...(cols.showDiscount ? [lineAmounts(item).discount > 0 ? describeDiscount(item, money) : '-'] : []),
       ...(cols.showTax ? [num(item.tax_percent) ? `${num(item.tax_percent)}%` : '-'] : []),
       money(item.total),
     ]),
@@ -275,7 +279,7 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Blob> {
     },
     // Column positions shift when discount/tax are left out, so the widths are laid out in order.
     columnStyles: Object.fromEntries(
-      [16, 28, ...(cols.showDiscount ? [16] : []), ...(cols.showTax ? [16] : []), 30].map((width, i) => [i + 1, { halign: 'right', cellWidth: width }])
+      [16, 28, ...(cols.showDiscount ? [26] : []), ...(cols.showTax ? [16] : []), 30].map((width, i) => [i + 1, { halign: 'right', cellWidth: width }])
     ),
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

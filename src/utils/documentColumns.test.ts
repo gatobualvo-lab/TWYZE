@@ -21,3 +21,14 @@ describe('lineColumns', () => {
     expect(lineColumns([{ discount_percent: 'abc', tax_percent: undefined }])).toEqual({ showDiscount: false, showTax: false });
   });
 });
+
+describe('lineColumns with money discounts', () => {
+  it('shows the discount column when a line has a money discount', () => {
+    expect(lineColumns([{ discount_mode: 'amount', discount_amount: 150, discount_percent: 0 }]).showDiscount).toBe(true);
+  });
+
+  it('ignores a leftover percentage while the line is in money mode, and the reverse', () => {
+    expect(lineColumns([{ discount_mode: 'amount', discount_amount: 0, discount_percent: 10 }]).showDiscount).toBe(false);
+    expect(lineColumns([{ discount_mode: 'percent', discount_amount: 99, discount_percent: 0 }]).showDiscount).toBe(false);
+  });
+});

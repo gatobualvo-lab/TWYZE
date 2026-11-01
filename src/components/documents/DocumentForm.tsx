@@ -5,6 +5,7 @@ import { supabase } from '../../utils/supabase';
 import { useTheme } from '../../contexts/ThemeContext';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, Send, Save, Image as ImageIcon, X } from 'lucide-react';
+import { convertDiscount, documentTotals, extraDiscountFrom, lineAmounts, round2, type DiscountMode } from '../../utils/documentTotals';
 import { listProjects, type Project } from '../../services/projects/projectService';
 import { useAccountCurrency } from '../../utils/accountCurrency';
 import { useFormErrors } from '../../hooks/useFormErrors';
@@ -18,6 +19,9 @@ interface DocumentItem {
   quantity: number;
   unit_price: number;
   discount_percent: number;
+  /** Discount keyed in as money for the whole line (used when discount_mode is 'amount'). */
+  discount_amount?: number;
+  discount_mode?: DiscountMode;
   tax_percent: number;
   total: number;
   /** Optional photo shown next to the line on the document. */
@@ -145,6 +149,7 @@ export default function DocumentForm({
           setDueDate(doc.due_date || '');
           setExpiryDate(doc.expiry_date || '');
           setDeliveryCharge(safeNum(doc.delivery_charge));
+          // Set again below, once the lines are known, so a stored discount is not counted twice.
           setDiscountAmount(safeNum(doc.discount_amount));
           setPaymentMethod(doc.payment_method || '');
           setNotes(doc.notes || '');
@@ -159,51 +164,50 @@ export default function DocumentForm({
           .eq('document_id', existingDocumentId)
           .order('sort_order');
         if (docItems && docItems.length > 0) {
-          setItems(docItems.map(i => ({
+          const loaded = docItems.map(i => ({
             product_name: i.product_name || '',
             description: i.description || '',
             quantity: safeNum(i.quantity),
             unit_price: safeNum(i.unit_price),
             discount_percent: safeNum(i.discount_percent),
+            discount_amount: safeNum(i.discount_amount),
+            discount_mode: (i.discount_mode === 'amount' ? 'amount' : 'percent') as DiscountMode,
             tax_percent: safeNum(i.tax_percent),
             total: safeNum(i.total),
             image_url: (i as { image_url?: string | null }).image_url || undefined,
-          })));
+          }));
+          setItems(loaded);
+          if (doc) setDiscountAmount(extraDiscountFrom(doc.discount_amount, loaded));
         }
       })();
     }
   }, [existingDocumentId]);
 
-  // Calculate totals
-  const calculateTotals = () => {
-    let subtotal = 0;
-    let totalTax = 0;
+  // Subtotal, discounts, tax and total all come from one shared calculation, so the lines, the
+  // summary and the saved record always agree. `discountAmount` holds the EXTRA discount typed on
+  // the document; each line's own discount % is counted separately.
+  const [extraMode, setExtraMode] = useState<DiscountMode>('amount');
+  const [extraPercent, setExtraPercent] = useState(0);
+  const beforeExtra = documentTotals(items, { delivery: deliveryCharge });
+  const extraDiscountAmount =
+    extraMode === 'percent'
+      ? round2(((beforeExtra.subtotal - beforeExtra.lineDiscounts) * Math.min(100, Math.max(0, safeNum(extraPercent)))) / 100)
+      : discountAmount;
+  const totals = documentTotals(items, { extraDiscount: extraDiscountAmount, delivery: deliveryCharge });
 
-    items.forEach((item) => {
-      const unitPrice = safeNum(item.unit_price);
-      const quantity = safeNum(item.quantity);
-      const discountPercent = safeNum(item.discount_percent);
-      const taxPercent = safeNum(item.tax_percent);
-
-      const lineSubtotal = unitPrice * quantity;
-      const discountAmount = lineSubtotal * (discountPercent / 100);
-      const taxableAmount = lineSubtotal - discountAmount;
-      const taxAmount = taxableAmount * (taxPercent / 100);
-
-      subtotal += lineSubtotal;
-      totalTax += taxAmount;
-    });
-
-    const total = subtotal - safeNum(discountAmount) + safeNum(deliveryCharge) + totalTax;
-
-    return {
-      subtotal,
-      totalTax,
-      total,
+  // Switching a line between % and money keeps the discount the same, just in the other unit.
+  const changeDiscountMode = (index: number, mode: DiscountMode) => {
+    const item = items[index];
+    if ((item.discount_mode || 'percent') === mode) return;
+    const converted = convertDiscount(item, mode);
+    const next = [...items];
+    next[index] = {
+      ...item,
+      discount_mode: mode,
+      ...(mode === 'amount' ? { discount_amount: converted } : { discount_percent: converted }),
     };
+    setItems(next);
   };
-
-  const totals = calculateTotals();
 
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(null);
 
@@ -356,9 +360,10 @@ export default function DocumentForm({
         customer_email: customerEmail,
         customer_address: customerAddress,
         subtotal: totals.subtotal,
-        tax_amount: totals.totalTax,
-        delivery_charge: safeNum(deliveryCharge),
-        discount_amount: safeNum(discountAmount),
+        tax_amount: totals.tax,
+        delivery_charge: totals.delivery,
+        // Line discounts and the extra discount together, so subtotal - discount + tax + delivery = total.
+        discount_amount: totals.discount,
         total: totals.total,
         amount_paid: existingDocument?.amount_paid || 0,
         balance_due: totals.total - (existingDocument?.amount_paid || 0),
@@ -413,14 +418,12 @@ export default function DocumentForm({
         .map((item, index) => {
           const unitPrice = safeNum(item.unit_price);
           const quantity = safeNum(item.quantity);
-          const discountPercent = safeNum(item.discount_percent);
           const taxPercent = safeNum(item.tax_percent);
-
-          const lineSubtotal = unitPrice * quantity;
-          const discountAmount = lineSubtotal * (discountPercent / 100);
-          const taxableAmount = lineSubtotal - discountAmount;
-          const taxAmount = taxableAmount * (taxPercent / 100);
-          const total = lineSubtotal - discountAmount + taxAmount;
+          const amounts = lineAmounts(item);
+          const total = amounts.total;
+          const discountMode: DiscountMode = item.discount_mode === 'amount' ? 'amount' : 'percent';
+          // The percentage column holds two decimals only, so a typed money discount is also kept exactly in discount_amount.
+          const discountPercent = discountMode === 'amount' ? convertDiscount(item, 'percent') : safeNum(item.discount_percent);
 
           return {
             document_id: documentId,
@@ -430,6 +433,8 @@ export default function DocumentForm({
             quantity,
             unit_price: unitPrice,
             discount_percent: discountPercent,
+            discount_amount: amounts.discount,
+            discount_mode: discountMode,
             tax_percent: taxPercent,
             image_url: item.image_url || null,
             total,
@@ -438,7 +443,15 @@ export default function DocumentForm({
         });
 
       if (itemsToInsert.length > 0) {
-        const { error } = await supabase.from('document_items').insert(itemsToInsert);
+        let { error } = await supabase.from('document_items').insert(itemsToInsert);
+
+        // Before the database update that adds the money-discount columns, save the lines without
+        // them (the equivalent percentage is still stored).
+        if (error && /discount_amount|discount_mode/.test(error.message || '')) {
+          const legacyLines = itemsToInsert.map(({ discount_amount: _amount, discount_mode: _mode, ...rest }) => rest);
+          ({ error } = await supabase.from('document_items').insert(legacyLines as never));
+          if (!error) toast('Saved. Money discounts need a one-time database update to be kept exactly.', { icon: 'ℹ️', duration: 6000 });
+        }
 
         if (error) throw error;
       }
@@ -575,7 +588,7 @@ export default function DocumentForm({
                     <th className="text-left py-2 px-2">Description</th>
                     <th className="text-right py-2 px-2">Qty</th>
                     <th className="text-right py-2 px-2">Unit Price</th>
-                    <th className="text-right py-2 px-2">Discount %</th>
+                    <th className="text-right py-2 px-2">Discount</th>
                     <th className="text-right py-2 px-2">Tax %</th>
                     <th className="text-right py-2 px-2">Total</th>
                     <th className="text-center py-2 px-2">Action</th>
@@ -583,16 +596,7 @@ export default function DocumentForm({
                 </thead>
                 <tbody>
                   {items.map((item, index) => {
-                    const unitPrice = safeNum(item.unit_price);
-                    const quantity = safeNum(item.quantity);
-                    const discountPercent = safeNum(item.discount_percent);
-                    const taxPercent = safeNum(item.tax_percent);
-
-                    const lineSubtotal = unitPrice * quantity;
-                    const discountAmount = lineSubtotal * (discountPercent / 100);
-                    const taxableAmount = lineSubtotal - discountAmount;
-                    const taxAmount = taxableAmount * (taxPercent / 100);
-                    const total = lineSubtotal - discountAmount + taxAmount;
+                    const total = lineAmounts(item).total;
 
                     return (
                       <tr
@@ -691,17 +695,29 @@ export default function DocumentForm({
                           />
                         </td>
                         <td className="py-3 px-2">
-                          <input
-                            type="number"
-                            value={item.discount_percent}
-                            onChange={(e) =>
-                              updateItem(index, 'discount_percent', safeNum(e.target.value))
-                            }
-                            className={`w-20 px-2 py-1 border rounded ${inputClass} text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                            min="0"
-                            max="100"
-                            step="0.01"
-                          />
+                          <div className="flex items-center justify-end gap-1">
+                            <input
+                              type="number"
+                              aria-label={`Discount for line ${index + 1}`}
+                              value={item.discount_mode === 'amount' ? item.discount_amount ?? 0 : item.discount_percent}
+                              onChange={(e) =>
+                                updateItem(index, item.discount_mode === 'amount' ? 'discount_amount' : 'discount_percent', safeNum(e.target.value))
+                              }
+                              className={`w-24 px-2 py-1 border rounded ${inputClass} text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                              min="0"
+                              max={item.discount_mode === 'amount' ? undefined : 100}
+                              step="0.01"
+                            />
+                            <select
+                              aria-label={`Discount unit for line ${index + 1}`}
+                              value={item.discount_mode === 'amount' ? 'amount' : 'percent'}
+                              onChange={(e) => changeDiscountMode(index, e.target.value as DiscountMode)}
+                              className={`px-1 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${inputClass}`}
+                            >
+                              <option value="percent">%</option>
+                              <option value="amount">{base}</option>
+                            </select>
+                          </div>
                         </td>
                         <td className="py-3 px-2">
                           <input
@@ -748,10 +764,18 @@ export default function DocumentForm({
                     {base} {totals.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
+                {totals.lineDiscounts > 0 && (
+                  <div className="flex justify-between">
+                    <span className={labelClass}>Item discounts:</span>
+                    <span className="font-medium">
+                      -{base} {totals.lineDiscounts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className={labelClass}>Tax:</span>
                   <span className="font-medium">
-                    {base} {totals.totalTax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {base} {totals.tax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -769,16 +793,37 @@ export default function DocumentForm({
                 </div>
                 <div className="flex justify-between">
                   <label className={`block text-sm font-medium ${labelClass}`}>
-                    Discount:
+                    Extra discount:
                   </label>
-                  <input
-                    type="number"
-                    value={discountAmount}
-                    onChange={(e) => setDiscountAmount(safeNum(e.target.value))}
-                    className={`w-32 px-2 py-1 border rounded ${inputClass} text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                    min="0"
-                    step="0.01"
-                  />
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      aria-label="Extra discount"
+                      value={extraMode === 'percent' ? extraPercent : discountAmount}
+                      onChange={(e) => (extraMode === 'percent' ? setExtraPercent(safeNum(e.target.value)) : setDiscountAmount(safeNum(e.target.value)))}
+                      className={`w-28 px-2 py-1 border rounded ${inputClass} text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                      min="0"
+                      max={extraMode === 'percent' ? 100 : undefined}
+                      step="0.01"
+                    />
+                    <select
+                      aria-label="Extra discount unit"
+                      value={extraMode}
+                      onChange={(e) => {
+                        const mode = e.target.value as DiscountMode;
+                        if (mode === extraMode) return;
+                        // keep the same discount when switching units
+                        const afterLines = beforeExtra.subtotal - beforeExtra.lineDiscounts;
+                        if (mode === 'percent') setExtraPercent(afterLines > 0 ? round2((discountAmount / afterLines) * 100) : 0);
+                        else setDiscountAmount(extraDiscountAmount);
+                        setExtraMode(mode);
+                      }}
+                      className={`px-1 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${inputClass}`}
+                    >
+                      <option value="amount">{base}</option>
+                      <option value="percent">%</option>
+                    </select>
+                  </div>
                 </div>
                 <div className={`pt-3 border-t ${isDark ? 'border-gray-600' : 'border-gray-300'} flex justify-between`}>
                   <span className="font-semibold">Total:</span>
