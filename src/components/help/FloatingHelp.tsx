@@ -5,6 +5,8 @@ import { LogoMark } from '../brand/Logo';
 import Spinner from '../ui/Spinner';
 import { useEntitlements } from '../../contexts/EntitlementsContext';
 import { TIER_LABELS } from '../../services/subscription/entitlements';
+import { describeRemaining, type Quota } from '../../services/subscription/aiLimits';
+import { fetchAiQuota } from '../../services/subscription/aiUsageService';
 import { askGuide, GuideError, submitGuideFeedback, type GuideMessage } from '../../services/helpAssistant/helpAssistantService';
 import { buildSupportUrl, SUPPORT_WHATSAPP_URL } from '../../services/helpAssistant/supportLink';
 import { trackEvent } from '../../lib/analytics';
@@ -81,6 +83,7 @@ export default function FloatingHelp({ onNavigate, activeTab, labelFor, hidden =
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadChat());
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [quota, setQuota] = useState<Quota | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -96,6 +99,14 @@ export default function FloatingHelp({ onNavigate, activeTab, labelFor, hidden =
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
+
+  // How many questions are left on this plan, looked up when the Guide opens.
+  useEffect(() => {
+    if (!open) return;
+    let current = true;
+    fetchAiQuota('guide', tier).then(q => { if (current && q) setQuota(q); }).catch(() => {});
+    return () => { current = false; };
+  }, [open, tier]);
 
   useEffect(() => {
     const log = logRef.current;
@@ -137,9 +148,11 @@ export default function FloatingHelp({ onNavigate, activeTab, labelFor, hidden =
     const history: GuideMessage[] = next.filter(m => !m.isError).slice(-10).map(m => ({ role: m.role, content: m.text }));
     try {
       const answer = await askGuide(history, { tab: activeTab, tier });
+      if (answer.quota) setQuota(answer.quota);
       setMessages(prev => [...prev, { id: newId(), role: 'assistant', text: answer.reply, pages: answer.pages, needsHuman: answer.needsHuman }]);
     } catch (error) {
       const message = error instanceof GuideError ? error.message : 'Something went wrong. Please try again, or talk to our team.';
+      if (error instanceof GuideError && error.code === 'rate_limited') fetchAiQuota('guide', tier).then(q => q && setQuota(q)).catch(() => {});
       setMessages(prev => [...prev, { id: newId(), role: 'assistant', text: message, needsHuman: true, isError: true }]);
     } finally {
       setSending(false);
@@ -359,6 +372,17 @@ export default function FloatingHelp({ onNavigate, activeTab, labelFor, hidden =
                   <Send className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
+              {quota && (
+                <p className={`mt-2 text-xs font-medium ${quota.remaining === 0 ? 'text-amber-700' : 'text-gray-600'}`} role="status">
+                  {describeRemaining(quota)}
+                  {quota.remaining <= 2 && tier !== 'business' && (
+                    <>
+                      {' · '}
+                      <button type="button" onClick={() => openPage('payment-management')} className="font-semibold text-blue-700 underline">See plans</button>
+                    </>
+                  )}
+                </p>
+              )}
               <p className="mt-2 text-[11px] leading-snug text-gray-500">
                 AI can make mistakes. Never share your password or M-Pesa PIN.{' '}
                 <a href={teamUrl(messages.length)} target="_blank" rel="noopener noreferrer" className="font-semibold text-green-700 underline">Talk to our team</a>

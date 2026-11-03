@@ -1,4 +1,6 @@
 import { supabase } from '../../utils/supabase';
+import { describeLimitReached, type Quota, type QuotaWindow } from '../subscription/aiLimits';
+import { parseQuota } from '../helpAssistant/helpAssistantService';
 
 // Client wrapper for the ai-business-assistant Edge Function. The Anthropic
 // API key never appears here or anywhere else in frontend code — the
@@ -20,6 +22,8 @@ export interface AssistantMessage {
 export interface SendChatMessageResult {
   conversationId: string;
   message: AssistantMessage;
+  /** Questions left on this plan, when the server says. */
+  quota: Quota | null;
 }
 
 export type AssistantErrorCode =
@@ -41,13 +45,22 @@ export class AssistantRequestError extends Error {
 
 const ERROR_MESSAGES: Record<AssistantErrorCode, string> = {
   not_authenticated: 'Please log in again to use the AI Business Assistant.',
-  subscription_required: 'Upgrade to a paid plan to unlock the AI Business Assistant.',
+  subscription_required: 'The AI Business Advisor is part of the Business plan. Upgrade to unlock it.',
   feature_disabled: 'The AI Business Assistant is not enabled for this account yet.',
-  rate_limited: "You've reached the hourly question limit — try again in a little while.",
+  rate_limited: "You've reached your question limit for now — try again in a little while.",
   invalid_request: 'That message could not be sent — try rephrasing it.',
   assistant_unavailable: 'The AI Business Assistant is temporarily unavailable. Please try again shortly.',
   unknown: 'Something went wrong sending that message.',
 };
+
+const isWindow = (value: unknown): value is QuotaWindow => value === 'hour' || value === 'day' || value === 'month';
+
+/** A refused question, with which limit was reached and when to try again, in plain words. */
+function limitError(body: { reason?: unknown; retryAfterSeconds?: unknown }): AssistantRequestError {
+  if (!isWindow(body.reason)) return new AssistantRequestError('assistant_unavailable', ERROR_MESSAGES.assistant_unavailable);
+  const retry = typeof body.retryAfterSeconds === 'number' ? body.retryAfterSeconds : 3600;
+  return new AssistantRequestError('rate_limited', describeLimitReached('advisor', 'business', body.reason, retry));
+}
 
 export async function sendChatMessage(conversationId: string | null, message: string): Promise<SendChatMessageResult> {
   const { data, error } = await supabase.functions.invoke('ai-business-assistant', {
@@ -59,25 +72,28 @@ export async function sendChatMessage(conversationId: string | null, message: st
     // FunctionsHttpError with the parsed body on `context` in some
     // versions and not others — try to recover the { error: code } shape
     // our own function always returns, falling back to 'unknown'.
-    const context = (error as { context?: { json?: () => Promise<{ error?: string }> } }).context;
+    const context = (error as { context?: { json?: () => Promise<{ error?: string; reason?: unknown; retryAfterSeconds?: unknown }> } }).context;
     let code: AssistantErrorCode = 'unknown';
     if (context?.json) {
       try {
         const body = await context.json();
+        if (body?.error === 'rate_limited') throw limitError(body);
         if (body?.error && body.error in ERROR_MESSAGES) code = body.error as AssistantErrorCode;
-      } catch {
+      } catch (caught) {
+        if (caught instanceof AssistantRequestError) throw caught;
         // ignore — fall back to 'unknown'
       }
     }
     throw new AssistantRequestError(code, ERROR_MESSAGES[code]);
   }
 
+  if (data?.error === 'rate_limited') throw limitError(data);
   if (data?.error) {
     const code: AssistantErrorCode = data.error in ERROR_MESSAGES ? data.error : 'unknown';
     throw new AssistantRequestError(code, ERROR_MESSAGES[code]);
   }
 
-  return data as SendChatMessageResult;
+  return { ...(data as SendChatMessageResult), quota: parseQuota(data?.quota) };
 }
 
 export interface ConversationSummary {

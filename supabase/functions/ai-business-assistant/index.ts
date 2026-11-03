@@ -10,6 +10,7 @@
 // the prompt-injection and structured-output design.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
+import { consumeQuota, includesAssistant, tierOf } from '../_shared/aiLimits.ts';
 import { callAssistant, AnthropicCallError } from '../_shared/anthropicClient.ts';
 import { classifyQuestion, type DataDomain } from '../_shared/aiAssistant/domainRouter.ts';
 import { buildUserPrompt, SYSTEM_PROMPT, type AssistantContextData, type VendorBalance, type ExpenseBreakdownEntry, type UnpaidInvoiceSummary } from '../_shared/aiAssistant/promptBuilder.ts';
@@ -30,8 +31,6 @@ import {
 import type { BusinessMetrics, CustomerProfit, ProductProfit, StockForecast } from '../_shared/businessLogic/types.ts';
 
 const MAX_MESSAGE_LENGTH = 2000;
-const RATE_LIMIT_MAX = 20;
-const RATE_LIMIT_WINDOW_SECONDS = 3600;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -102,39 +101,17 @@ Deno.serve(async (req) => {
     // that costs money. Both checks are re-verified here even though the
     // frontend also gates on them.
     const [{ data: profile }, { data: flag }] = await Promise.all([
-      supabase.from('profiles').select('subscription_status').eq('id', user.id).maybeSingle(),
+      supabase.from('profiles').select('subscription_status, subscription_expiry, trial_end_date, current_billing_cycle').eq('id', user.id).maybeSingle(),
       supabase.from('feature_flags').select('enabled').eq('key', 'ai_business_assistant').maybeSingle(),
     ]);
 
-    if (profile?.subscription_status !== 'active') {
+    // The Advisor is part of the Business plan (and the free month); Free and Starter do not include it.
+    const tier = tierOf(profile);
+    if (!includesAssistant('advisor', tier)) {
       return json({ error: 'subscription_required' }, 403);
     }
     if (!flag?.enabled) {
       return json({ error: 'feature_disabled' }, 403);
-    }
-
-    // Server-side rate limit — fails CLOSED, unlike the client-side
-    // checkRateLimit() helper (which fails open, fine for free actions).
-    // This guards a metered third-party API call, so an RPC error must
-    // block the request rather than risk unbounded Anthropic spend.
-    const { data: withinLimit, error: rateLimitError } = await supabase.rpc('check_rate_limit', {
-      p_action: 'ai_assistant.chat',
-      p_max: RATE_LIMIT_MAX,
-      p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
-      p_anon_key: '',
-    });
-    if (rateLimitError) {
-      // Distinct from a genuine limit-exceeded case (below) — this means the
-      // RPC call itself failed (bad params, RLS denial, etc.), not that the
-      // user actually hit 20 questions/hour. Logged loudly since the
-      // client-facing message is identical either way by design (fail
-      // closed, don't leak internals) — this is the only place that
-      // distinction is visible.
-      console.error('ai-business-assistant: check_rate_limit RPC errored (failing closed)', rateLimitError);
-      return json({ error: 'rate_limited', retryAfterSeconds: RATE_LIMIT_WINDOW_SECONDS }, 429);
-    }
-    if (withinLimit !== true) {
-      return json({ error: 'rate_limited', retryAfterSeconds: RATE_LIMIT_WINDOW_SECONDS }, 429);
     }
 
     const body = await req.json().catch(() => ({}));
@@ -158,6 +135,15 @@ Deno.serve(async (req) => {
     const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
     if (!anthropicApiKey) {
       return json({ error: 'assistant_unavailable' }, 502);
+    }
+
+    // Server-side question limits for the person's plan (per hour, day and month). Fails CLOSED, unlike the
+    // client-side checkRateLimit() helper: this guards a metered third-party API call, so a failed check
+    // must block the question rather than risk unbounded Anthropic spend. Checked after the request is
+    // known to be valid, so a malformed request does not use up a question.
+    const quota = await consumeQuota(supabase, 'advisor', tier);
+    if (!quota.allowed) {
+      return json({ error: 'rate_limited', reason: quota.reason, retryAfterSeconds: quota.retryAfterSeconds }, 429);
     }
 
     // --- Domain routing -----------------------------------------------
@@ -387,6 +373,7 @@ Deno.serve(async (req) => {
     await supabase.from('ai_conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId);
 
     return json({
+      quota: quota.quota,
       conversationId: convId,
       message: {
         id: assistantMessage.id,

@@ -1,13 +1,12 @@
 // The TrackWyze Guide: the floating "ask how to use the app" assistant. Signed-in users only. It is
 // deliberately separate from ai-business-assistant: no business data is read here, so the only things
 // Claude sees are the conversation, the page the person is on and their plan (see _shared/helpAssistant.ts).
-// Costs money per question, so it is rate limited per person (fails closed, like the Business Advisor).
+// Costs money per question, so each plan has its own limits per hour, day and month (_shared/aiLimits.ts;
+// fails closed, like the Business Advisor).
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { HelpModelError, askHelpModel, parseHelpRequest } from '../_shared/helpAssistant.ts';
-
-const HOURLY_LIMIT = 30;
-const DAILY_LIMIT = 120;
+import { consumeQuota, tierOf } from '../_shared/aiLimits.ts';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -36,26 +35,21 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
     if (!apiKey) return json({ error: 'assistant_unavailable' }, 503);
 
-    // Both limits must pass. A failed check blocks the question rather than risk unbounded spending.
-    for (const [action, max, windowSeconds] of [
-      ['app_help.hour', HOURLY_LIMIT, 3600],
-      ['app_help.day', DAILY_LIMIT, 86400],
-    ] as const) {
-      const { data: allowed, error } = await supabase.rpc('check_rate_limit', {
-        p_action: action,
-        p_max: max,
-        p_window_seconds: windowSeconds,
-        p_anon_key: '',
-      });
-      if (error) {
-        console.error('app-help: check_rate_limit failed (blocking)', error);
-        return json({ error: 'rate_limited', retryAfterSeconds: windowSeconds }, 429);
-      }
-      if (allowed !== true) return json({ error: 'rate_limited', retryAfterSeconds: windowSeconds }, 429);
+    // The plan comes from the account itself, never from what the browser says.
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('subscription_status, subscription_expiry, trial_end_date, current_billing_cycle')
+      .eq('id', user.id)
+      .maybeSingle();
+    const tier = tierOf(profile);
+
+    const quota = await consumeQuota(supabase, 'guide', tier);
+    if (!quota.allowed) {
+      return json({ error: 'rate_limited', reason: quota.reason, retryAfterSeconds: quota.retryAfterSeconds }, 429);
     }
 
-    const answer = await askHelpModel(apiKey, request);
-    return json({ reply: answer.reply, pages: answer.pages, needsHuman: answer.needsHuman });
+    const answer = await askHelpModel(apiKey, { ...request, tier });
+    return json({ reply: answer.reply, pages: answer.pages, needsHuman: answer.needsHuman, quota: quota.quota });
   } catch (err) {
     console.error('app-help error:', err);
     return json({ error: err instanceof HelpModelError ? 'assistant_unavailable' : 'unknown' }, err instanceof HelpModelError ? 502 : 500);

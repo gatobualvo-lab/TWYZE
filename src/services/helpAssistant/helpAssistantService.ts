@@ -1,4 +1,6 @@
 import { supabase } from '../../utils/supabase';
+import { describeLimitReached, type Quota, type QuotaWindow } from '../subscription/aiLimits';
+import type { Tier } from '../subscription/entitlements';
 
 // Client for the app-help Edge Function (the TrackWyze Guide). The Anthropic key lives only on the
 // server; the browser sends the conversation, the page the person is on and their plan, never any
@@ -15,6 +17,8 @@ export interface GuideReply {
   pages: string[];
   /** The Guide thinks the team should step in. */
   needsHuman: boolean;
+  /** Questions left on this plan, when the server says. */
+  quota: Quota | null;
 }
 
 export type GuideErrorCode = 'offline' | 'not_authenticated' | 'rate_limited' | 'unavailable' | 'unknown';
@@ -37,6 +41,16 @@ const MESSAGES: Record<GuideErrorCode, string> = {
 
 const CODES: GuideErrorCode[] = ['not_authenticated', 'rate_limited', 'unavailable'];
 
+const isWindow = (value: unknown): value is QuotaWindow => value === 'hour' || value === 'day' || value === 'month';
+
+/** The error for a refused question: which limit was reached and when to try again, in plain words. */
+function limitError(body: { reason?: unknown; retryAfterSeconds?: unknown }, tier?: string): GuideError {
+  if (!isWindow(body.reason)) return new GuideError('unavailable', MESSAGES.unavailable);
+  const retry = typeof body.retryAfterSeconds === 'number' ? body.retryAfterSeconds : 3600;
+  const knownTier: Tier = tier === 'starter' || tier === 'business' ? tier : 'free';
+  return new GuideError('rate_limited', describeLimitReached('guide', knownTier, body.reason, retry));
+}
+
 export async function askGuide(messages: GuideMessage[], context: { tab?: string; tier?: string }): Promise<GuideReply> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new GuideError('offline', MESSAGES.offline);
 
@@ -50,18 +64,27 @@ export async function askGuide(messages: GuideMessage[], context: { tab?: string
     else if (typeof response.json === 'function') {
       try {
         const body = await response.clone().json();
+        if (body?.error === 'rate_limited') throw limitError(body, context.tier);
         if (CODES.includes(body?.error)) code = body.error;
-      } catch {
+      } catch (caught) {
+        if (caught instanceof GuideError) throw caught;
         // not JSON: keep "unknown"
       }
     }
     throw new GuideError(code, MESSAGES[code]);
   }
+  if (data?.error === 'rate_limited') throw limitError(data, context.tier);
   if (typeof data?.reply !== 'string') {
     const code = CODES.includes(data?.error) ? (data.error as GuideErrorCode) : 'unknown';
     throw new GuideError(code, MESSAGES[code]);
   }
-  return { reply: data.reply, pages: Array.isArray(data.pages) ? data.pages.filter((p: unknown): p is string => typeof p === 'string') : [], needsHuman: data.needsHuman === true };
+  return { reply: data.reply, pages: Array.isArray(data.pages) ? data.pages.filter((p: unknown): p is string => typeof p === 'string') : [], needsHuman: data.needsHuman === true, quota: parseQuota(data.quota) };
+}
+
+export function parseQuota(value: unknown): Quota | null {
+  const quota = value as { remaining?: unknown; window?: unknown } | null;
+  if (!quota || typeof quota.remaining !== 'number' || !isWindow(quota.window)) return null;
+  return { remaining: quota.remaining, window: quota.window };
 }
 
 export interface GuideFeedback {

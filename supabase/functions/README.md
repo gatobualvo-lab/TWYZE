@@ -139,3 +139,20 @@ sales, stock, customers or money, only the conversation, the page they are on an
   the Guide gets wrong, in the SQL editor run
   `select created_at, page, question, answer from guide_feedback where rating = 'down' order by created_at desc;`
   and then fix the matching text in `_shared/helpAssistant.ts`.
+
+## Question limits for the two AIs
+
+The Guide (`app-help`) and the AI Business Advisor (`ai-business-assistant`) cost money per question, so each plan
+has a limit per hour, per day and per month (rolling windows: the last hour, 24 hours and 30 days).
+
+- **The numbers** are in `_shared/aiLimits.ts` (`AI_LIMITS`) and, for showing "questions left" in the app, in
+  `src/services/subscription/aiLimits.ts`. A test fails if the two differ. Free: Guide 5 a day, no Advisor.
+  Starter: Guide 20 a day, no Advisor. Business (and the free month): Guide 40 a day, Advisor 10 a day.
+  A limit of 0 means the plan does not include that assistant.
+- **Enforced on the server**: the function works out the plan from the account itself (never from the browser) and
+  calls the `consume_ai_quota` database function, which counts and records the question. If that check fails the
+  question is refused (it fails closed).
+- **Migration**: `20261104090000_ai_usage_limits.sql` (table `ai_usage_events`, functions `consume_ai_quota` and
+  `ai_usage`). Run it before deploying the two functions. Usage per person is visible to admins in
+  `ai_usage_events`.
+- After changing a limit, redeploy both functions and release the app.

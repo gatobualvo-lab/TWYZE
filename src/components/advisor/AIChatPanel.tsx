@@ -12,6 +12,8 @@ import {
   type ConversationSummary,
   type StoredMessage,
 } from '../../services/aiAssistant/aiAssistantService';
+import { describeRemaining, type Quota } from '../../services/subscription/aiLimits';
+import { fetchAiQuota } from '../../services/subscription/aiUsageService';
 
 const SUGGESTED_QUESTIONS = [
   'How is my business performing?',
@@ -60,7 +62,13 @@ const AIChatPanel: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavig
   const [sending, setSending] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  // How many questions are left on this plan (the Advisor is part of Business, so that is the plan here).
+  const [quota, setQuota] = useState<Quota | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchAiQuota('advisor', 'business').then(setQuota).catch(() => {});
+  }, []);
 
   useEffect(() => {
     listConversations()
@@ -114,6 +122,7 @@ const AIChatPanel: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavig
 
     try {
       const result = await sendChatMessage(activeConversationId, trimmed);
+      if (result.quota) setQuota(result.quota);
       setTurns(prev => prev.slice(0, -1).concat({
         id: result.message.id,
         role: 'assistant',
@@ -129,6 +138,7 @@ const AIChatPanel: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavig
       }
     } catch (err) {
       const message = err instanceof AssistantRequestError ? err.message : 'Something went wrong sending that message.';
+      if (err instanceof AssistantRequestError && err.code === 'rate_limited') fetchAiQuota('advisor', 'business').then(setQuota).catch(() => {});
       setTurns(prev => prev.slice(0, -1).concat({
         id: `error-${Date.now()}`,
         role: 'assistant',
@@ -313,14 +323,19 @@ const AIChatPanel: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavig
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            disabled={sending}
-            placeholder="Ask about your business..."
+            disabled={sending || quota?.remaining === 0}
+            placeholder={quota?.remaining === 0 ? 'No questions left for now' : 'Ask about your business...'}
             className="flex-1 px-3.5 py-2 text-sm border border-gray-200 rounded-full focus:ring-2 focus:ring-purple-400 focus:border-transparent disabled:bg-gray-50"
           />
           <Button type="submit" size="sm" disabled={sending || !input.trim()} loading={sending} icon={Send} className="!rounded-full !p-2.5" aria-label="Send">
             <span className="sr-only">Send</span>
           </Button>
         </form>
+        {quota && (
+          <p className={`mt-2 px-1 text-xs ${quota.remaining === 0 ? 'text-amber-700' : 'text-gray-500'}`} role="status">
+            {quota.remaining === 0 ? 'You have used your questions for now. Check the message above for when you can ask again.' : describeRemaining(quota)}
+          </p>
+        )}
       </div>
     </Card>
   );

@@ -11,6 +11,8 @@ vi.mock('../../services/helpAssistant/helpAssistantService', async () => {
   return { askGuide: guide.askGuide, submitGuideFeedback: guide.submitGuideFeedback, GuideError };
 });
 vi.mock('../../lib/analytics', () => ({ trackEvent: vi.fn() }));
+const usage = vi.hoisted(() => ({ fetchAiQuota: vi.fn() }));
+vi.mock('../../services/subscription/aiUsageService', () => ({ fetchAiQuota: usage.fetchAiQuota }));
 
 import FloatingHelp, { SUPPORT_WHATSAPP_URL } from './FloatingHelp';
 import { GuideError } from '../../services/helpAssistant/helpAssistantService';
@@ -30,6 +32,7 @@ const openGuide = async () => userEvent.click(screen.getByRole('button', { name:
 beforeEach(() => {
   vi.clearAllMocks();
   guide.submitGuideFeedback.mockResolvedValue(undefined);
+  usage.fetchAiQuota.mockResolvedValue(null);
   sessionStorage.clear();
 });
 
@@ -98,6 +101,25 @@ describe('FloatingHelp', () => {
     expect(message).toContain('Plan: Business');
     expect(message).toContain('Page: Inventory');
     expect(message).toContain('My question: I paid but my plan did not change');
+  });
+
+  it('shows how many questions are left, and updates it after each answer', async () => {
+    usage.fetchAiQuota.mockResolvedValue({ remaining: 5, window: 'day' });
+    guide.askGuide.mockResolvedValue({ reply: 'Open Inventory.', pages: [], needsHuman: false, quota: { remaining: 4, window: 'day' } });
+    setup();
+    await openGuide();
+    expect(await screen.findByText('5 questions left today')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Ask the Guide a question'), 'where is stock?{Enter}');
+    expect(await screen.findByText('4 questions left today')).toBeInTheDocument();
+  });
+
+  it('says plainly when the questions have run out, and offers the team', async () => {
+    guide.askGuide.mockRejectedValue(new GuideError('rate_limited', "You have used today's questions for the Guide. You can ask again in about 3 hours."));
+    setup();
+    await openGuide();
+    await userEvent.type(screen.getByLabelText('Ask the Guide a question'), 'hello{Enter}');
+    expect(await screen.findByText(/You have used today's questions for the Guide/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Talk to our team on WhatsApp/ })).toBeInTheDocument();
   });
 
   it('says it is an AI and can make mistakes', async () => {

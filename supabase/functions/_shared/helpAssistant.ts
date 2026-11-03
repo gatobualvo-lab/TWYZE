@@ -4,6 +4,8 @@
 // page they are on and their plan. Everything here is plain logic so it can be tested; the Edge Function
 // (app-help/index.ts) only adds login, rate limits and the call to Claude.
 
+import { AI_LIMITS } from './aiLimits.ts';
+
 export type HelpTier = 'free' | 'starter' | 'business';
 
 export interface HelpPage {
@@ -69,6 +71,7 @@ const PLAN_FACTS = `PLANS (all prices KES per month):
 - Free: up to 40 sales a month, 20 products, 15 customers and 1 user. Receipts, invoices and quotations, expenses and cash position. Documents carry a small "Created with TrackWyze" line.
 - Starter: unlimited sales, products and customers; own colours/logo/signature on documents and no TrackWyze line; daily closing report; calendar and reminders; ad expenses and expense overview; customer timeline.
 - Business: everything in Starter plus profit analytics and performance by product, the AI Business Advisor and receipt scanning, wholesale, vendor and delivery tracking, recurring invoices and expenses, emailed business reports, projects, data export, barcode scanning with the camera, documents in other currencies, services, smart inventory, and up to 5 users.
+- Questions to the AIs are limited by plan. This Guide: ${AI_LIMITS.guide.free.perDay} a day on Free, ${AI_LIMITS.guide.starter.perDay} a day on Starter, ${AI_LIMITS.guide.business.perDay} a day on Business (and a monthly total). The AI Business Advisor is Business only (also during the free month): ${AI_LIMITS.advisor.business.perDay} questions a day. The limits reset on their own as time passes; the app shows how many questions are left.
 - If a paid plan ends, the account continues on Free. Nothing is ever deleted and nobody is locked out; only the Free limits and plan features apply.
 - Pay on Manage Subscription: choose Starter or Business, then pay by M-Pesa (type your Safaricom number, a prompt appears on the phone, enter your M-Pesa PIN) or by card. The plan switches on automatically after payment.`;
 
