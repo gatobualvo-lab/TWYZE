@@ -10,6 +10,7 @@ import { trackEvent } from '../lib/analytics';
 import { BUSINESS_CATEGORIES, REFERRAL_SOURCES } from '../constants/businessCategory';
 import { ACCOUNT_CURRENCIES, DEFAULT_CURRENCY } from '../utils/accountCurrency';
 import Logo from './brand/Logo';
+import { usePageMeta } from '../utils/pageMeta';
 
 type Mode = 'login' | 'signup';
 
@@ -21,11 +22,18 @@ interface FormData {
   businessCategory: string;
   referralSource: string;
   currency: string;
+  /** The "email me" tick box. Off until the person ticks it. */
+  emailOptIn: boolean;
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const EnhancedAuthScreen: React.FC = () => {
+  usePageMeta({
+    title: 'Log in or Create a Free Account | Trackwyze',
+    description: 'Log in to Trackwyze, or create your account and get your first month free. Track sales, stock, expenses and profit for your business.',
+    path: '/login',
+  });
   const navigate = useNavigate();
 
   const [mode, setMode] = useState<Mode>('login');
@@ -37,6 +45,7 @@ const EnhancedAuthScreen: React.FC = () => {
     businessCategory: '',
     referralSource: '',
     currency: DEFAULT_CURRENCY,
+    emailOptIn: false,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -101,6 +110,7 @@ const EnhancedAuthScreen: React.FC = () => {
             business_category: formData.businessCategory,
             currency: formData.currency,
             referral_source: formData.referralSource,
+            email_opt_in: formData.emailOptIn,
           },
         },
       });
@@ -119,14 +129,14 @@ const EnhancedAuthScreen: React.FC = () => {
         const msg = 'Account created successfully. Please check your email to confirm your account.';
         setSuccess(msg);
         toast.success('Account created. Check your email to confirm.');
-        setFormData({ name: '', email: '', password: '', confirmPassword: '', businessCategory: '', referralSource: '', currency: DEFAULT_CURRENCY });
+        setFormData({ name: '', email: '', password: '', confirmPassword: '', businessCategory: '', referralSource: '', currency: DEFAULT_CURRENCY, emailOptIn: false });
         setMode('login');
         return;
       }
 
       // Email confirmation disabled - user is logged in immediately.
       toast.success('Welcome to Trackwyze!');
-      sendWelcomeEmail();
+      if (formData.emailOptIn) sendWelcomeEmail(); // only to people who ticked the box
       trackEvent('user_signed_up');
       navigate('/app', { replace: true });
     } catch (err: any) {
@@ -442,6 +452,24 @@ const EnhancedAuthScreen: React.FC = () => {
                 ))}
               </select>
             </div>
+          )}
+
+          {!isLogin && (
+            <label className="flex items-start gap-3 cursor-pointer rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <input
+                type="checkbox"
+                checked={formData.emailOptIn}
+                onChange={e => setFormData(prev => ({ ...prev, emailOptIn: e.target.checked }))}
+                disabled={isSubmitting}
+                className="mt-0.5 h-5 w-5 flex-shrink-0 rounded border-gray-300"
+              />
+              <span className="text-sm text-gray-700">
+                Email me reminders, business reports and tips.
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  Optional. You can unsubscribe at any time, and payment receipts are always sent.
+                </span>
+              </span>
+            </label>
           )}
 
           {error && (

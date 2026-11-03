@@ -48,6 +48,19 @@ describe('PDF generation', () => {
     expect(await header(blob)).toMatch(/^%PDF-/);
   });
 
+  it('receipts carry the credit line only on the Free plan', async () => {
+    const make = (watermark: boolean) =>
+      buildReceiptPdf({
+        items: [{ productName: 'Chair', quantity: 1, sellingPrice: 100 }],
+        total: 100,
+        date: '2026-10-15',
+        business: { business_name: 'Acme', phone: null, email: null, logo_url: null },
+        watermark,
+      }).then(blob => blob.text());
+    expect(await make(false)).not.toContain('Created with TrackWyze');
+    expect(await make(true)).toContain('Created with TrackWyze');
+  });
+
   it('keeps the receipt 80mm wide however short it is', async () => {
     const pageSize = async (itemCount: number) => {
       const blob = await buildReceiptPdf({
@@ -171,6 +184,14 @@ describe('PDF generation', () => {
       expect(text).toContain('Discount');
       expect(text).toContain('KES 150.00');
       expect(text).not.toContain('15%');
+    });
+
+    it('adds the "Created with TrackWyze" line only when asked (Free plan)', async () => {
+      const without = await (await buildDocumentPdf({ ...base, business: { business_name: 'Acme' } })).text();
+      const withMark = await (await buildDocumentPdf({ ...base, business: { business_name: 'Acme' }, watermark: true })).text();
+      expect(without).not.toContain('Created with TrackWyze');
+      expect(withMark).toContain('Created with TrackWyze');
+      expect(withMark).toContain('trackwyze.com');
     });
 
     it('hides tax ids when switched off', async () => {

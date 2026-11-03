@@ -9,6 +9,7 @@ import {
   withTextFooter,
 } from './_shared/sendgrid';
 import * as scheduled from './scheduled-emails/index';
+import { resolveEntitlements } from '../../src/services/subscription/entitlements';
 
 describe('branded email layout', () => {
   const html = emailLayout('Welcome to TrackWyze', '<p>Hello</p>', {
@@ -102,5 +103,33 @@ describe('the logo image', () => {
     const height = png.readUInt32BE(20);
     expect(width / height).toBeCloseTo(208 / 48, 1);
     expect(width).toBeGreaterThanOrEqual(416); // at least 2x for sharp phone screens
+  });
+});
+
+describe('scheduled-emails agrees with the app about which plan an account is on', () => {
+  const now = new Date('2026-11-10T09:00:00Z');
+  const inDays = (n: number) => new Date(now.getTime() + n * 86400000).toISOString();
+  const profiles = [
+    { subscription_status: 'trial', trial_end_date: inDays(5) },
+    { subscription_status: 'trial', trial_end_date: inDays(-1) },
+    { subscription_status: 'active', current_billing_cycle: 'starter', subscription_expiry: inDays(9) },
+    { subscription_status: 'active', current_billing_cycle: 'business', subscription_expiry: inDays(9) },
+    { subscription_status: 'active', current_billing_cycle: 'month2-3', subscription_expiry: inDays(9) },
+    { subscription_status: 'active', current_billing_cycle: 'month4+', subscription_expiry: inDays(9) },
+    { subscription_status: 'active', current_billing_cycle: 'business', subscription_expiry: inDays(-3) },
+    { subscription_status: 'active', current_billing_cycle: 'starter', subscription_expiry: null },
+    { subscription_status: 'expired' },
+    { subscription_status: 'restricted' },
+    { subscription_status: 'suspended' },
+    { subscription_status: null },
+    {},
+  ];
+
+  it.each(profiles.map((p, i) => [i, p] as const))('profile %i', (_i, profile) => {
+    expect(scheduled.tierOf(profile, now)).toBe(resolveEntitlements(profile, now).tier);
+  });
+
+  it('copes with no profile', () => {
+    expect(scheduled.tierOf(null, now)).toBe('free');
   });
 });

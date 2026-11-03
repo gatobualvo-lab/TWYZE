@@ -51,3 +51,91 @@ Same pattern for the existing `FLUTTERWAVE_*` and `SUPABASE_SERVICE_ROLE_KEY` se
 - Before enabling it for real users, confirm `feature_flags.ai_business_assistant.enabled = false` in the target environment (it seeds disabled), then flip it on only after the manual injection/abuse QA pass described in the implementation plan (`.claude/plans/radiant-sprouting-toast.md` if still present, or see the project's AI Business Assistant summary) has been run against that environment with a real `ANTHROPIC_API_KEY` configured.
 - Set an Anthropic Console usage/spend alert on the workspace as a backstop above the function's own per-user rate limit (20 questions/hour, enforced server-side via the `check_rate_limit` RPC — see `ai-business-assistant/index.ts`).
 - The function fails closed on both the subscription/feature-flag gate and the rate limit — a misconfiguration here means the feature stops working, not that it becomes unrestricted.
+
+## M-Pesa STK push for subscriptions (`stk-push`, `stk-callback`, `stk-status`)
+
+Pays for a TrackWyze subscription by a PIN prompt on the customer's phone (Safaricom Daraja). One
+TrackWyze Paybill or Till receives every payment. Shared code is in `_shared/mpesa.ts`.
+
+- **`stk-push`** (signed-in users): picks the price from `BILLING_PLANS`, saves a pending
+  `payment_submissions` row (`gateway = 'mpesa'`), and asks Daraja to prompt the phone.
+- **`stk-callback`** (public, deploy with **Verify JWT off**): where Safaricom reports the result. The
+  address carries `?token=MPESA_CALLBACK_SECRET`. A report is never trusted by itself: the payment is
+  only settled after Daraja confirms it when asked directly (STK query) and the amount matches.
+- **`stk-status`** (signed-in users): the app calls it while the customer waits, so a late or missing
+  report still settles. Both paths use `settleStkResult()`, which claims the pending row first so a
+  subscription can never be extended twice.
+
+Secrets (Edge Functions → Secrets), none of them ever in `.env` or the app:
+
+| Secret | Value |
+| --- | --- |
+| `MPESA_ENV` | `sandbox` (default) or `production` |
+| `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET` | from the Daraja app |
+| `MPESA_SHORTCODE` | the Paybill (sandbox test: `174379`). For Buy Goods, the head-office number |
+| `MPESA_PASSKEY` | the Lipa Na M-Pesa passkey for that shortcode |
+| `MPESA_CALLBACK_SECRET` | any long random letters/digits you invent (it is part of the callback address) |
+| `MPESA_TRANSACTION_TYPE` | optional: `CustomerPayBillOnline` (default) or `CustomerBuyGoodsOnline` |
+| `MPESA_PARTY_B` | optional: the Till number when using Buy Goods (defaults to the shortcode) |
+
+Until these are set, `stk-push` answers `MPESA_NOT_CONFIGURED` and the app falls back to the existing
+Flutterwave M-Pesa checkout.
+
+## Plans (Free, Starter, Business)
+
+The first month is free with every feature. After that there are three permanent tiers: **Free**
+(40 sales a month, 20 products, 15 customers, 1 user), **Starter** (KES 500) and **Business**
+(KES 1,000, up to 5 users). What each tier includes is defined once, in
+`src/services/subscription/entitlements.ts`; prices are `BILLING_PLANS` in `src/utils/subscription.ts`
+with a copy in `_shared/plans.ts` (keep them in step). Plan keys stored on payments and profiles are
+`starter` and `business`; the earlier `month2-3` / `month4+` keys are still understood (they keep every
+feature until the paid month ends).
+
+Server-side, only the emails are plan-aware: `scheduled-emails` sends task reminders to Starter and up,
+and business reports to Business (including the free month). It carries a copy of the tier rules
+(`tierOf`), and `emailTemplate.test.ts` checks it agrees with the app. Free-plan limits themselves are
+enforced in the app, not by the database.
+
+## Unsubscribing from emails
+
+Every email has an "Unsubscribe" link in its footer (payment receipts say "Email preferences" and note that
+receipts still arrive), plus the mail app's own one-click Unsubscribe button (`List-Unsubscribe` headers).
+
+- **Signup**: the form has an "Email me reminders, business reports and tips" tick box, off by default. Its
+  value travels as `email_opt_in` in the signup details and the `private.handle_new_user` trigger saves it
+  (`notification_preferences.emails_unsubscribed`).
+- **The link** is `https://trackwyze.com/unsubscribe?u=<user id>&t=<token>`. The token is an HMAC of the user id
+  made with the `UNSUBSCRIBE_SECRET` secret, so it works without logging in and cannot be forged. The page
+  asks for confirmation (opening a link changes nothing, because mail scanners open links) and calls
+  **`email-unsubscribe`**, which must be deployed with **Verify JWT off** (mail apps send no login).
+- **Who is skipped**: anyone with `emails_unsubscribed = true` gets no welcome email, alerts, reminders,
+  business reports or announcements. Payment confirmations and the "subscription expired" notice are always sent.
+- **Secret**: `UNSUBSCRIBE_SECRET`, any long random text. Without it, emails link to the in-app notification
+  settings instead of a signed link.
+- Same master switch in the app: Notification Center, Settings, "Send me emails from TrackWyze".
+
+## TrackWyze Guide (`app-help`)
+
+The floating Help button in the app opens a chat that explains how to use TrackWyze, opens the right page,
+and offers the team on WhatsApp. It is separate from the AI Business Advisor: the Guide never reads a person's
+sales, stock, customers or money, only the conversation, the page they are on and their plan.
+
+- **Function**: `app-help` (signed-in users; leave "Verify JWT" ON). Uses the existing `ANTHROPIC_API_KEY`
+  secret and the existing `check_rate_limit` database function (30 questions an hour, 120 a day per person;
+  a failed check blocks the question rather than risk unbounded spending). Uses the small, fast
+  `claude-haiku-5-5` model.
+- **What it knows**: `_shared/helpAssistant.ts` (`HELP_PAGES`, the plan facts and the how-to text). When a page,
+  a plan lock or a limit changes in the app, update it there; `helpAssistant.test.ts` fails if the page list,
+  the plan locks, the prices or the Free limits drift from the app.
+- **Safety**: the model must answer through one forced tool, can only name real page ids, is told to never
+  accept passwords/PINs, to give no financial or legal advice, and to hand over to the team for payment
+  problems, login problems, lost data and bugs. Messages are capped (10 messages, 600 characters each).
+- **Handing over to the team**: every "Talk to our team" link opens WhatsApp with a message already written
+  (email, plan, page and the person's last question; see `src/services/helpAssistant/supportLink.ts`). The
+  person sees and can edit it before sending. No business data goes in it.
+- **Feedback**: each answer has a thumbs up/down, saved to `guide_feedback` (migration
+  `20261103090000_guide_feedback.sql`: question, start of the answer, page, plan). People can only add their
+  own rows; only admins can read them, and rows older than 90 days are removed as new ones arrive. To see what
+  the Guide gets wrong, in the SQL editor run
+  `select created_at, page, question, answer from guide_feedback where rating = 'down' order by created_at desc;`
+  and then fix the matching text in `_shared/helpAssistant.ts`.

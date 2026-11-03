@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { uploadPublicImage, ImageUploadError } from '../services/storage/publicImageUpload';
 import { toNum, parseInput, NumericInput } from '../utils/numberInput';
 import CategorySelect from './inventory/CategorySelect';
+import { useEntitlements } from '../contexts/EntitlementsContext';
 
 interface NewProductDetails {
   sku: string;
@@ -64,6 +65,8 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
   error,
   itemType
 }) => {
+  const { limit: limitOf, refreshUsage } = useEntitlements();
+  const productCap = limitOf('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditListOpen, setIsEditListOpen] = useState(false);
@@ -227,6 +230,10 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
       toast.error('Please enter a selling price');
       return;
     }
+    if (newDetails.item_type !== 'service' && !productCap.allowed) {
+      toast.error(`The Free plan includes up to ${productCap.limit} products. Upgrade to add more.`);
+      return;
+    }
 
     setIsSavingNew(true);
     try {
@@ -274,6 +281,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
         colors: newProductColors,
       });
       if (inventoryError) throw inventoryError;
+      refreshUsage(true);
 
       const { data: existingCatalog } = await supabase
         .from('user_products')

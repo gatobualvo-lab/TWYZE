@@ -11,7 +11,7 @@
 // function doesn't touch the email_broadcasts table itself.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
-import { sendBulkEmail, emailLayout, EmailSendError, APP_URL } from '../_shared/sendgrid.ts';
+import { sendBulkEmail, emailLayout, EmailSendError, APP_URL, UNSUBSCRIBE_PLACEHOLDER, unsubscribeLinks, type BulkRecipient } from '../_shared/sendgrid.ts';
 
 type Audience = 'all' | 'active' | 'trial' | 'expired';
 const AUDIENCES: Audience[] = ['all', 'active', 'trial', 'expired'];
@@ -78,14 +78,25 @@ Deno.serve(async (req) => {
     const trimmedBody = messageBody.trim().slice(0, MAX_BODY_LENGTH);
 
     const adminClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-    let query = adminClient.from('profiles').select('email').not('email', 'is', null);
+    let query = adminClient.from('profiles').select('id, email').not('email', 'is', null);
     if (audience !== 'all') {
       query = query.eq('subscription_status', audience);
     }
     const { data: profiles, error: profilesError } = await query;
     if (profilesError) return json({ error: profilesError.message }, 500);
 
-    const recipients = Array.from(new Set((profiles ?? []).map(p => p.email).filter((e): e is string => !!e)));
+    // Announcements are optional: anyone who unsubscribed (or did not tick the box at signup) is left out.
+    const { data: optedOut } = await adminClient.from('notification_preferences').select('user_id').eq('emails_unsubscribed', true).range(0, 49999);
+    const optedOutIds = new Set((optedOut ?? []).map(row => row.user_id as string));
+
+    const secret = Deno.env.get('UNSUBSCRIBE_SECRET');
+    const seen = new Set<string>();
+    const recipients: BulkRecipient[] = [];
+    for (const p of profiles ?? []) {
+      if (!p.email || optedOutIds.has(p.id) || seen.has(p.email)) continue;
+      seen.add(p.email);
+      recipients.push({ email: p.email, unsubscribe: await unsubscribeLinks({ secret, userId: p.id, supabaseUrl }) });
+    }
     if (recipients.length === 0) {
       return json({ sent: true, recipientCount: 0 });
     }
@@ -97,6 +108,7 @@ Deno.serve(async (req) => {
       html: emailLayout(escapeHtml(trimmedSubject), textToHtmlParagraphs(trimmedBody), {
         preheader: trimmedBody.slice(0, 120),
         cta: { label: 'Open TrackWyze', url: APP_URL },
+        unsubscribe: { url: UNSUBSCRIBE_PLACEHOLDER },
       }),
       text: trimmedBody,
     });

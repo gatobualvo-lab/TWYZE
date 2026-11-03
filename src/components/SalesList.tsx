@@ -1643,7 +1643,7 @@ const SalesList: React.FC = () => {
                     {/* Product Name - 6 cols */}
                     <div className="col-span-6">
                       <div className="flex flex-col">                        
-                        <h3 className="font-medium text-gray-900 break-words" title={sale.product_name}>{sale.product_name}</h3>
+                        <h3 className="font-medium text-gray-900 break-words clamp-2-mobile" title={sale.product_name}>{sale.product_name}</h3>
                       </div>
                     </div>
                     
@@ -1671,7 +1671,7 @@ const SalesList: React.FC = () => {
                         <span className="text-xs text-gray-500 mr-3 flex-shrink-0">{new Date(sale.date).toLocaleDateString()}</span>
                         
                         <MapPin className="w-3 h-3 text-gray-500 mr-1 flex-shrink-0" />
-                        <span className="text-xs text-gray-700 break-words">{sale.location}</span>
+                        <span className="text-xs text-gray-700 break-words clamp-2-mobile">{sale.location}</span>
                       </div>
                       
                       <div className="font-medium text-gray-900 flex-shrink-0">{formatCurrency(sale.selling_price)}</div>

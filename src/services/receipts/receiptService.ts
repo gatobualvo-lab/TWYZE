@@ -1,3 +1,5 @@
+import { WATERMARK_TEXT, tierIncludes } from '../subscription/entitlements';
+import { getTierSnapshot } from '../subscription/tierSnapshot';
 import { supabase } from '../../utils/supabase';
 import { escapeHtml } from '../../components/documents/DocumentPreview';
 import { formatCurrency, formatDate } from '../../utils/format';
@@ -95,6 +97,7 @@ function receiptHTML(receipt: ReceiptData, business: { business_name: string | n
           </tbody>
         </table>
         <div class="footer">Thank you for your business!</div>
+        ${tierIncludes(getTierSnapshot(), 'no-document-watermark') ? '' : `<div class="footer" style="font-size:9px;color:#999;margin-top:4px">${WATERMARK_TEXT}</div>`}
       </div>
     </body>
     </html>
@@ -138,6 +141,7 @@ async function buildReceiptFile(receipt: ReceiptData) {
     customerName: receipt.customerName,
     date: receipt.date,
     business,
+    watermark: !tierIncludes(getTierSnapshot(), 'no-document-watermark'),
   });
   return {
     blob,

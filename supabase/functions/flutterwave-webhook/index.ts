@@ -10,8 +10,8 @@
 // Uses the service_role key because there is no authenticated end user in
 // this request — Flutterwave's servers are calling us, not the client app.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { BILLING_PLANS, isBillingPlanKey } from '../_shared/plans.ts';
-import { sendEmail, emailLayout, APP_URL } from '../_shared/sendgrid.ts';
+import { BILLING_PLANS, normalizeStoredPlanKey } from '../_shared/plans.ts';
+import { sendEmail, emailLayout, APP_URL, unsubscribeLinks } from '../_shared/sendgrid.ts';
 
 function escapeHtml(input: string): string {
   return input.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
     return ok();
   }
 
-  const planKey = isBillingPlanKey(submission.plan_key) ? submission.plan_key : 'month2-3';
+  const planKey = normalizeStoredPlanKey(submission.plan_key);
   const durationDays = BILLING_PLANS[planKey].durationDays;
 
   const { data: profile } = await supabase
@@ -150,14 +150,16 @@ Deno.serve(async (req) => {
     const amountLabel = `${submission.currency ?? 'KES'} ${Number(submission.amount).toLocaleString()}`;
     const subject = 'Payment confirmed — TrackWyze';
     try {
+      const links = await unsubscribeLinks({ secret: Deno.env.get('UNSUBSCRIBE_SECRET'), userId: submission.user_id, supabaseUrl });
       await sendEmail({
         apiKey: sendGridKey,
         to: profile.email,
         subject,
+        unsubscribe: links,
         html: emailLayout(
           subject,
           `<p style="margin:0 0 14px;">Hi ${escapeHtml(profile.full_name || 'there')},</p><p style="margin:0 0 6px;">We've confirmed ${escapeHtml(amountLabel)} for the ${escapeHtml(BILLING_PLANS[planKey].label)}. Your TrackWyze subscription is active. Thank you for staying with us.</p>`,
-          { preheader: 'Your subscription is active. Thank you.', cta: { label: 'Open TrackWyze', url: APP_URL } }
+          { preheader: 'Your subscription is active. Thank you.', cta: { label: 'Open TrackWyze', url: APP_URL }, unsubscribe: { url: links.pageUrl, essential: true } }
         ),
         text: `Hi ${profile.full_name || 'there'},\n\nWe've confirmed ${amountLabel} for the ${BILLING_PLANS[planKey].label}. Your TrackWyze subscription is active.`,
       });

@@ -15,6 +15,8 @@ import FieldError from './ui/FieldError';
 import CategorySelect from './inventory/CategorySelect';
 import { mergeCategories } from '../services/inventory/categories';
 import ProductPerformance from './inventory/ProductPerformance';
+import { useEntitlements } from '../contexts/EntitlementsContext';
+import { LimitMeter } from './subscription/Gates';
 
 interface InventoryItem {
   id: string;
@@ -56,6 +58,8 @@ interface ProductSaleRow {
 }
 
 const InventoryManagement: React.FC = () => {
+  const { limit, refreshUsage, goToPlans, has } = useEntitlements();
+  const productCap = limit('products');
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -197,7 +201,12 @@ const InventoryManagement: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    if (!editingItem && !productCap.allowed) {
+      toast.error(`The Free plan includes up to ${productCap.limit} products. Upgrade to add more.`);
+      return;
+    }
+
     const problems: { product_name?: string; selling_price?: string } = {};
     if (!formData.product_name.trim()) problems.product_name = 'Give the item a name';
     if (toNum(formData.selling_price) <= 0) problems.selling_price = 'Enter a selling price greater than 0';
@@ -272,6 +281,7 @@ const InventoryManagement: React.FC = () => {
       toast.success(`Item ${editingItem ? 'updated' : 'added'} successfully!`);
       resetForm();
       fetchInventory();
+      refreshUsage(true);
     } catch (error: any) {
       console.error('Error saving item:', error);
       toast.error(
@@ -477,13 +487,23 @@ const InventoryManagement: React.FC = () => {
       <div className={`${view === 'performance' ? 'hidden' : ''} bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200`}>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
           <h2 className="text-xl font-bold text-gray-800" style={{ color: '#374151' }}>Inventory Items</h2>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
-          >
-            <Plus className="w-4 h-4" />
-            Add Item
-          </button>
+          <div className="flex flex-col items-start md:items-end gap-1">
+            <button
+              onClick={() => {
+                if (!productCap.allowed) {
+                  toast.error(`The Free plan includes up to ${productCap.limit} products. Upgrade to add more.`);
+                  goToPlans();
+                  return;
+                }
+                setShowAddForm(true);
+              }}
+              className={`flex items-center gap-2 px-6 py-3 text-white font-medium rounded-xl shadow-md transition-all duration-200 ${productCap.allowed ? 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg' : 'bg-gray-400 hover:bg-gray-500'}`}
+            >
+              <Plus className="w-4 h-4" />
+              {productCap.allowed ? 'Add Item' : 'Upgrade to add more'}
+            </button>
+            <LimitMeter resource="products" />
+          </div>
         </div>
 
         {/* Filters */}
@@ -585,7 +605,7 @@ const InventoryManagement: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="Scan with a barcode reader, or type it"
                   />
-                  {isCameraScanSupported() && (
+                  {isCameraScanSupported() && has('barcode-camera') && (
                     <button type="button" onClick={() => setShowCameraScan(true)} className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
                       Camera
                     </button>

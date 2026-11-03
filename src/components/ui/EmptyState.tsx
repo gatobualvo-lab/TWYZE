@@ -10,7 +10,7 @@ const TONE_CLASSES: Record<Tone, { bg: string; ring: string; icon: string }> = {
 interface EmptyStateProps {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   action?: React.ReactNode;
   className?: string;
   /** 'positive' for a good-news empty state (e.g. "nothing urgent") — swaps the neutral gray icon circle for a green one. */

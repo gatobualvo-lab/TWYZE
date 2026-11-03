@@ -5,6 +5,7 @@ import { supabase } from '../../utils/supabase';
 import { useTheme } from '../../contexts/ThemeContext';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, Send, Save, Image as ImageIcon, X } from 'lucide-react';
+import { useEntitlements } from '../../contexts/EntitlementsContext';
 import { convertDiscount, documentTotals, extraDiscountFrom, lineAmounts, round2, type DiscountMode } from '../../utils/documentTotals';
 import { listProjects, type Project } from '../../services/projects/projectService';
 import { useAccountCurrency } from '../../utils/accountCurrency';
@@ -81,6 +82,8 @@ export default function DocumentForm({
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const base = useAccountCurrency();
+  const { has } = useEntitlements();
+  const canMultiCurrency = has('multi-currency');
   const { errors, fail, field, group } = useFormErrors<'customer_name' | 'items'>();
   const [isLoading, setIsLoading] = useState(false);
   const [items, setItems] = useState<DocumentItem[]>(
@@ -846,6 +849,7 @@ export default function DocumentForm({
                   </label>
                   <select
                     value={COMMON_CURRENCIES.some(c => c.code === currency) ? currency : 'OTHER'}
+                    disabled={!canMultiCurrency}
                     onChange={(e) => {
                       const v = e.target.value;
                       if (v === 'OTHER') { setCurrency(''); return; }
@@ -857,6 +861,9 @@ export default function DocumentForm({
                     {COMMON_CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code} - {c.name}</option>)}
                     <option value="OTHER">Other currency...</option>
                   </select>
+                  {!canMultiCurrency && (
+                    <p className="mt-1 text-xs text-gray-500">Documents in another currency are part of the Business plan.</p>
+                  )}
                   {!COMMON_CURRENCIES.some(c => c.code === currency) && (
                     <input
                       type="text"

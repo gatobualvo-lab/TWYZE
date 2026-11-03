@@ -44,7 +44,7 @@ export async function syncOpportunityNotifications(opportunities: Opportunity[],
           actionTab: o.actionTab,
           dedupeKey: `opportunity:${o.id}`,
         });
-        if (isNew && prefs.emailEnabled) {
+        if (isNew && prefs.emailEnabled && prefs.allEmailsEnabled) {
           sendOpportunityAlertEmail({ title: o.title, body: o.whyItMatters }).catch(() => {});
         }
       } catch {

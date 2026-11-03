@@ -1,9 +1,12 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
+import { usePageMeta } from '../../utils/pageMeta';
 
 const LegalPageLayout: React.FC<{ title: string; lastUpdated: string; children: React.ReactNode }> = ({ title, lastUpdated, children }) => {
   const navigate = useNavigate();
+  const { pathname: path } = useLocation();
+  usePageMeta({ title: `${title} | Trackwyze`, description: `${title} for Trackwyze, the business management app for shops and small businesses in Kenya.`, path });
 
   return (
     <div className="min-h-screen bg-gray-50">

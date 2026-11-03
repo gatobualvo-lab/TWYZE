@@ -233,7 +233,7 @@ export interface User {
   subscriptionExpiry?: string;
   trialStartDate?: string;
   trialEndDate?: string;
-  currentBillingCycle: 'trial' | 'month2-3' | 'month4+';
+  currentBillingCycle: 'trial' | 'starter' | 'business' | 'month2-3' | 'month4+';
   isAdmin?: boolean;
   role?: UserRole;
   teamId?: string;
@@ -253,66 +253,11 @@ export interface PaymentSubmission {
   status: 'Pending' | 'Approved' | 'Rejected';
   submittedAt: string;
   notes?: string;
-  billingCycle: 'month2-3' | 'month4+';
+  billingCycle: 'starter' | 'business' | 'month2-3' | 'month4+';
 }
 
-interface SubscriptionPlan {
-  name: string;
-  price: number;
-  duration: string;
-  features: string[];
-  isPromo?: boolean;
-  cycle: 'trial' | 'month2-3' | 'month4+';
-}
-
-export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
-  {
-    name: 'Free Trial',
-    price: 0,
-    duration: 'Month 1',
-    features: [
-      'Full access to all features',
-      'Sales & supplier tracking',
-      'Ad expenses management',
-      'Monthly analytics & reports',
-      'Mobile app access',
-      'Data backup & sync'
-    ],
-    cycle: 'trial'
-  },
-  {
-    name: 'Early Bird Special',
-    price: 500,
-    duration: 'Months 2-3',
-    features: [
-      'Full access to all features',
-      'Sales & supplier tracking',
-      'Ad expenses management',
-      'Monthly analytics & reports',
-      'Mobile app access',
-      'Data backup & sync',
-      'Priority support'
-    ],
-    isPromo: true,
-    cycle: 'month2-3'
-  },
-  {
-    name: 'Regular Monthly',
-    price: 1000,
-    duration: 'Month 4 onwards',
-    features: [
-      'Full access to all features',
-      'Sales & supplier tracking',
-      'Ad expenses management',
-      'Monthly analytics & reports',
-      'Mobile app access',
-      'Data backup & sync',
-      'Priority support',
-      'Advanced analytics'
-    ],
-    cycle: 'month4+'
-  }
-];
+// Plans and prices now live in utils/subscription.ts (what is charged) and
+// services/subscription/entitlements.ts (what each tier includes).
 
 // Tax calculation constants
 const VAT_RATE = 0.16; // 16%

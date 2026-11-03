@@ -1,4 +1,5 @@
 import { supabase } from '../../utils/supabase';
+import type { BillingPlanKey } from '../../utils/subscription';
 
 const SCREENSHOT_BUCKET = 'payment-proofs';
 
@@ -118,7 +119,7 @@ export interface CheckoutSession {
  * function looks it up itself from its own copy of BILLING_PLANS.
  */
 export async function createCheckoutSession(
-  plan: 'month2-3' | 'month4+',
+  plan: BillingPlanKey,
   method: 'mpesa' | 'card'
 ): Promise<CheckoutSession> {
   const { data, error } = await supabase.functions.invoke('create-checkout', {
@@ -178,4 +179,106 @@ export async function waitForSubmissionResolution(
     await new Promise(resolve => setTimeout(resolve, intervalMs));
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// M-Pesa STK push (pay for a subscription by a prompt on the phone)
+// ---------------------------------------------------------------------------
+
+/** M-Pesa has not been set up on the server yet; the caller can fall back to the card checkout. */
+export class MpesaNotConfiguredError extends Error {}
+
+export interface MpesaSession {
+  txRef: string;
+  checkoutRequestId: string;
+  amount: number;
+  currency: string;
+  message: string;
+}
+
+/** Reads the { error, code } body of a failed Edge Function call. */
+async function readFunctionError(error: unknown): Promise<{ message?: string; code?: string }> {
+  const context = (error as { context?: Response }).context;
+  if (context && typeof context.json === 'function') {
+    try {
+      const body = await context.clone().json();
+      return { message: body?.error, code: body?.code };
+    } catch {
+      // not JSON: fall through to the generic message
+    }
+  }
+  return { message: (error as { message?: string })?.message };
+}
+
+/** The phone number saved on the user's profile, to save typing it again. */
+export async function fetchMyPhone(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return '';
+  const { data } = await supabase.from('profiles').select('phone_number').eq('id', user.id).maybeSingle();
+  return data?.phone_number ?? '';
+}
+
+/**
+ * Asks the stk-push Edge Function to send the M-Pesa PIN prompt to `phone` for a plan. The price
+ * is looked up on the server; only the plan and the phone number are sent.
+ */
+export async function startMpesaPayment(plan: BillingPlanKey, phone: string): Promise<MpesaSession> {
+  const { data, error } = await supabase.functions.invoke('stk-push', { body: { plan, phone } });
+  if (error) {
+    const { message, code } = await readFunctionError(error);
+    // A function that has not been deployed yet answers 404: treat it like "not set up" so the card/Flutterwave route still works.
+    const status = (error as { context?: Response }).context?.status;
+    if (status === 404 || code === 'MPESA_NOT_CONFIGURED') throw new MpesaNotConfiguredError(message || 'M-Pesa is not set up yet');
+    throw new Error(message || 'Could not send the M-Pesa request');
+  }
+  if (data?.code === 'MPESA_NOT_CONFIGURED') throw new MpesaNotConfiguredError(data.error);
+  if (data?.error) throw new Error(data.error);
+  return data as MpesaSession;
+}
+
+function toSubmission(data: Record<string, any>): MyPaymentSubmission {
+  return {
+    id: data.id,
+    amount: Number(data.amount),
+    paymentMethod: data.payment_method,
+    transactionReference: data.transaction_reference,
+    screenshotPath: data.screenshot_url,
+    status: data.status ?? 'pending',
+    submittedAt: data.submitted_at,
+    adminNotes: data.admin_notes,
+  };
+}
+
+/**
+ * Waits for an M-Pesa payment to be decided: either the customer paying, cancelling or letting it
+ * time out. Safaricom normally reports the result to the server within seconds; if that report is
+ * late, the stk-status function is asked to check with Safaricom directly while waiting.
+ */
+export async function waitForMpesaPayment(
+  txRef: string,
+  { timeoutMs = 150000, intervalMs = 3000, checkAtMs = [12000, 30000, 55000, 85000, 115000] }: { timeoutMs?: number; intervalMs?: number; checkAtMs?: number[] } = {}
+): Promise<MyPaymentSubmission | null> {
+  const started = Date.now();
+  const pendingChecks = [...checkAtMs];
+  const read = async () => {
+    const { data, error } = await supabase.from('payment_submissions').select('*').eq('gateway_reference', txRef).maybeSingle();
+    return !error && data && data.status !== 'pending' ? toSubmission(data) : null;
+  };
+
+  while (Date.now() - started < timeoutMs) {
+    const done = await read();
+    if (done) return done;
+    if (pendingChecks.length && Date.now() - started >= pendingChecks[0]) {
+      pendingChecks.shift();
+      try {
+        await supabase.functions.invoke('stk-status', { body: { txRef } });
+        const afterCheck = await read();
+        if (afterCheck) return afterCheck;
+      } catch {
+        // the next round tries again
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  return read();
 }

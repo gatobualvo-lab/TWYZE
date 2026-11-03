@@ -1,8 +1,8 @@
-// Shared with AccountSettings (subscription summary) and PaymentManagement
-// (subscription summary + payment history) so the plan/status/cycle wording
-// stays identical wherever it's shown instead of drifting between copies.
+// Shared with AccountSettings (subscription summary), PaymentManagement (plans + payment history),
+// the landing page and the admin screens, so the plan names and prices read the same everywhere.
+// What each tier includes lives in services/subscription/entitlements.ts.
 
-export type BillingPlanKey = 'month2-3' | 'month4+';
+export type BillingPlanKey = 'starter' | 'business';
 
 export interface BillingPlan {
   key: BillingPlanKey;
@@ -14,27 +14,39 @@ export interface BillingPlan {
 }
 
 /**
- * The only source of truth for what a plan actually costs. The
- * create-checkout Edge Function has its own copy of this exact table
- * (supabase/functions/create-checkout/plans.ts) because it runs in Deno and
- * can't import from src/ — keep the two in sync if prices ever change.
- * Client-supplied amounts are never trusted for billing; the Edge Function
- * looks up the price itself from its copy of this table.
+ * The only source of truth for what a plan costs. The payment Edge Functions have their own copy of
+ * this exact table (supabase/functions/_shared/plans.ts) because they run in Deno and can't import
+ * from src/ — keep the two in sync if prices ever change. Client-supplied amounts are never trusted
+ * for billing; the Edge Functions look the price up themselves.
+ *
+ * There are three tiers: Free (no payment), Starter and Business. The earlier 'month2-3' and
+ * 'month4+' plans no longer exist; anyone still on one keeps their features until their paid month ends.
  */
 export const BILLING_PLANS: Record<BillingPlanKey, BillingPlan> = {
-  'month2-3': { key: 'month2-3', label: 'Early Bird Plan', amount: 500, currency: 'KES', durationDays: 30 },
-  'month4+': { key: 'month4+', label: 'Regular Plan', amount: 1000, currency: 'KES', durationDays: 30 },
+  starter: { key: 'starter', label: 'Starter Plan', amount: 500, currency: 'KES', durationDays: 30 },
+  business: { key: 'business', label: 'Business Plan', amount: 1000, currency: 'KES', durationDays: 30 },
 };
+
+/** The plan a stored billing-cycle value stands for, including the two earlier plans. */
+export function normalizePlanKey(value?: string | null): BillingPlanKey | null {
+  if (value === 'starter' || value === 'business') return value;
+  if (value === 'month2-3') return 'starter';
+  if (value === 'month4+') return 'business';
+  return null;
+}
 
 export function getSubscriptionPlanLabel(status?: string, cycle?: string): string {
   if (!status) return 'Unknown';
   switch (status) {
     case 'trial':
-      return 'Free Trial';
+      return 'Free month';
     case 'active':
-      return cycle === 'month2-3' ? 'Early Bird Plan (KES 500/month)' : 'Regular Plan (KES 1000/month)';
+      if (cycle === 'starter') return 'Starter (KES 500/month)';
+      if (cycle === 'business') return 'Business (KES 1,000/month)';
+      return 'Business features (earlier plan)';
     case 'expired':
-      return 'Expired';
+    case 'restricted':
+      return 'Free';
     case 'suspended':
       return 'Suspended';
     default:
@@ -47,9 +59,10 @@ export function getSubscriptionStatusLabel(status?: string): string {
     case 'active':
       return 'Active';
     case 'trial':
-      return 'Trial';
+      return 'Free month';
     case 'expired':
-      return 'Expired';
+    case 'restricted':
+      return 'Free plan';
     case 'suspended':
       return 'Suspended';
     default:
@@ -60,11 +73,14 @@ export function getSubscriptionStatusLabel(status?: string): string {
 export function getBillingCycleLabel(cycle?: string): string {
   switch (cycle) {
     case 'trial':
-      return 'Free Trial';
+      return 'Free month';
+    case 'starter':
+      return 'Starter (KES 500/month)';
+    case 'business':
+      return 'Business (KES 1,000/month)';
     case 'month2-3':
-      return 'Months 2-3 (KES 500/month)';
     case 'month4+':
-      return 'Month 4+ (KES 1000/month)';
+      return 'Earlier plan';
     default:
       return 'Unknown';
   }

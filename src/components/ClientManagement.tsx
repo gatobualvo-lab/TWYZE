@@ -6,6 +6,8 @@ import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
 import { createCustomer, listCustomers } from '../services/customers/customerService';
+import { useEntitlements } from '../contexts/EntitlementsContext';
+import { LimitMeter } from './subscription/Gates';
 import { useFormErrors } from '../hooks/useFormErrors';
 import FieldError from './ui/FieldError';
 
@@ -31,6 +33,8 @@ interface ClientSale {
 }
 
 const ClientManagement: React.FC = () => {
+  const { limit, refreshUsage, goToPlans } = useEntitlements();
+  const customerCap = limit('customers');
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [filteredClients, setFilteredClients] = useState<ClientSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,6 +186,10 @@ const ClientManagement: React.FC = () => {
 
   const addCustomer = async () => {
     if (!draft.name.trim()) return fail({ name: 'Enter the customer name' });
+    if (!customerCap.allowed) {
+      toast.error(`The Free plan includes up to ${customerCap.limit} customers. Upgrade to add more.`);
+      return;
+    }
     setAdding(true);
     try {
       const created = await createCustomer(draft);
@@ -189,6 +197,7 @@ const ClientManagement: React.FC = () => {
       setShowAdd(false);
       setDraft({ name: '', phone: '', email: '', address: '' });
       await fetchClients();
+      refreshUsage(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not add the customer');
     } finally {
@@ -295,13 +304,23 @@ const ClientManagement: React.FC = () => {
             <h2 className="text-xl font-semibold text-gray-800">Client Management</h2>
             <p className="text-gray-600">{clients.length} clients</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowAdd(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 active:scale-[0.97] transition-all"
-          >
-            <UserPlus className="w-4 h-4" /> Add Customer
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                if (!customerCap.allowed) {
+                  toast.error(`The Free plan includes up to ${customerCap.limit} customers. Upgrade to add more.`);
+                  goToPlans();
+                  return;
+                }
+                setShowAdd(true);
+              }}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium active:scale-[0.97] transition-all ${customerCap.allowed ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 hover:bg-gray-500'}`}
+            >
+              <UserPlus className="w-4 h-4" /> {customerCap.allowed ? 'Add Customer' : 'Upgrade to add more'}
+            </button>
+            <LimitMeter resource="customers" />
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">

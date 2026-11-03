@@ -279,12 +279,12 @@ const ProfitAnalytics: React.FC = () => {
           )}
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 animate-fadeIn">
-            <div className="flex gap-1 mb-4 border-b border-gray-100 -mx-6 px-6">
+            <div className="flex gap-1 mb-4 border-b border-gray-100 -mx-6 px-6 overflow-x-auto">
               {DIMENSION_TABS.map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setDimension(tab.key)}
-                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap shrink-0 transition-colors ${
                     dimension === tab.key
                       ? 'border-blue-600 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700'

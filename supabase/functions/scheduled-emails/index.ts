@@ -118,6 +118,34 @@ export function money(amount: number, currency: string): string {
   return `${currency} ${n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 }
 
+// ---------------------------------------------------------------------------
+// Which plan an account is on. A copy of resolveEntitlements() in
+// src/services/subscription/entitlements.ts (this file is pasted into the Supabase dashboard as one
+// piece, so it cannot import it); a test keeps the two in agreement.
+//   free month (trial still running) -> business    paid month still running -> its plan
+//   anything else -> free
+// ---------------------------------------------------------------------------
+
+export type Tier = 'free' | 'starter' | 'business';
+
+export interface PlanProfile {
+  subscription_status?: string | null;
+  subscription_expiry?: string | null;
+  trial_end_date?: string | null;
+  current_billing_cycle?: string | null;
+}
+
+export function tierOf(profile: PlanProfile | null | undefined, now: Date = new Date()): Tier {
+  const status = profile?.subscription_status ?? null;
+  const trialEnd = profile?.trial_end_date ? new Date(profile.trial_end_date) : null;
+  if (status === 'trial' && trialEnd && !Number.isNaN(trialEnd.getTime()) && trialEnd > now) return 'business';
+  const paidUntil = profile?.subscription_expiry ? new Date(profile.subscription_expiry) : null;
+  if (status === 'active' && paidUntil && !Number.isNaN(paidUntil.getTime()) && paidUntil > now) {
+    return profile?.current_billing_cycle === 'starter' ? 'starter' : 'business'; // 'business' and the two earlier plans
+  }
+  return 'free';
+}
+
 export function escapeHtml(input: string): string {
   return input
     .replace(/&/g, '&amp;')
@@ -215,6 +243,11 @@ export interface EmailLayoutOptions {
   cta?: { label: string; url: string };
   /** Why the person is getting this email; shown in the footer. */
   footerNote?: string;
+  /**
+   * Where "Unsubscribe" leads. Every email carries one. `essential` is for payment receipts and notices about
+   * the account itself: those keep coming, and the footer says so.
+   */
+  unsubscribe?: { url: string; essential?: boolean };
 }
 
 function escapeAttr(value: string): string {
@@ -240,6 +273,14 @@ export function emailButton(label: string, url: string): string {
 /** `title` and `bodyHtml` are HTML; the caller escapes anything that came from a user. */
 export function emailLayout(title: string, bodyHtml: string, options: EmailLayoutOptions = {}): string {
   const note = options.footerNote ?? 'You are receiving this email because you have a TrackWyze account.';
+  const unsub = options.unsubscribe;
+  const unsubscribeLine = unsub
+    ? `<br>${
+        unsub.essential
+          ? 'You will still get payment receipts and account notices. '
+          : ''
+      }<a href="${escapeAttr(unsub.url)}" target="_blank" style="color:#6b7280;text-decoration:underline;">${unsub.essential ? 'Email preferences' : 'Unsubscribe from these emails'}</a>`
+    : '';
   const preheader = options.preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#eef2f7;font-size:1px;line-height:1px;">${escapeAttr(options.preheader)}</div>`
     : '';
@@ -284,7 +325,7 @@ export function emailLayout(title: string, bodyHtml: string, options: EmailLayou
             <td bgcolor="#f8fafc" style="background-color:#f8fafc;border-top:1px solid #e5e7eb;padding:22px 32px;font-family:${FONT};font-size:12px;line-height:1.7;color:#6b7280;text-align:center;">
               <strong style="color:#0f1b2d;">TrackWyze</strong> &middot; Track Smart. Profit Wise.<br>
               <a href="${APP_URL}" target="_blank" style="color:#0a7f56;text-decoration:none;font-weight:600;">trackwyze.com</a><br>
-              ${note}
+              ${note}${unsubscribeLine}
             </td>
           </tr>
         </table>
@@ -295,13 +336,61 @@ export function emailLayout(title: string, bodyHtml: string, options: EmailLayou
 </html>`;
 }
 
-/** The plain-text version gets the same sign-off, so it is never a bare message. */
-export function withTextFooter(text: string): string {
-  const footer = `--\nTrackWyze - Track Smart. Profit Wise.\n${APP_URL}`;
+/** The plain-text version gets the same sign-off (and unsubscribe address), so it is never a bare message. */
+export function withTextFooter(text: string, unsubscribeUrl?: string | null): string {
+  const footer = `--\nTrackWyze - Track Smart. Profit Wise.\n${APP_URL}${unsubscribeUrl ? `\nUnsubscribe: ${unsubscribeUrl}` : ''}`;
   return `${text}\n\n${footer}`;
 }
 
-export function buildReportEmail(name: string, currency: string, sections: ReportSection[]): { subject: string; html: string; text: string } {
+// ---------------------------------------------------------------------------
+// Unsubscribe links
+//
+// Each link carries a signed token (HMAC of the person's id, made with the UNSUBSCRIBE_SECRET secret), so
+// it works without logging in but cannot be guessed or forged for someone else. The email-unsubscribe
+// Edge Function checks the token with isValidUnsubscribeToken().
+// ---------------------------------------------------------------------------
+
+export interface UnsubscribeLinks {
+  /** The page on trackwyze.com where the person confirms. */
+  pageUrl: string;
+  /** Used for the mail app's one-click Unsubscribe button. */
+  oneClickUrl?: string;
+}
+
+async function hmacHex(secret: string, message: string): Promise<string> {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
+  return Array.from(new Uint8Array(signature), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+export function unsubscribeToken(secret: string, userId: string): Promise<string> {
+  return hmacHex(secret, `unsubscribe:${userId}`);
+}
+
+export async function isValidUnsubscribeToken(secret: string, userId: string, token: string): Promise<boolean> {
+  if (!secret || !userId || !token) return false;
+  const expected = await unsubscribeToken(secret, userId);
+  if (expected.length !== token.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ token.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * The unsubscribe links for one person. Without the secret configured there is no signed link, so the
+ * email points to the notification settings inside the app instead (still an option, never missing).
+ */
+export async function unsubscribeLinks(params: { secret?: string | null; userId: string; supabaseUrl?: string | null }): Promise<UnsubscribeLinks> {
+  if (!params.secret) return { pageUrl: `${APP_URL}/?tab=notifications` };
+  const token = await unsubscribeToken(params.secret, params.userId);
+  const query = `u=${encodeURIComponent(params.userId)}&t=${token}`;
+  return {
+    pageUrl: `${APP_URL}/unsubscribe?${query}`,
+    ...(params.supabaseUrl ? { oneClickUrl: `${params.supabaseUrl.replace(/\/$/, '')}/functions/v1/email-unsubscribe?${query}` } : {}),
+  };
+}
+
+export function buildReportEmail(name: string, currency: string, sections: ReportSection[], unsubscribeUrl?: string): { subject: string; html: string; text: string } {
   const labels = sections.map(s => s.period.label);
   const subject =
     sections.length === 1 ? `Your business report: ${labels[0]}` : `Your business reports: ${labels.join(' · ')}`;
@@ -310,7 +399,8 @@ export function buildReportEmail(name: string, currency: string, sections: Repor
   const html = emailLayout(escapeHtml(subject), intro + sections.map(s => sectionHtml(s, currency)).join(''), {
     preheader: `Sales, profit and expenses for ${labels.join(' and ')}.`,
     cta: { label: 'View full reports', url: `${APP_URL}/?tab=profit-analytics` },
-    footerNote: 'You are receiving this report because you have a TrackWyze account. You can turn these emails off in Notification Settings inside the app.',
+    footerNote: 'You are receiving this report because you have a TrackWyze account.',
+    ...(unsubscribeUrl ? { unsubscribe: { url: unsubscribeUrl } } : {}),
   });
 
   const text = [
@@ -335,7 +425,7 @@ export interface ReminderTask {
   due_time: string | null;
 }
 
-export function buildReminderEmail(name: string, tasks: ReminderTask[]): { subject: string; html: string; text: string } {
+export function buildReminderEmail(name: string, tasks: ReminderTask[], unsubscribeUrl?: string): { subject: string; html: string; text: string } {
   const when = (t: ReminderTask) => [t.due_date, t.due_time].filter(Boolean).join(' ');
   const subject = tasks.length === 1 ? `Reminder: ${tasks[0].title}` : `Reminder: ${tasks.length} tasks need your attention`;
   const items = tasks
@@ -347,7 +437,8 @@ export function buildReminderEmail(name: string, tasks: ReminderTask[]): { subje
     {
       preheader: tasks.length === 1 ? tasks[0].title : `${tasks.length} tasks need your attention`,
       cta: { label: 'Open Business Calendar', url: `${APP_URL}/?tab=calendar` },
-      footerNote: 'You are receiving this reminder because you set one in TrackWyze. You can turn these emails off in Notification Settings inside the app.',
+      footerNote: 'You are receiving this reminder because you set one in TrackWyze.',
+      ...(unsubscribeUrl ? { unsubscribe: { url: unsubscribeUrl } } : {}),
     }
   );
   const text = [`Hi ${name || 'there'},`, '', 'This is your reminder:', ...tasks.map(t => `- ${t.title}${when(t) ? ` (${when(t)})` : ''}`), '', `Open your calendar: ${APP_URL}/?tab=calendar`].join('\n');
@@ -370,7 +461,7 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-async function sendEmail(apiKey: string, to: string, mail: { subject: string; html: string; text: string }): Promise<void> {
+async function sendEmail(apiKey: string, to: string, mail: { subject: string; html: string; text: string }, links?: UnsubscribeLinks): Promise<void> {
   const response = await fetch(SENDGRID_API_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -378,8 +469,9 @@ async function sendEmail(apiKey: string, to: string, mail: { subject: string; ht
       personalizations: [{ to: [{ email: to }] }],
       from: { email: FROM_EMAIL, name: FROM_NAME },
       subject: mail.subject,
+      ...(links?.oneClickUrl ? { headers: { 'List-Unsubscribe': `<${links.oneClickUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : {}),
       content: [
-        { type: 'text/plain', value: withTextFooter(mail.text) },
+        { type: 'text/plain', value: withTextFooter(mail.text, links?.pageUrl) },
         { type: 'text/html', value: mail.html },
       ],
     }),
@@ -436,13 +528,14 @@ async function runReminders(db: Db, apiKey: string, opts: RunOptions) {
     const staleIds = userTasks.filter(t => !fresh.includes(t)).map(t => t.id);
 
     const [{ data: profile }, { data: prefs }] = await Promise.all([
-      db.from('profiles').select('email, full_name, subscription_status').eq('id', userId).maybeSingle(),
-      db.from('notification_preferences').select('task_reminders_enabled').eq('user_id', userId).maybeSingle(),
+      db.from('profiles').select('email, full_name, subscription_status, subscription_expiry, trial_end_date, current_billing_cycle').eq('id', userId).maybeSingle(),
+      db.from('notification_preferences').select('task_reminders_enabled, emails_unsubscribed').eq('user_id', userId).maybeSingle(),
     ]);
     const allowed =
       !!profile?.email &&
-      ['active', 'trial'].includes(profile?.subscription_status ?? '') &&
-      (prefs?.task_reminders_enabled ?? true);
+      tierOf(profile) !== 'free' && // reminders are part of Starter and Business
+      (prefs?.task_reminders_enabled ?? true) &&
+      !prefs?.emails_unsubscribed; // the master "no emails" choice, from signup, an email link or the settings
 
     if (!allowed || fresh.length === 0) {
       skipped += userTasks.length;
@@ -452,7 +545,8 @@ async function runReminders(db: Db, apiKey: string, opts: RunOptions) {
 
     if (!opts.dryRun) {
       try {
-        await sendEmail(apiKey, profile.email, buildReminderEmail(profile.full_name ?? '', fresh));
+        const links = await unsubscribeLinks({ secret: Deno.env.get('UNSUBSCRIBE_SECRET'), userId, supabaseUrl: Deno.env.get('SUPABASE_URL') });
+        await sendEmail(apiKey, profile.email, buildReminderEmail(profile.full_name ?? '', fresh, links.pageUrl), links);
       } catch (err) {
         console.error('reminder email failed for', userId, err instanceof Error ? err.message : err);
         continue; // leave unsent so the next run retries
@@ -476,7 +570,7 @@ async function runReports(db: Db, apiKey: string, opts: RunOptions) {
 
   let profilesQuery = db
     .from('profiles')
-    .select('id, email, full_name, currency, subscription_status')
+    .select('id, email, full_name, currency, subscription_status, subscription_expiry, trial_end_date, current_billing_cycle')
     .in('subscription_status', ['active', 'trial'])
     .not('email', 'is', null)
     .order('id')
@@ -492,12 +586,18 @@ async function runReports(db: Db, apiKey: string, opts: RunOptions) {
   for (const profile of profiles ?? []) {
     if (sent >= MAX_REPORT_USERS_PER_RUN) break; // the next run continues from the log
 
+    // Emailed reports are part of the Business plan (and the free month).
+    if (tierOf(profile) !== 'business') {
+      skipped++;
+      continue;
+    }
+
     const { data: prefs } = await db
       .from('notification_preferences')
-      .select('period_reports_enabled')
+      .select('period_reports_enabled, emails_unsubscribed')
       .eq('user_id', profile.id)
       .maybeSingle();
-    if (prefs && prefs.period_reports_enabled === false) {
+    if (prefs && (prefs.period_reports_enabled === false || prefs.emails_unsubscribed === true)) {
       skipped++;
       continue;
     }
@@ -538,8 +638,9 @@ async function runReports(db: Db, apiKey: string, opts: RunOptions) {
     }
 
     try {
-      const mail = buildReportEmail(profile.full_name ?? '', (profile.currency as string) || 'KES', sections);
-      await sendEmail(apiKey, profile.email, mail);
+      const links = await unsubscribeLinks({ secret: Deno.env.get('UNSUBSCRIBE_SECRET'), userId: profile.id, supabaseUrl: Deno.env.get('SUPABASE_URL') });
+      const mail = buildReportEmail(profile.full_name ?? '', (profile.currency as string) || 'KES', sections, links.pageUrl);
+      await sendEmail(apiKey, profile.email, mail, links);
       await db.from('period_report_log').upsert(logRows);
       sent++;
     } catch (err) {

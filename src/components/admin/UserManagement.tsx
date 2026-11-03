@@ -4,6 +4,7 @@ import { supabase } from '../../utils/supabase';
 import toast from 'react-hot-toast';
 import LoadingScreen from '../LoadingScreen';
 import { updateUserSubscription } from '../../services/admin/adminService';
+import { getBillingCycleLabel } from '../../utils/subscription';
 
 interface UserProfile {
   id: string;
@@ -453,9 +454,7 @@ const UserManagement: React.FC = () => {
                     <div>
                       <p className="text-sm font-medium text-gray-700">Billing Cycle</p>
                       <p className="text-sm text-gray-900">
-                        {selectedUser.current_billing_cycle === 'trial' ? 'Free Trial' :
-                         selectedUser.current_billing_cycle === 'month2-3' ? 'Months 2-3 (KES 500/month)' :
-                         selectedUser.current_billing_cycle === 'month4+' ? 'Month 4+ (KES 1000/month)' : 'Unknown'}
+                        {getBillingCycleLabel(selectedUser.current_billing_cycle ?? undefined)}
                       </p>
                     </div>
                     {selectedUser.subscription_status === 'trial' && (
@@ -491,12 +490,20 @@ const UserManagement: React.FC = () => {
                       </button>
                     )}
                     <button
-                      onClick={() => activateSubscription(selectedUser, 30, 'month2-3')}
+                      onClick={() => activateSubscription(selectedUser, 30, 'starter')}
                       disabled={subscriptionActionLoading}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-50"
                     >
                       <CheckCircle2 className="w-4 h-4" />
-                      Activate 30 days
+                      Activate Starter 30 days
+                    </button>
+                    <button
+                      onClick={() => activateSubscription(selectedUser, 30, 'business')}
+                      disabled={subscriptionActionLoading}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Activate Business 30 days
                     </button>
                     {selectedUser.subscription_status === 'suspended' ? (
                       <button

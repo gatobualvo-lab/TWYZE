@@ -14,7 +14,7 @@
 // to MANY users at once (an admin announcement), see send-broadcast-email.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
-import { sendEmail, emailLayout, EmailSendError, APP_URL } from '../_shared/sendgrid.ts';
+import { sendEmail, emailLayout, EmailSendError, APP_URL, unsubscribeLinks } from '../_shared/sendgrid.ts';
 
 type EmailType = 'welcome' | 'subscription_expiry_warning' | 'opportunity_alert';
 
@@ -36,7 +36,11 @@ function escapeHtml(input: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function buildEmail(type: EmailType, name: string, alert?: { title: string; body: string }): { subject: string; html: string; text: string } | null {
+// The expiry notice is about the account itself, so it is sent even to someone who has unsubscribed from the rest.
+const ESSENTIAL: EmailType[] = ['subscription_expiry_warning'];
+
+function buildEmail(type: EmailType, name: string, alert: { title: string; body: string } | undefined, unsubscribeUrl: string): { subject: string; html: string; text: string } | null {
+  const unsubscribe = { url: unsubscribeUrl, essential: ESSENTIAL.includes(type) };
   if (type === 'welcome') {
     const subject = 'Welcome to TrackWyze';
     const bodyHtml = `
@@ -53,6 +57,7 @@ function buildEmail(type: EmailType, name: string, alert?: { title: string; body
       html: emailLayout(subject, bodyHtml, {
         preheader: 'Your account is ready. Add your products and record your first sale.',
         cta: { label: 'Open TrackWyze', url: APP_URL },
+        unsubscribe,
       }),
       text: `Hi ${name || 'there'},\n\nYour TrackWyze account is ready. Add your products, record your first sale, and watch your daily profit build up.\n\nOpen TrackWyze: ${APP_URL}`,
     };
@@ -70,6 +75,7 @@ function buildEmail(type: EmailType, name: string, alert?: { title: string; body
       html: emailLayout(subject, bodyHtml, {
         preheader: 'Renew to keep recording sales, expenses and stock.',
         cta: { label: 'Renew subscription', url: renewUrl },
+        unsubscribe,
       }),
       text: `Hi ${name || 'there'},\n\nYour TrackWyze subscription has expired. Renew soon to keep adding new records. Your records stay safe either way.\n\nRenew: ${renewUrl}`,
     };
@@ -86,6 +92,7 @@ function buildEmail(type: EmailType, name: string, alert?: { title: string; body
       html: emailLayout(escapeHtml(alert.title), bodyHtml, {
         preheader: alert.body,
         cta: { label: 'View details', url: detailsUrl },
+        unsubscribe,
       }),
       text: `Hi ${name || 'there'},\n\n${alert.body}\n\nView details: ${detailsUrl}`,
     };
@@ -129,13 +136,21 @@ Deno.serve(async (req) => {
     if (!apiKey) return json({ error: 'Email is not configured yet.' }, 503);
 
     const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', user.id).maybeSingle();
+
+    // Someone who unsubscribed (or did not tick the box at signup) gets only the account notices.
+    if (!ESSENTIAL.includes(type)) {
+      const { data: prefs } = await supabase.from('notification_preferences').select('emails_unsubscribed').eq('user_id', user.id).maybeSingle();
+      if (prefs?.emails_unsubscribed) return json({ sent: false, skipped: 'unsubscribed' });
+    }
+
+    const links = await unsubscribeLinks({ secret: Deno.env.get('UNSUBSCRIBE_SECRET'), userId: user.id, supabaseUrl: Deno.env.get('SUPABASE_URL') });
     const toEmail = profile?.email || user.email;
     if (!toEmail) return json({ error: 'No email address on file' }, 400);
 
-    const content = buildEmail(type, profile?.full_name || '', alert);
+    const content = buildEmail(type, profile?.full_name || '', alert, links.pageUrl);
     if (!content) return json({ error: 'Invalid email type' }, 400);
 
-    await sendEmail({ apiKey, to: toEmail, subject: content.subject, html: content.html, text: content.text });
+    await sendEmail({ apiKey, to: toEmail, subject: content.subject, html: content.html, text: content.text, unsubscribe: links });
 
     return json({ sent: true });
   } catch (err) {

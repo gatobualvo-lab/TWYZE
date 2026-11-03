@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BarChart3, Plus, Menu, X, Target, TrendingUp, Download, Zap, LogOut, Users, History, Settings, User, User as UserIcon, Package, BookOpen, Layers, Calendar, TrendingDown, Wallet, Truck, ChevronLeft, ChevronRight, Receipt, ChevronDown, ShoppingCart, FileText, Percent, Lightbulb, Sparkles, Trophy, Bell, UserCog, Repeat, HelpCircle, Briefcase, RefreshCw } from 'lucide-react';
+import { BarChart3, Plus, Menu, X, Target, TrendingUp, Download, Zap, LogOut, Users, History, Settings, User, User as UserIcon, Package, BookOpen, Layers, Calendar, TrendingDown, Wallet, Truck, ChevronLeft, ChevronRight, Receipt, ChevronDown, ShoppingCart, FileText, Percent, Lightbulb, Sparkles, Trophy, Bell, UserCog, Repeat, HelpCircle, Briefcase, RefreshCw, Lock } from 'lucide-react';
 import { CSSTransition } from 'react-transition-group';
 import { supabase, refreshSession } from '../utils/supabase';
 import { DownloadModal } from './DownloadModal';
@@ -52,7 +52,7 @@ import RecurringExpenses from './expenses/RecurringExpenses';
 import { runDueRecurringExpenses } from '../services/expenses/recurringExpenseService';
 import { applyMySubscriptionLapse, computeAccessLevel } from '../services/subscription/subscriptionLapseService';
 import { sendSubscriptionExpiryWarningEmail } from '../services/email/emailService';
-import { SubscriptionBanner, RestrictedFeatureGate } from './SubscriptionGate';
+import { RestrictedFeatureGate } from './SubscriptionGate';
 import toast from 'react-hot-toast';
 import { useTheme } from '../contexts/ThemeContext';
 import { setAccountCurrency, useAccountCurrency } from '../utils/accountCurrency';
@@ -60,6 +60,11 @@ import { useTaskReminders } from '../services/tasks/useTaskReminders';
 import TopProgress from './ui/TopProgress';
 import { LogoMark, Wordmark } from './brand/Logo';
 import { detectPhone } from '../utils/platform';
+import { EntitlementsProvider } from '../contexts/EntitlementsContext';
+import { withPreviewPlan } from '../services/subscription/previewPlan';
+import { FEATURE_MIN_TIER, TIER_LABELS, describeEntitlements, resolveEntitlements, tierIncludes, type Feature } from '../services/subscription/entitlements';
+import { LimitGate, PlanBanner, TabGate } from './subscription/Gates';
+import FloatingHelp from './help/FloatingHelp';
 
 interface UserProfile {
   id: string;
@@ -215,11 +220,14 @@ interface NavButtonProps {
   icon: IconType;
   onClick: () => void;
   iconClassName?: string;
+  /** The page needs a higher plan than the account has; it still opens, to explain the upgrade. */
+  lockedTier?: string;
 }
 
-const NavButton: React.FC<NavButtonProps> = ({ active, collapsed, label, icon: Icon, onClick, iconClassName }) => (
+const NavButton: React.FC<NavButtonProps> = ({ active, collapsed, label, icon: Icon, onClick, iconClassName, lockedTier }) => (
   <button
     onClick={onClick}
+    title={lockedTier ? `${label} (${lockedTier} plan)` : undefined}
     className={`group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ease-smooth ${
       active
         ? 'bg-blue-600 text-white font-semibold'
@@ -235,6 +243,12 @@ const NavButton: React.FC<NavButtonProps> = ({ active, collapsed, label, icon: I
       }`}
     />
     {!collapsed && <span className="truncate">{label}</span>}
+    {!collapsed && lockedTier && (
+      <span className={`ml-auto inline-flex items-center ${active ? 'text-white/80' : 'text-gray-400'}`}>
+        <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+        <span className="sr-only">{lockedTier} plan</span>
+      </span>
+    )}
   </button>
 );
 
@@ -300,8 +314,6 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   const { showModal, handleCloseModal } = useDownloadReminder();
   useNotificationSync();
   const { role: businessRole } = useBusinessRole();
-  useEffect(() => { runDueRecurringExpenses().catch(() => {}); }, []);
-  useEffect(() => { runDueRecurringInvoices().catch(() => {}); }, []);
   const { pendingCount: pendingOfflineSales } = useOfflineSalesSync();
   const { pendingCount: pendingOfflineWrites } = useOfflineWriteSync();
   const pendingOfflineTotal = pendingOfflineSales + pendingOfflineWrites;
@@ -323,6 +335,18 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   const location = useLocation();
   const [user, setUser] = useState<UserData | null>(null);
   const accessLevel = computeAccessLevel(user?.profile?.subscription_status);
+  const planProfile = withPreviewPlan(user?.profile);
+  const entitlements = resolveEntitlements(planProfile);
+  const tier = entitlements.tier;
+  // The page needs a higher plan than this account has: the menu marks it, and the page itself explains.
+  const lockedTierFor = (id: string): string | undefined =>
+    id in FEATURE_MIN_TIER && !tierIncludes(tier, id as Feature) ? TIER_LABELS[FEATURE_MIN_TIER[id as Feature]] : undefined;
+  // Recurring expenses and invoices create records on their own, so they only run on plans that include them.
+  useEffect(() => {
+    if (!user?.id) return;
+    if (tierIncludes(tier, 'recurring-expenses')) runDueRecurringExpenses().catch(() => {});
+    if (tierIncludes(tier, 'recurring-invoices')) runDueRecurringInvoices().catch(() => {});
+  }, [user?.id, tier]);
   const visibleNavItems = applyCategoryToNav(
     filterNavForRole(NAV_ITEMS, businessRole.isStaff, businessRole.permissions),
     user?.profile?.business_category
@@ -339,6 +363,15 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
       }
     }
     return map;
+  }, [visibleNavItems]);
+  // Pages the Guide may offer to open: what this person's menu shows, plus their account and subscription.
+  const guidePageIds = useMemo(() => {
+    const ids = new Set<string>(['account', 'payment-management']);
+    for (const entry of visibleNavItems) {
+      if (entry.kind === 'leaf') ids.add(entry.id);
+      else for (const item of entry.items) ids.add(item.id);
+    }
+    return ids;
   }, [visibleNavItems]);
   // A route that names an explicit tab (e.g. /account) always wins; otherwise
   // restore whichever tab was last active so reopening the app (or reloading
@@ -516,7 +549,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   }, [isMobileMenuOpen, isMobileView]);
 
   return (
-    <>
+    <EntitlementsProvider profile={planProfile} onNavigate={setActiveTab} activeTab={activeTab}>
     <div className="min-h-screen flex transition-colors duration-200 bg-transparent">
       <TopProgress routeKey={activeTab} />
       {/* Download Modal */}
@@ -596,6 +629,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
                       collapsed={isSidebarCollapsed}
                       label={entry.label}
                       icon={entry.icon}
+                      lockedTier={lockedTierFor(entry.id)}
                       onClick={() => handleSidebarNavigate(entry.id)}
                     />
                   );
@@ -631,6 +665,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
                             collapsed={isSidebarCollapsed}
                             label={item.label}
                             icon={item.icon}
+                            lockedTier={lockedTierFor(item.id)}
                             onClick={() => handleSidebarNavigate(item.id)}
                           />
                         ))}
@@ -657,7 +692,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
                   {!isSidebarCollapsed && <span>Help Center</span>}
                 </a>
                 <a
-                  href="https://wa.me/0113476311"
+                  href="https://wa.me/254113476311"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-gray-700 hover:bg-gray-100"
@@ -793,14 +828,14 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
           <div className="flex items-center gap-4">
             <div className="text-right hidden md:block">
               <p className="text-sm font-medium text-gray-900">
-                {user?.profile?.subscription_status === 'trial' ? 'Free Trial' : 'Subscribed'}
+                {describeEntitlements(entitlements)}
               </p>
               <p className="text-xs text-gray-500">
-                {user?.profile?.subscription_status === 'trial'
-                  ? `Expires: ${user?.profile?.trial_end_date
-                      ? new Date(user.profile.trial_end_date).toLocaleDateString()
-                      : 'Unknown'}`
-                  : `Billing: ${user?.profile?.current_billing_cycle || 'Unknown'}`}
+                {entitlements.source === 'free-month'
+                  ? `Free month ends ${new Date(planProfile?.trial_end_date ?? Date.now()).toLocaleDateString()}`
+                  : entitlements.paidUntil
+                    ? `Paid until ${new Date(entitlements.paidUntil).toLocaleDateString()}`
+                    : 'Upgrade for more features'}
               </p>
             </div>
             {pendingOfflineTotal > 0 && (
@@ -828,7 +863,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
           </div>
         </div>
 
-        <SubscriptionBanner accessLevel={accessLevel} onNavigate={setActiveTab} />
+        <PlanBanner onNavigate={setActiveTab} />
 
         {/* Main Content Area — each tab that's been visited this session stays mounted (TabSlot), so switching away and back preserves in-progress forms, filters, and scroll instead of resetting them. */}
         <div key={accountCurrency}>
@@ -839,26 +874,28 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
               businessCategory={user?.profile?.business_category}
             />
           </TabSlot>
-          <TabSlot id="opportunities" activeTab={activeTab} visitedTabs={visitedTabs}><OpportunityCenter onNavigate={setActiveTab} /></TabSlot>
-          <TabSlot id="advisor" activeTab={activeTab} visitedTabs={visitedTabs}><AIBusinessAdvisor onNavigate={setActiveTab} /></TabSlot>
-          <TabSlot id="goals" activeTab={activeTab} visitedTabs={visitedTabs}><BusinessGoals /></TabSlot>
-          <TabSlot id="calendar" activeTab={activeTab} visitedTabs={visitedTabs}><BusinessCalendar onNavigate={setActiveTab} /></TabSlot>
+          <TabSlot id="opportunities" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="opportunities"><OpportunityCenter onNavigate={setActiveTab} /></TabGate></TabSlot>
+          <TabSlot id="advisor" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="advisor"><AIBusinessAdvisor onNavigate={setActiveTab} /></TabGate></TabSlot>
+          <TabSlot id="goals" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="goals"><BusinessGoals /></TabGate></TabSlot>
+          <TabSlot id="calendar" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="calendar"><BusinessCalendar onNavigate={setActiveTab} /></TabGate></TabSlot>
           <TabSlot id="notifications" activeTab={activeTab} visitedTabs={visitedTabs}><NotificationCenter onNavigate={setActiveTab} /></TabSlot>
-          <TabSlot id="team" activeTab={activeTab} visitedTabs={visitedTabs}><TeamManagement /></TabSlot>
-          <TabSlot id="recurring-expenses" activeTab={activeTab} visitedTabs={visitedTabs}><RecurringExpenses /></TabSlot>
+          <TabSlot id="team" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="team"><TeamManagement /></TabGate></TabSlot>
+          <TabSlot id="recurring-expenses" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="recurring-expenses"><RecurringExpenses /></TabGate></TabSlot>
 
           <TabSlot id="add-sale" activeTab={activeTab} visitedTabs={visitedTabs}>
             <RestrictedFeatureGate accessLevel={accessLevel} onNavigate={setActiveTab}>
-              <MultiProductSalesForm />
+              <LimitGate resource="sales">
+                <MultiProductSalesForm />
+              </LimitGate>
             </RestrictedFeatureGate>
           </TabSlot>
           <TabSlot id="view-sales" activeTab={activeTab} visitedTabs={visitedTabs}><SalesList /></TabSlot>
-          <TabSlot id="add-supplier" activeTab={activeTab} visitedTabs={visitedTabs}>
+          <TabSlot id="add-supplier" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="add-supplier">
             <RestrictedFeatureGate accessLevel={accessLevel} onNavigate={setActiveTab}>
               <SupplierForm />
             </RestrictedFeatureGate>
-          </TabSlot>
-          <TabSlot id="view-suppliers" activeTab={activeTab} visitedTabs={visitedTabs}>
+          </TabGate></TabSlot>
+          <TabSlot id="view-suppliers" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="view-suppliers">
             <div>
               <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-2">Supply Dashboard</h2>
@@ -866,32 +903,32 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
               </div>
               <SupplierDashboard />
             </div>
-          </TabSlot>
-          <TabSlot id="ad-expenses" activeTab={activeTab} visitedTabs={visitedTabs}><AdExpensesPage /></TabSlot>
+          </TabGate></TabSlot>
+          <TabSlot id="ad-expenses" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="ad-expenses"><AdExpensesPage /></TabGate></TabSlot>
           <TabSlot id="general-expenses" activeTab={activeTab} visitedTabs={visitedTabs}>
             <RestrictedFeatureGate accessLevel={accessLevel} onNavigate={setActiveTab}>
               <GeneralExpenseForm />
             </RestrictedFeatureGate>
           </TabSlot>
-          <TabSlot id="expense-overview" activeTab={activeTab} visitedTabs={visitedTabs}><ExpenseOverview /></TabSlot>
+          <TabSlot id="expense-overview" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="expense-overview"><ExpenseOverview /></TabGate></TabSlot>
           <TabSlot id="inventory" activeTab={activeTab} visitedTabs={visitedTabs}><InventoryManagement /></TabSlot>
-          <TabSlot id="services" activeTab={activeTab} visitedTabs={visitedTabs}><ServicesManagement /></TabSlot>
-          <TabSlot id="inventory-predictions" activeTab={activeTab} visitedTabs={visitedTabs}><SmartInventoryPredictions /></TabSlot>
+          <TabSlot id="services" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="services"><ServicesManagement /></TabGate></TabSlot>
+          <TabSlot id="inventory-predictions" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="inventory-predictions"><SmartInventoryPredictions /></TabGate></TabSlot>
           <TabSlot id="clients" activeTab={activeTab} visitedTabs={visitedTabs}><ClientManagement /></TabSlot>
-          <TabSlot id="customer-timeline" activeTab={activeTab} visitedTabs={visitedTabs}><CustomerTimeline /></TabSlot>
+          <TabSlot id="customer-timeline" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="customer-timeline"><CustomerTimeline /></TabGate></TabSlot>
           <TabSlot id="documents-quotations" activeTab={activeTab} visitedTabs={visitedTabs}><DocumentsPage initialTab="quotation" /></TabSlot>
           <TabSlot id="documents-invoices" activeTab={activeTab} visitedTabs={visitedTabs}><DocumentsPage initialTab="invoice" /></TabSlot>
           <TabSlot id="documents-receipts" activeTab={activeTab} visitedTabs={visitedTabs}><DocumentsPage initialTab="receipt" /></TabSlot>
-          <TabSlot id="recurring-invoices" activeTab={activeTab} visitedTabs={visitedTabs}><RecurringInvoices /></TabSlot>
-          <TabSlot id="projects" activeTab={activeTab} visitedTabs={visitedTabs}><ProjectsPage /></TabSlot>
+          <TabSlot id="recurring-invoices" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="recurring-invoices"><RecurringInvoices /></TabGate></TabSlot>
+          <TabSlot id="projects" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="projects"><ProjectsPage /></TabGate></TabSlot>
           <TabSlot id="documents-settings" activeTab={activeTab} visitedTabs={visitedTabs}><DocumentsPage initialTab="settings" /></TabSlot>
-          <TabSlot id="monthly-dashboard" activeTab={activeTab} visitedTabs={visitedTabs}><MonthlyDashboard /></TabSlot>
-          <TabSlot id="profit-analytics" activeTab={activeTab} visitedTabs={visitedTabs}><ProfitAnalytics /></TabSlot>
-          <TabSlot id="daily-closing" activeTab={activeTab} visitedTabs={visitedTabs}><DailyClosingReport /></TabSlot>
-          <TabSlot id="data-export" activeTab={activeTab} visitedTabs={visitedTabs}><ReportsAnalytics /></TabSlot>
+          <TabSlot id="monthly-dashboard" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="monthly-dashboard"><MonthlyDashboard /></TabGate></TabSlot>
+          <TabSlot id="profit-analytics" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="profit-analytics"><ProfitAnalytics /></TabGate></TabSlot>
+          <TabSlot id="daily-closing" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="daily-closing"><DailyClosingReport /></TabGate></TabSlot>
+          <TabSlot id="data-export" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="data-export"><ReportsAnalytics /></TabGate></TabSlot>
           <TabSlot id="cash-position" activeTab={activeTab} visitedTabs={visitedTabs}><CashPosition onNavigate={setActiveTab} /></TabSlot>
-          <TabSlot id="delivery-payments" activeTab={activeTab} visitedTabs={visitedTabs}><DeliveryPayments /></TabSlot>
-          <TabSlot id="vendor-transactions" activeTab={activeTab} visitedTabs={visitedTabs}><VendorTransactions /></TabSlot>
+          <TabSlot id="delivery-payments" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="delivery-payments"><DeliveryPayments /></TabGate></TabSlot>
+          <TabSlot id="vendor-transactions" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="vendor-transactions"><VendorTransactions /></TabGate></TabSlot>
           <TabSlot id="dropdown-management" activeTab={activeTab} visitedTabs={visitedTabs}><DropdownManagement /></TabSlot>
           <TabSlot id="account" activeTab={activeTab} visitedTabs={visitedTabs}><AccountSettings /></TabSlot>
           <TabSlot id="payment-management" activeTab={activeTab} visitedTabs={visitedTabs}><PaymentManagement /></TabSlot>
@@ -900,11 +937,20 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
       </div>
     </div>
 
+    <FloatingHelp
+      onNavigate={handleSidebarNavigate}
+      activeTab={activeTab}
+      isPhone={isMobileView}
+      hidden={isMobileMenuOpen}
+      userEmail={user?.email}
+      labelFor={(id) => (guidePageIds.has(id) ? navTitles[id] : undefined)}
+    />
+
     {isMobileView && !isMobileMenuOpen && <MobileBottomNav activeTab={activeTab} onNavigate={handleSidebarNavigate} onMore={() => setIsMobileMenuOpen(true)} businessCategory={user?.profile?.business_category} />}
 
     {/* Download Modal (triggered by button) */}
     <DownloadModal isOpen={showDownloadModal} onClose={() => setShowDownloadModal(false)} />
-    </>
+    </EntitlementsProvider>
   );
 };
 

@@ -8,6 +8,8 @@ import { downloadBlob, pdfFilename, sharePdf } from '../../services/pdf/pdfShare
 import { formatInCurrency } from '../../utils/currency';
 import { printHtml } from '../../services/printing/printHtml';
 import { lineColumns } from '../../utils/documentColumns';
+import { useEntitlements } from '../../contexts/EntitlementsContext';
+import { WATERMARK_TEXT } from '../../services/subscription/entitlements';
 import { describeDiscount, totalsDifference } from '../../utils/documentTotals';
 import { FONT_STACKS, documentColors, documentTitle, resolveDocumentStyle } from '../../utils/documentTheme';
 import { documentPrintCss } from './documentPrintCss';
@@ -111,6 +113,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const { has } = useEntitlements();
   const [document, setDocument] = useState<Document | null>(null);
   const [items, setItems] = useState<DocumentItem[]>([]);
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null);
@@ -178,7 +181,13 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       }
 
       if (settingsData) {
-        setBusinessSettings(settingsData);
+        // Custom colours, layout and the signature/stamp are part of Starter and up; on the Free plan the
+        // standard look is used (the saved choices are kept and apply again after an upgrade).
+        setBusinessSettings({
+          ...settingsData,
+          ...(has('document-appearance') ? {} : { document_style: {}, default_template: 'professional' }),
+          ...(has('document-signature') ? {} : { signature_url: null, stamp_url: null }),
+        });
       }
     } catch (error) {
       console.error('Error fetching document data:', error);
@@ -362,6 +371,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           <div class="footer">
             ${escapeHtml(footerText)}
             ${docStyle.showGeneratedLine ? `<p style="margin-top: 20px; font-size: 11px; color: #999;">Generated on ${new Date().toLocaleString()}</p>` : ''}
+            ${has('no-document-watermark') ? '' : `<p style="margin-top: 8px; font-size: 10px; color: #aaa;">${WATERMARK_TEXT}</p>`}
           </div>
         </div>
       </body>
@@ -373,7 +383,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   // sent as a document on WhatsApp or saved straight to the device.
   const buildPdfFile = async () => {
     if (!document || !businessSettings) return null;
-    const blob = await buildDocumentPdf({ document, items, business: businessSettings, formatMoney: formatCurrency });
+    const blob = await buildDocumentPdf({ document, items, business: businessSettings, formatMoney: formatCurrency, watermark: !has('no-document-watermark') });
     return { blob, filename: pdfFilename(document.document_number) };
   };
 
@@ -920,6 +930,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           <div className={`p-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             <p className="text-xs mb-2">{getFooterText()}</p>
             {docStyle.showGeneratedLine && <p className="text-xs">Generated on {new Date().toLocaleString()}</p>}
+            {!has('no-document-watermark') && <p className="text-[10px] mt-2 opacity-70">{WATERMARK_TEXT}</p>}
           </div>
         </div>
       </div>

@@ -709,8 +709,9 @@ input[type='month'] {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
-/* Product name in sales cards */
-.break-words {
+/* Product name and location in sales cards: two lines on a phone, in full on larger screens.
+   (This used to be on Tailwind's own `.break-words`, which cut off every paragraph that used it on a phone.) */
+.clamp-2-mobile {
   word-wrap: break-word;
   overflow-wrap: break-word;
   max-height: 2.5em;
@@ -722,7 +723,7 @@ input[type='month'] {
 }
 
 @media (min-width: 768px) {
-  .break-words {
+  .clamp-2-mobile {
     max-height: none;
     -webkit-line-clamp: unset;
     display: block;

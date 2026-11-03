@@ -932,6 +932,9 @@ export type Database = {
           user_id: string
           period_reports_enabled: boolean
           task_reminders_enabled: boolean
+          emails_unsubscribed: boolean
+          emails_unsubscribed_at: string | null
+          email_consent_source: string | null
         }
         Insert: {
           email_enabled?: boolean
@@ -941,6 +944,9 @@ export type Database = {
           user_id: string
           period_reports_enabled?: boolean
           task_reminders_enabled?: boolean
+          emails_unsubscribed?: boolean
+          emails_unsubscribed_at?: string | null
+          email_consent_source?: string | null
         }
         Update: {
           email_enabled?: boolean
@@ -950,6 +956,9 @@ export type Database = {
           user_id?: string
           period_reports_enabled?: boolean
           task_reminders_enabled?: boolean
+          emails_unsubscribed?: boolean
+          emails_unsubscribed_at?: string | null
+          email_consent_source?: string | null
         }
         Relationships: []
       }

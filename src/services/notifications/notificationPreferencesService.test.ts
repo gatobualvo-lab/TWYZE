@@ -3,7 +3,7 @@ import { isNotificationAllowed } from './notificationPreferencesService';
 import type { NotificationPreferences } from './notificationPreferencesService';
 
 function prefs(overrides: Partial<NotificationPreferences> = {}): NotificationPreferences {
-  return { mutedTypes: [], minPriority: 'low', emailEnabled: true, periodReportsEnabled: true, taskRemindersEnabled: true, ...overrides };
+  return { mutedTypes: [], minPriority: 'low', emailEnabled: true, allEmailsEnabled: true, periodReportsEnabled: true, taskRemindersEnabled: true, ...overrides };
 }
 
 describe('isNotificationAllowed', () => {

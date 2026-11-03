@@ -93,30 +93,46 @@ const PreferencesPanel: React.FC<{ prefs: NotificationPreferences; onChange: (p:
         <option value="critical">Critical only</option>
       </select>
 
-      <label className="flex items-center justify-between gap-2 cursor-pointer mb-4">
+      <label className="flex items-start justify-between gap-2 cursor-pointer mb-4 rounded-lg bg-gray-50 border border-gray-200 p-3">
+        <span className="text-sm text-gray-800">
+          <span className="font-medium">Send me emails from TrackWyze</span>
+          <span className="block text-xs text-gray-500 mt-0.5">Turn off to stop reminders, reports, alerts and announcements. Payment receipts and account notices are always sent.</span>
+        </span>
+        <input
+          type="checkbox"
+          checked={prefs.allEmailsEnabled}
+          onChange={() => onChange({ ...prefs, allEmailsEnabled: !prefs.allEmailsEnabled })}
+          className="w-4 h-4 mt-1"
+        />
+      </label>
+
+      <label className={`flex items-center justify-between gap-2 mb-4 ${prefs.allEmailsEnabled ? 'cursor-pointer' : 'opacity-50'}`}>
         <span className="text-sm text-gray-700">Email me about important alerts</span>
         <input
           type="checkbox"
           checked={prefs.emailEnabled}
+          disabled={!prefs.allEmailsEnabled}
           onChange={() => onChange({ ...prefs, emailEnabled: !prefs.emailEnabled })}
           className="w-4 h-4"
         />
       </label>
 
-      <label className="flex items-center justify-between gap-2 cursor-pointer mb-4">
+      <label className={`flex items-center justify-between gap-2 mb-4 ${prefs.allEmailsEnabled ? 'cursor-pointer' : 'opacity-50'}`}>
         <span className="text-sm text-gray-700">Email my quarterly, half-year and yearly business report</span>
         <input
           type="checkbox"
+          disabled={!prefs.allEmailsEnabled}
           checked={prefs.periodReportsEnabled}
           onChange={() => onChange({ ...prefs, periodReportsEnabled: !prefs.periodReportsEnabled })}
           className="w-4 h-4"
         />
       </label>
 
-      <label className="flex items-center justify-between gap-2 cursor-pointer mb-4">
+      <label className={`flex items-center justify-between gap-2 mb-4 ${prefs.allEmailsEnabled ? 'cursor-pointer' : 'opacity-50'}`}>
         <span className="text-sm text-gray-700">Email me task reminders</span>
         <input
           type="checkbox"
+          disabled={!prefs.allEmailsEnabled}
           checked={prefs.taskRemindersEnabled}
           onChange={() => onChange({ ...prefs, taskRemindersEnabled: !prefs.taskRemindersEnabled })}
           className="w-4 h-4"
@@ -153,7 +169,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNavigate }) =
     listNotifications({ includeArchived: true }).then(setNotifications).catch(() => setNotifications([]));
   };
   useEffect(refresh, []);
-  useEffect(() => { getPreferences().then(setPrefs).catch(() => setPrefs({ mutedTypes: [], minPriority: 'low', emailEnabled: true, periodReportsEnabled: true, taskRemindersEnabled: true })); }, []);
+  useEffect(() => { getPreferences().then(setPrefs).catch(() => setPrefs({ mutedTypes: [], minPriority: 'low', emailEnabled: true, allEmailsEnabled: true, periodReportsEnabled: true, taskRemindersEnabled: true })); }, []);
 
   const filtered = useMemo(() => {
     if (!notifications) return [];

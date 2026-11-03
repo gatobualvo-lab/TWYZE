@@ -1,3 +1,5 @@
+import { useEntitlements } from '../../contexts/EntitlementsContext';
+import { limitFor } from '../../services/subscription/entitlements';
 import React, { useEffect, useState } from 'react';
 import { useFormErrors } from '../../hooks/useFormErrors';
 import FieldError from '../ui/FieldError';
@@ -124,6 +126,7 @@ const MemberRow: React.FC<{ member: TeamMember; onChanged: () => void }> = ({ me
 };
 
 const TeamManagement: React.FC = () => {
+  const { tier } = useEntitlements();
   const [members, setMembers] = useState<TeamMember[] | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [email, setEmail] = useState('');
@@ -141,6 +144,12 @@ const TeamManagement: React.FC = () => {
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       toast.error('Enter a valid email address');
       return fail({ email: 'Enter a valid email address, like name@example.com' });
+    }
+    // The owner counts as one of the plan's users.
+    const userCap = limitFor(tier, 'users');
+    if (userCap !== null && (members?.length ?? 0) + 1 >= userCap) {
+      toast.error(`Your plan includes up to ${userCap} users, including you.`);
+      return;
     }
     try {
       setSubmitting(true);

@@ -18,7 +18,11 @@ import type { BillingPlanKey } from '../utils/subscription';
 import {
   fetchMySubscription, listMyPaymentSubmissions, submitPayment, getScreenshotSignedUrl,
   createCheckoutSession, waitForSubmissionResolution,
+  startMpesaPayment, waitForMpesaPayment, fetchMyPhone, MpesaNotConfiguredError,
 } from '../services/payments/paymentService';
+import { formatKenyanPhone, normalizeKenyanPhone } from '../utils/mpesaPhone';
+import { useEntitlements } from '../contexts/EntitlementsContext';
+import { TIER_LABELS, TIER_ORDER, TIER_PITCH, TIER_PRICES } from '../services/subscription/entitlements';
 import type { SubscriptionInfo, MyPaymentSubmission } from '../services/payments/paymentService';
 import { openFlutterwaveCheckout } from '../services/payments/flutterwaveCheckout';
 
@@ -41,6 +45,7 @@ const STATUS_ICON: Record<string, React.ComponentType<{ className?: string }>> =
 
 const PaymentManagement: React.FC = () => {
   const navigate = useNavigate();
+  const { entitlements } = useEntitlements();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [submissions, setSubmissions] = useState<MyPaymentSubmission[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,9 +57,15 @@ const PaymentManagement: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const { errors, fail, field, formRef } = useFormErrors<'amount' | 'transactionReference'>();
 
-  const [selectedPlan, setSelectedPlan] = useState<BillingPlanKey>('month2-3');
+  const [selectedPlan, setSelectedPlan] = useState<BillingPlanKey>('starter');
   const [checkoutMethod, setCheckoutMethod] = useState<CheckoutMethod | null>(null);
   const [verifying, setVerifying] = useState(false);
+
+  // M-Pesa STK push: type the number, get the PIN prompt on the phone, wait for the result.
+  const [mpesaStage, setMpesaStage] = useState<'closed' | 'form' | 'sending' | 'waiting'>('closed');
+  const [mpesaPhone, setMpesaPhone] = useState('');
+  const [mpesaPhoneError, setMpesaPhoneError] = useState('');
+  const [mpesaResult, setMpesaResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const loadData = async () => {
     try {
@@ -71,6 +82,10 @@ const PaymentManagement: React.FC = () => {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    fetchMyPhone().then(phone => setMpesaPhone(current => current || phone)).catch(() => { /* typed in by hand instead */ });
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,6 +137,48 @@ const PaymentManagement: React.FC = () => {
       console.error('Error starting checkout:', error);
       toast.error(error.message || 'Failed to start checkout');
       setCheckoutMethod(null);
+    }
+  };
+
+  const openMpesa = () => {
+    setMpesaResult(null);
+    setMpesaPhoneError('');
+    setMpesaStage('form');
+  };
+
+  const handleMpesaSend = async () => {
+    const normalized = normalizeKenyanPhone(mpesaPhone);
+    if (!normalized) {
+      setMpesaPhoneError('Enter a valid M-Pesa number, for example 0712 345 678.');
+      return;
+    }
+    setMpesaPhoneError('');
+    setMpesaResult(null);
+    setMpesaStage('sending');
+    try {
+      const session = await startMpesaPayment(selectedPlan, normalized);
+      setMpesaPhone(formatKenyanPhone(normalized));
+      setMpesaStage('waiting');
+      const resolved = await waitForMpesaPayment(session.txRef);
+      setMpesaStage('form');
+      if (!resolved) {
+        setMpesaResult({ ok: false, message: 'We have not heard back from M-Pesa yet. If you entered your PIN, check this page again in a minute; your subscription will activate on its own.' });
+      } else if (resolved.status === 'approved') {
+        setMpesaResult({ ok: true, message: 'Payment received. Your subscription is active.' });
+        toast.success('Payment confirmed: your subscription is active!');
+      } else {
+        setMpesaResult({ ok: false, message: (resolved.adminNotes || 'The payment was not completed.').replace(/^M-Pesa: /, '') });
+      }
+      await loadData();
+    } catch (error: any) {
+      if (error instanceof MpesaNotConfiguredError) {
+        // Not switched on yet: use the existing M-Pesa checkout instead.
+        setMpesaStage('closed');
+        await handlePayNow('mpesa');
+        return;
+      }
+      setMpesaStage('form');
+      setMpesaResult({ ok: false, message: error.message || 'Could not send the M-Pesa request.' });
     }
   };
 
@@ -236,39 +293,75 @@ const PaymentManagement: React.FC = () => {
         </div>
       </Card>
 
-      {/* Pay Now */}
+      {/* Plans and Pay Now */}
       <Card>
         <h3 className="text-lg font-bold text-gray-800 mb-1 flex items-center gap-2">
           <Zap className="w-5 h-5 text-blue-600" />
-          Pay Now
+          Choose your plan
         </h3>
         <p className="text-sm text-gray-500 mb-4">
-          Pay instantly with M-Pesa or a card — your subscription activates automatically once payment is confirmed.
+          Your first month is free with every feature. After that you can stay on Free, or pay monthly for Starter or Business. Your plan switches on automatically once payment is confirmed.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          {(Object.values(BILLING_PLANS)).map(plan => (
-            <button
-              key={plan.key}
-              type="button"
-              onClick={() => setSelectedPlan(plan.key)}
-              className={`text-left px-4 py-3 rounded-lg border-2 transition-colors ${
-                selectedPlan === plan.key
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <p className="font-semibold text-gray-900">{plan.label}</p>
-              <p className="text-sm text-gray-600">{formatCurrency(plan.amount)} / month</p>
-            </button>
-          ))}
+        {entitlements.source === 'free-month' && (
+          <p className="mb-4 rounded-lg bg-accent-50 border border-accent-200 px-3 py-2 text-sm text-accent-900">
+            You are in your free month ({entitlements.freeMonthDaysLeft} day{entitlements.freeMonthDaysLeft === 1 ? '' : 's'} left), so everything is included. Choose a plan to keep these features after that.
+          </p>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          {TIER_ORDER.map(tierKey => {
+            const paid = tierKey !== 'free';
+            const isCurrent = entitlements.source !== 'free-month' && entitlements.tier === tierKey;
+            const selected = paid && selectedPlan === tierKey;
+            const body = (
+              <>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-display font-bold text-gray-900">{TIER_LABELS[tierKey]}</p>
+                  {isCurrent && <span className="rounded-full bg-green-100 text-green-800 px-2 py-0.5 text-[11px] font-semibold">Your plan</span>}
+                </div>
+                <p className="mt-1 text-2xl font-extrabold text-gray-900">
+                  {paid ? formatCurrency(TIER_PRICES[tierKey]) : 'KES 0'}
+                  <span className="text-sm font-medium text-gray-500">{paid ? ' / month' : ' always'}</span>
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">{TIER_PITCH[tierKey].tagline}</p>
+                <ul className="mt-3 space-y-1.5 text-sm text-gray-700">
+                  {TIER_PITCH[tierKey].highlights.map(item => (
+                    <li key={item} className="flex items-start gap-2">
+                      <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-600" aria-hidden="true" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            );
+            return paid ? (
+              <button
+                key={tierKey}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setSelectedPlan(tierKey as BillingPlanKey)}
+                className={`text-left p-4 rounded-xl border-2 transition-colors ${selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
+              >
+                {body}
+              </button>
+            ) : (
+              <div key={tierKey} className="p-4 rounded-xl border-2 border-gray-200 bg-gray-50">
+                {body}
+              </div>
+            );
+          })}
         </div>
+
+        <p className="text-sm font-medium text-gray-700 mb-2">
+          Pay for {BILLING_PLANS[selectedPlan].label}: {formatCurrency(BILLING_PLANS[selectedPlan].amount)} for 30 days
+        </p>
 
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             type="button"
-            onClick={() => handlePayNow('mpesa')}
-            disabled={checkoutMethod !== null || verifying}
+            onClick={openMpesa}
+            disabled={checkoutMethod !== null || verifying || mpesaStage === 'sending' || mpesaStage === 'waiting'}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium rounded-lg transition-colors"
           >
             {checkoutMethod === 'mpesa' ? (
@@ -292,6 +385,70 @@ const PaymentManagement: React.FC = () => {
             Pay with Card
           </button>
         </div>
+
+        {mpesaStage !== 'closed' && (
+          <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4" aria-live="polite">
+            <p className="font-semibold text-green-900 flex items-center gap-2">
+              <Smartphone className="w-4 h-4" aria-hidden="true" />
+              Pay {formatCurrency(BILLING_PLANS[selectedPlan].amount)} with M-Pesa
+            </p>
+
+            {mpesaStage === 'waiting' ? (
+              <div className="mt-3 flex items-start gap-3 text-sm text-green-900">
+                <Spinner className="w-5 h-5 mt-0.5" tone="brand" />
+                <div>
+                  <p className="font-medium">Check your phone ({mpesaPhone})</p>
+                  <p className="text-green-800">Enter your M-Pesa PIN to pay. This page updates by itself as soon as the payment is confirmed. Please do not close it.</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-green-800 mt-1">We will send a payment request to your phone. Enter your M-Pesa PIN to approve it.</p>
+                <label htmlFor="mpesa-phone" className="block text-sm font-medium text-gray-700 mt-3 mb-1">M-Pesa phone number</label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    id="mpesa-phone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    value={mpesaPhone}
+                    onChange={(e) => { setMpesaPhone(e.target.value); setMpesaPhoneError(''); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleMpesaSend(); } }}
+                    placeholder="0712 345 678"
+                    aria-invalid={mpesaPhoneError ? true : undefined}
+                    aria-describedby={mpesaPhoneError ? 'mpesa-phone-error' : undefined}
+                    disabled={mpesaStage === 'sending'}
+                    className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleMpesaSend}
+                    disabled={mpesaStage === 'sending'}
+                    className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium rounded-lg transition-colors"
+                  >
+                    {mpesaStage === 'sending' && <Spinner className="w-4 h-4" tone="light" />}
+                    {mpesaStage === 'sending' ? 'Sending…' : mpesaResult && !mpesaResult.ok ? 'Try again' : 'Send request'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMpesaStage('closed')}
+                    disabled={mpesaStage === 'sending'}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-white"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {mpesaPhoneError && <p id="mpesa-phone-error" role="alert" className="text-sm text-red-600 mt-1">{mpesaPhoneError}</p>}
+              </>
+            )}
+
+            {mpesaResult && (
+              <p role={mpesaResult.ok ? 'status' : 'alert'} className={`mt-3 text-sm font-medium ${mpesaResult.ok ? 'text-green-800' : 'text-red-700'}`}>
+                {mpesaResult.message}
+              </p>
+            )}
+          </div>
+        )}
 
         {verifying && (
           <div className="mt-4 flex items-center gap-2 text-sm text-blue-700 bg-blue-50 rounded-lg px-3 py-2">

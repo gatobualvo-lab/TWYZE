@@ -8,7 +8,7 @@
 // profile under normal RLS, which is exactly the point.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
-import { sendEmail, emailLayout, EmailSendError, APP_URL } from '../_shared/sendgrid.ts';
+import { sendEmail, emailLayout, EmailSendError, APP_URL, unsubscribeLinks } from '../_shared/sendgrid.ts';
 
 function escapeHtml(input: string): string {
   return input
@@ -66,13 +66,18 @@ Deno.serve(async (req) => {
       <p style="margin:0 0 14px;">We've confirmed ${escapeHtml(amountLabel)}${planLabel ? ` for the ${escapeHtml(planLabel)}` : ''}. Your TrackWyze subscription is active. Thank you for staying with us.</p>
     `;
 
+    // A payment receipt is always sent; the footer says so and links to the email preferences.
+    const links = await unsubscribeLinks({ secret: Deno.env.get('UNSUBSCRIBE_SECRET'), userId, supabaseUrl });
+
     await sendEmail({
       apiKey,
       to: toEmail,
       subject,
+      unsubscribe: links,
       html: emailLayout(subject, bodyHtml, {
         preheader: 'Your subscription is active. Thank you.',
         cta: { label: 'Open TrackWyze', url: APP_URL },
+        unsubscribe: { url: links.pageUrl, essential: true },
       }),
       text: `Hi ${profile?.full_name || 'there'},\n\nWe've confirmed ${amountLabel}. Your TrackWyze subscription is active.\n\nOpen TrackWyze: ${APP_URL}`,
     });

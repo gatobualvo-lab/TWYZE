@@ -3,6 +3,7 @@ import { formatCurrency, formatDate } from '../../utils/format';
 import { loadImageForPdf } from './pdfImages';
 import { pdfText } from './pdfText';
 import { lineColumns } from '../../utils/documentColumns';
+import { WATERMARK_TEXT } from '../subscription/entitlements';
 import { describeDiscount, lineAmounts } from '../../utils/documentTotals';
 import { PDF_FONTS, documentColors, documentTitle, hexToRgb, resolveDocumentStyle, type Rgb } from '../../utils/documentTheme';
 
@@ -76,6 +77,8 @@ export interface DocumentPdfInput {
   business: DocumentPdfBusiness | null;
   /** Defaults to account-currency formatting. */
   formatMoney?: (amount: number) => string;
+  /** Adds the small "Created with TrackWyze" line at the foot of every page (Free plan). */
+  watermark?: boolean;
 }
 
 const num = (v: unknown): number => {
@@ -401,8 +404,17 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Blob> {
     doc.setTextColor(0);
   }
 
-  // Page numbers
+  // Page numbers, and the Free plan's credit line on every page
   const pages = doc.getNumberOfPages();
+  if (input.watermark) {
+    for (let p = 1; p <= pages; p++) {
+      doc.setPage(p);
+      doc.setFont(font, 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(150);
+      doc.text(pdfText(WATERMARK_TEXT), M, pageH - 8);
+    }
+  }
   if (pages > 1) {
     for (let p = 1; p <= pages; p++) {
       doc.setPage(p);

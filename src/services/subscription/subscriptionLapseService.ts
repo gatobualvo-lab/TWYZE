@@ -19,14 +19,11 @@ export async function applyMySubscriptionLapse(): Promise<string | null> {
 }
 
 /**
- * 'full' — trial or active, everything works normally.
- * 'grace' — expired but still within the grace period: full functionality,
- *   but should nag the owner to renew.
- * 'restricted' — grace period elapsed (or an admin suspended the account):
- *   view-only, creation flows should redirect to a renewal prompt instead.
+ * 'full' — everything the account's plan includes works normally. A subscription that has ended
+ *   is not view-only any more: the account simply continues on the Free plan (see
+ *   services/subscription/entitlements.ts), so 'grace' is no longer used.
+ * 'restricted' — an admin suspended the account: view-only, creation flows explain why.
  */
 export function computeAccessLevel(status: string | null | undefined): AccessLevel {
-  if (status === 'restricted' || status === 'suspended') return 'restricted';
-  if (status === 'expired') return 'grace';
-  return 'full';
+  return status === 'suspended' ? 'restricted' : 'full';
 }

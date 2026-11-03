@@ -17,6 +17,7 @@ const TermsOfService = lazy(() => import('./components/legal/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
 const RefundPolicy = lazy(() => import('./components/legal/RefundPolicy'));
 const HelpCenter = lazy(() => import('./components/help/HelpCenter'));
+const UnsubscribePage = lazy(() => import('./components/UnsubscribePage'));
 
 const LazyFallback = () => <LoadingScreen variant="splash" />;
 
@@ -153,6 +154,10 @@ const App = () => {
             <Route
               path="/reset-password"
               element={<ResetPasswordPage />}
+            />
+            <Route
+              path="/unsubscribe"
+              element={<UnsubscribePage />}
             />
             <Route
               path="/terms"

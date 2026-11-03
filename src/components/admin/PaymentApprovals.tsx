@@ -34,7 +34,7 @@ const PaymentApprovals: React.FC = () => {
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [reviewMode, setReviewMode] = useState<'approve' | 'reject' | null>(null);
   const [extendDays, setExtendDays] = useState(30);
-  const [billingCycle, setBillingCycle] = useState('month2-3');
+  const [billingCycle, setBillingCycle] = useState('starter');
   const [adminNotes, setAdminNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -58,7 +58,7 @@ const PaymentApprovals: React.FC = () => {
     setReviewingId(submission.id);
     setReviewMode(mode);
     setExtendDays(30);
-    setBillingCycle('month2-3');
+    setBillingCycle('starter');
     setAdminNotes('');
   };
 
@@ -266,14 +266,14 @@ const PaymentApprovals: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Billing cycle</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Plan</label>
                       <select
                         value={billingCycle}
                         onChange={e => setBillingCycle(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                       >
-                        <option value="month2-3">Months 2-3 (KES 500/mo)</option>
-                        <option value="month4+">Month 4+ (KES 1000/mo)</option>
+                        <option value="starter">Starter (KES 500/mo)</option>
+                        <option value="business">Business (KES 1,000/mo)</option>
                       </select>
                     </div>
                   </div>

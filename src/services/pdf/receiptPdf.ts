@@ -1,3 +1,4 @@
+import { WATERMARK_TEXT } from '../subscription/entitlements';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { loadImageForPdf } from './pdfImages';
 import { pdfText } from './pdfText';
@@ -21,6 +22,8 @@ export interface ReceiptPdfInput {
   } | null;
   /** Defaults to account-currency formatting. */
   formatMoney?: (amount: number) => string;
+  /** Adds the small "Created with TrackWyze" line (Free plan). */
+  watermark?: boolean;
 }
 
 const PAGE_WIDTH = 80;
@@ -106,6 +109,13 @@ function draw(doc: Doc, input: ReceiptPdfInput, logo: Logo): number {
   doc.text('Thank you for your business!', center, y, { align: 'center' });
   doc.setTextColor(0);
   y += 4;
+  if (input.watermark) {
+    doc.setFontSize(6.5);
+    doc.setTextColor(150);
+    doc.text(pdfText(WATERMARK_TEXT), center, y + 1, { align: 'center' });
+    doc.setTextColor(0);
+    y += 4;
+  }
 
   return y + MARGIN;
 }

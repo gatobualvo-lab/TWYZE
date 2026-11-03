@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { uploadPublicImage, ImageUploadError } from '../../services/storage/publicImageUpload';
 import PrintingSettings from './PrintingSettings';
 import DocumentAppearance, { type ImageKind } from './DocumentAppearance';
+import { LockedSection } from '../subscription/Gates';
 import { resolveDocumentStyle, styleToStored, type DocumentKind, type DocumentStyle } from '../../utils/documentTheme';
 import {
   Building2,
@@ -841,6 +842,7 @@ export default function BusinessSettings() {
         </div>
 
         {/* Document appearance: template, colours, layout, signature and wording */}
+        <LockedSection feature="document-appearance">
         <DocumentAppearance
           isDark={isDark}
           style={docStyle}
@@ -854,6 +856,7 @@ export default function BusinessSettings() {
           onRemove={handleImageRemove}
           onReset={resetStyle}
         />
+        </LockedSection>
 
         {/* Save Button */}
         <div className="flex gap-4">

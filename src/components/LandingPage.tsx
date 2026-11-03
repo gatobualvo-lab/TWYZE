@@ -17,9 +17,11 @@ import {
   FileText,
   Sparkles,
 } from 'lucide-react';
-import { BILLING_PLANS } from '../utils/subscription';
+import { TIER_LABELS, TIER_ORDER, TIER_PITCH, TIER_PRICES } from '../services/subscription/entitlements';
 import Reveal from './ui/Reveal';
 import Logo from './brand/Logo';
+import { usePageMeta } from '../utils/pageMeta';
+import { BUSINESS_TYPES, LANDING_FAQS, faqStructuredData } from '../content/landingSeo';
 
 const scrollToId = (id: string) => {
   const el = document.getElementById(id);
@@ -66,6 +68,13 @@ const NAV_LINKS = [
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  usePageMeta({
+    title: 'Trackwyze: Business Management Software for Shops in Kenya',
+    description:
+      'Track sales, stock, expenses and profit in one simple app. Invoices, receipts and M-Pesa payments. Free first month, then a Free plan or from KES 500.',
+    path: '/landing',
+    jsonLd: faqStructuredData(),
+  });
 
   const handleMobileNav = (id: string) => {
     setIsMobileMenuOpen(false);
@@ -154,7 +163,7 @@ const LandingPage: React.FC = () => {
                 <span className="block text-gradient-ink">Know Your Profit.</span>
               </h1>
               <p className="mt-5 text-lg text-gray-600 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                Manage sales, expenses, inventory, suppliers, and deliveries in one simple system.
+                Manage sales, expenses, inventory, suppliers, and deliveries in one simple system. Business management software for shops and small businesses in Kenya, with M-Pesa payments, invoices and receipts.
               </p>
 
               <div className="mt-8 flex flex-col sm:flex-row gap-3 sm:justify-center lg:justify-start">
@@ -328,6 +337,28 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
+      {/* Who it is for */}
+      <section id="who-its-for" className="py-20 bg-gray-50 border-y border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+              Sales and stock software for every kind of business
+            </h2>
+            <p className="mt-3 text-lg text-gray-600">
+              Whether you sell from a shop, from Instagram or from a van, Trackwyze shows what you earn and what you keep.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {BUSINESS_TYPES.map(({ title, description }) => (
+              <div key={title} className="rounded-2xl bg-white p-6 ring-1 ring-gray-200">
+                <h3 className="text-base font-bold text-gray-900">{title}</h3>
+                <p className="mt-2 text-sm text-gray-600 leading-relaxed">{description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Pricing */}
       <section id="pricing" className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -337,60 +368,50 @@ const LandingPage: React.FC = () => {
               Simple pricing that grows with you
             </p>
             <p className="mt-3 text-lg text-gray-600">
-              Every plan includes full access to every feature. No hidden tiers, no feature gates.
+              Your first month is free with every feature. After that, keep using the Free plan, or choose the plan that fits your business.
             </p>
           </div>
 
           <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto items-stretch">
-            <div className="rounded-2xl border border-gray-200 p-8 flex flex-col">
-              <h3 className="text-lg font-bold text-gray-900">Free Trial</h3>
-              <p className="mt-1 text-sm text-gray-500">Month 1</p>
-              <div className="mt-5 flex items-baseline gap-1">
-                <span className="text-4xl font-extrabold text-gray-900">KES 0</span>
-              </div>
-              <p className="mt-2 text-sm text-gray-600">Full access to every feature. No credit card required.</p>
-              <button
-                onClick={() => navigate('/login')}
-                className="mt-8 w-full py-2.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-800 font-semibold text-sm transition"
-              >
-                Start Free Trial
-              </button>
-            </div>
-
-            <div className="relative rounded-2xl border-2 border-blue-600 p-8 flex flex-col shadow-lg shadow-blue-600/10 md:-translate-y-2">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-blue-600 text-white text-xs font-semibold">
-                Most Popular
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">Early Bird</h3>
-              <p className="mt-1 text-sm text-gray-500">Months 2&ndash;3</p>
-              <div className="mt-5 flex items-baseline gap-1">
-                <span className="text-4xl font-extrabold text-gray-900">KES {BILLING_PLANS['month2-3'].amount}</span>
-                <span className="text-sm font-medium text-gray-500">/ month</span>
-              </div>
-              <p className="mt-2 text-sm text-gray-600">Everything in the trial, at a discounted rate while your business grows.</p>
-              <button
-                onClick={() => navigate('/login')}
-                className="mt-8 w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-sm shadow-blue-600/20 transition"
-              >
-                Get Started
-              </button>
-            </div>
-
-            <div className="rounded-2xl border border-gray-200 p-8 flex flex-col">
-              <h3 className="text-lg font-bold text-gray-900">Regular</h3>
-              <p className="mt-1 text-sm text-gray-500">Month 4 onwards</p>
-              <div className="mt-5 flex items-baseline gap-1">
-                <span className="text-4xl font-extrabold text-gray-900">KES {BILLING_PLANS['month4+'].amount}</span>
-                <span className="text-sm font-medium text-gray-500">/ month</span>
-              </div>
-              <p className="mt-2 text-sm text-gray-600">Full price once you're established. Cancel any time, no lock-in.</p>
-              <button
-                onClick={() => navigate('/login')}
-                className="mt-8 w-full py-2.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-800 font-semibold text-sm transition"
-              >
-                Get Started
-              </button>
-            </div>
+            {TIER_ORDER.map(tierKey => {
+              const popular = tierKey === 'starter';
+              return (
+                <div
+                  key={tierKey}
+                  className={`relative rounded-2xl p-8 flex flex-col ${popular ? 'border-2 border-blue-600 shadow-lg shadow-blue-600/10 md:-translate-y-2' : 'border border-gray-200'}`}
+                >
+                  {popular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                      Most Popular
+                    </div>
+                  )}
+                  <h3 className="text-lg font-bold text-gray-900">{TIER_LABELS[tierKey]}</h3>
+                  <p className="mt-1 text-sm text-gray-500">{TIER_PITCH[tierKey].tagline}</p>
+                  <div className="mt-5 flex items-baseline gap-1">
+                    <span className="text-4xl font-extrabold text-gray-900">KES {TIER_PRICES[tierKey].toLocaleString('en-US')}</span>
+                    <span className="text-sm font-medium text-gray-500">{tierKey === 'free' ? 'always' : '/ month'}</span>
+                  </div>
+                  <ul className="mt-5 space-y-2 text-sm text-gray-700 flex-1">
+                    {TIER_PITCH[tierKey].highlights.map(item => (
+                      <li key={item} className="flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-600" aria-hidden="true" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    onClick={() => navigate('/login')}
+                    className={`mt-8 w-full py-2.5 rounded-lg font-semibold text-sm transition ${
+                      popular
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-600/20'
+                        : 'border border-gray-300 hover:bg-gray-50 text-gray-800'
+                    }`}
+                  >
+                    {tierKey === 'free' ? 'Start free' : 'Start with a free month'}
+                  </button>
+                </div>
+              );
+            })}
           </div>
 
           <p className="mt-8 text-center text-sm text-gray-500">
@@ -446,6 +467,26 @@ const LandingPage: React.FC = () => {
             </div>
 
             <DashboardMockup />
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ (the same questions are given to search engines as structured data) */}
+      <section id="faq" className="py-20">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="text-center text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+            Frequently asked questions
+          </h2>
+          <div className="mt-10 divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
+            {LANDING_FAQS.map(({ question, answer }) => (
+              <details key={question} className="group p-5">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold text-gray-900">
+                  {question}
+                  <span aria-hidden="true" className="text-xl text-gray-400 transition-transform group-open:rotate-45">+</span>
+                </summary>
+                <p className="mt-3 text-gray-600 leading-relaxed">{answer}</p>
+              </details>
+            ))}
           </div>
         </div>
       </section>

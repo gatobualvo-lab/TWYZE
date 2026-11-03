@@ -1,3 +1,4 @@
+import { useEntitlements } from '../contexts/EntitlementsContext';
 import React, { useState, useEffect, useRef } from 'react';
 import { Check, Plus, DollarSign, Truck, MapPin, Calendar, CreditCard, Save, ChevronDown, ChevronRight, ScanLine } from 'lucide-react';
 import { supabase } from '../utils/supabase';
@@ -88,6 +89,7 @@ const SummaryRow: React.FC<{
 );
 
 const MultiProductSalesForm: React.FC = () => {
+  const { refreshUsage, has } = useEntitlements();
   const { role: businessRole } = useBusinessRole();
   const canSeeCosts = !businessRole.isStaff || !businessRole.hideFinancialDetails;
   const [formData, setFormData] = useState<SaleFormData>({
@@ -433,6 +435,7 @@ const MultiProductSalesForm: React.FC = () => {
       }
 
       trackEvent('sale_recorded', { productCount: validProducts.length, offline: offlineQueued });
+      refreshUsage(true); // keeps the Free plan's sales-this-month count current
       // A recorded sale is the app's main moment of success: a short burst and a tap on the wrist.
       haptic(offlineQueued ? 'tap' : 'success');
       if (!offlineQueued) celebrate();
@@ -536,7 +539,7 @@ const MultiProductSalesForm: React.FC = () => {
               autoComplete="off"
               inputMode="text"
             />
-            {isCameraScanSupported() && (
+            {isCameraScanSupported() && has('barcode-camera') && (
               <Button type="button" variant="secondary" onClick={() => setShowCameraScan(true)}>
                 Camera
               </Button>

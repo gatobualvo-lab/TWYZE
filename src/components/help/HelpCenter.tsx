@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePageMeta } from '../../utils/pageMeta';
 import { ArrowLeft, ChevronDown, Search, MessageCircle } from 'lucide-react';
 
 interface FaqItem {
@@ -98,16 +99,16 @@ const CATEGORIES: FaqCategory[] = [
     title: 'Billing & subscription',
     items: [
       {
-        question: 'What happens when my free trial ends?',
-        answer: 'You\'ll be prompted to choose a paid plan. Your data is never deleted — if you don\'t renew, your account moves to a grace period and eventually a view-only mode, but everything you\'ve recorded stays safe and visible.',
+        question: 'What do I get in the free month, and what happens after?',
+        answer: 'Your first month is completely free, with every feature. After that you choose: stay on the Free plan (up to 40 sales a month, 20 products and 15 customers), or pay for Starter (KES 500 a month) or Business (KES 1,000 a month). Nothing is ever deleted, and you are never locked out.',
       },
       {
         question: 'How do I pay for my subscription?',
-        answer: 'Go to Manage Subscription → Pay Now for instant M-Pesa or card payment, or submit proof of a manual bank/M-Pesa transfer for our team to confirm.',
+        answer: 'Go to Manage Subscription, choose Starter or Business, and pay by M-Pesa (you get a prompt on your phone to enter your PIN) or by card. You can also submit proof of a manual bank or M-Pesa transfer for our team to confirm.',
       },
       {
-        question: 'What happens if my subscription lapses?',
-        answer: 'You get a grace period (a few days) with full access and a renewal reminder. After that, your account moves to view-only mode — you can see all your existing data, but adding new sales/expenses/etc. is paused until you renew. Renewing restores full access immediately.',
+        question: 'What happens if I stop paying for Starter or Business?',
+        answer: 'Your account continues on the Free plan. Everything you have recorded stays and you can still see it. Features that belong to a paid plan switch off, and adding more than the Free limits (40 sales a month, 20 products, 15 customers) is paused until you upgrade again. Upgrading brings everything back immediately.',
       },
     ],
   },
@@ -128,6 +129,11 @@ const CATEGORIES: FaqCategory[] = [
 
 const HelpCenter: React.FC = () => {
   const navigate = useNavigate();
+  usePageMeta({
+    title: 'Help Center: How to Use Trackwyze',
+    description: 'Step-by-step answers on recording sales, managing stock, creating invoices, paying with M-Pesa and choosing a Trackwyze plan.',
+    path: '/help',
+  });
   const [query, setQuery] = useState('');
   const [openKey, setOpenKey] = useState<string | null>(null);
 

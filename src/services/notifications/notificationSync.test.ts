@@ -30,7 +30,7 @@ function opportunity(overrides: Partial<Opportunity> = {}): Opportunity {
 }
 
 function prefs(overrides: Partial<NotificationPreferences> = {}): NotificationPreferences {
-  return { mutedTypes: [], minPriority: 'low', emailEnabled: true, periodReportsEnabled: true, taskRemindersEnabled: true, ...overrides };
+  return { mutedTypes: [], minPriority: 'low', emailEnabled: true, allEmailsEnabled: true, periodReportsEnabled: true, taskRemindersEnabled: true, ...overrides };
 }
 
 beforeEach(() => {
@@ -64,6 +64,14 @@ describe('syncOpportunityNotifications', () => {
     await syncOpportunityNotifications([opportunity()], prefs({ emailEnabled: false }));
 
     expect(publishNotificationMock).toHaveBeenCalled();
+    expect(sendOpportunityAlertEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('does not email anyone who turned all TrackWyze emails off (or never opted in)', async () => {
+    const { syncOpportunityNotifications } = await import('./notificationSync');
+    await syncOpportunityNotifications([opportunity()], prefs({ emailEnabled: true, allEmailsEnabled: false }));
+
+    expect(publishNotificationMock).toHaveBeenCalled(); // the in-app alert is unaffected
     expect(sendOpportunityAlertEmailMock).not.toHaveBeenCalled();
   });
 

@@ -1,3 +1,5 @@
+import { limitFor } from '../subscription/entitlements';
+import { getTierSnapshot } from '../subscription/tierSnapshot';
 import { supabase } from '../../utils/supabase';
 import { toNum } from '../../utils/number';
 
@@ -46,6 +48,13 @@ export async function fetchOrCreateCustomer(name: string): Promise<Customer | nu
 
   if (fetchError) throw new Error(fetchError.message);
   if (existing) return existing as Customer;
+
+  // The Free plan keeps up to 15 customers. A sale to a new name still goes through; it just is not added to the list.
+  const cap = limitFor(getTierSnapshot(), 'customers');
+  if (cap !== null) {
+    const { count } = await supabase.from('customers').select('id', { count: 'exact', head: true }).eq('user_id', user.id);
+    if ((count ?? 0) >= cap) return null;
+  }
 
   const { data: created, error: insertError } = await supabase
     .from('customers')

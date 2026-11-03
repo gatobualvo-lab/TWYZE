@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-KE">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/logo/favicon.svg" />
@@ -11,8 +11,12 @@
     <link rel="preload" href="/fonts/sora-latin.woff2" as="font" type="font/woff2" crossorigin />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0f1b2d" />
-    <meta name="description" content="Trackwyze - Complete business tracking platform for smart entrepreneurs. Track sales, manage ad expenses, and maximize profits with intelligent insights." />
-    <meta name="keywords" content="business tracking, sales management, profit analysis, ad expenses, Kenya business, M-Pesa payments" />
+    <meta name="description" content="Track sales, stock, expenses and profit in one simple app. Invoices, receipts and M-Pesa payments. Free first month, then a Free plan or from KES 500." />
+    <meta name="keywords" content="business management software Kenya, sales tracking app, inventory management software, POS system Kenya, shop management app, stock control software, invoice and receipt maker, expense tracker, profit tracking, small business software Kenya, M-Pesa business app, duka management app, accounting software for small business" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <meta name="author" content="Trackwyze" />
+    <meta name="geo.region" content="KE" />
+    <meta name="geo.placename" content="Kenya" />
     
     <!-- PWA Meta Tags -->
     <meta name="application-name" content="Trackwyze" />
@@ -38,44 +42,104 @@
     
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Trackwyze - Track Smart. Profit Wise." />
-    <meta property="og:description" content="Complete business tracking platform for smart entrepreneurs. Track sales, manage suppliers, monitor ad expenses, and maximize profits." />
+    <meta property="og:locale" content="en_KE" />
+    <meta property="og:title" content="Trackwyze: Business Management Software for Shops in Kenya" />
+    <meta property="og:description" content="Track sales, stock, expenses and profit in one simple app. Invoices, receipts and M-Pesa payments. Free first month." />
     <meta property="og:site_name" content="Trackwyze" />
     <meta property="og:url" content="https://trackwyze.com" />
     <meta property="og:image" content="https://trackwyze.com/logo/og-image.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Trackwyze dashboard showing sales, profit and expenses" />
     
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Trackwyze - Track Smart. Profit Wise." />
-    <meta name="twitter:description" content="Complete business tracking platform for smart entrepreneurs." />
+    <meta name="twitter:title" content="Trackwyze: Business Management Software for Shops in Kenya" />
+    <meta name="twitter:description" content="Track sales, stock, expenses and profit in one simple app. Invoices, receipts and M-Pesa payments. Free first month." />
     <meta name="twitter:image" content="https://trackwyze.com/logo/og-image.jpg" />
 
     <!-- Canonical -->
     <link rel="canonical" href="https://trackwyze.com/landing" />
 
-    <!-- Structured data -->
+    <!-- Structured data (the FAQ is added by the landing page itself) -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Trackwyze",
-        "applicationCategory": "BusinessApplication",
-        "operatingSystem": "Web",
-        "description": "Business tracking platform for small and growing businesses — sales, expenses, inventory, customers, suppliers, and AI-assisted insights.",
-        "offers": {
-          "@type": "Offer",
-          "priceCurrency": "KES",
-          "price": "500"
-        }
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://trackwyze.com/#organization",
+            "name": "Trackwyze",
+            "url": "https://trackwyze.com",
+            "logo": "https://trackwyze.com/icons/apple-touch-icon.png",
+            "areaServed": "KE",
+            "contactPoint": {
+              "@type": "ContactPoint",
+              "telephone": "+254113476311",
+              "contactType": "customer support",
+              "areaServed": "KE",
+              "availableLanguage": [
+                "English",
+                "Swahili"
+              ]
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://trackwyze.com/#website",
+            "url": "https://trackwyze.com",
+            "name": "Trackwyze",
+            "inLanguage": "en-KE",
+            "publisher": {
+              "@id": "https://trackwyze.com/#organization"
+            }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "Trackwyze",
+            "url": "https://trackwyze.com",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web, Android, Windows",
+            "description": "Business management software for shops and small businesses in Kenya: sales, stock, expenses, customers, suppliers, invoices, receipts and profit reports, with M-Pesa payments.",
+            "inLanguage": "en-KE",
+            "publisher": {
+              "@id": "https://trackwyze.com/#organization"
+            },
+            "offers": [
+              {
+                "@type": "Offer",
+                "name": "Free",
+                "price": "0",
+                "priceCurrency": "KES"
+              },
+              {
+                "@type": "Offer",
+                "name": "Starter",
+                "price": "500",
+                "priceCurrency": "KES"
+              },
+              {
+                "@type": "Offer",
+                "name": "Business",
+                "price": "1000",
+                "priceCurrency": "KES"
+              }
+            ]
+          }
+        ]
       }
     </script>
 
-    <title>Trackwyze - Track Smart. Profit Wise.</title>
+    <title>Trackwyze: Business Management Software for Shops in Kenya</title>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <h1>Trackwyze: business management software for shops and small businesses in Kenya</h1>
+      <p>Track sales, stock, expenses, customers and suppliers, create invoices, quotations and receipts, and see your real profit. Pay for your plan with M-Pesa. Your first month is free, then use the Free plan or choose Starter (KES 500 a month) or Business (KES 1,000 a month).</p>
+      <p>Trackwyze needs JavaScript to run. Please turn it on in your browser.</p>
+      <p><a href="/landing">Features and pricing</a> · <a href="/help">Help Center</a> · <a href="/login">Log in</a></p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
