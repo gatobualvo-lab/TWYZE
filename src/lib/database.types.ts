@@ -1893,7 +1893,18 @@ export type Database = {
         }
         Returns: boolean
       }
-      claim_pending_invite: { Args: never; Returns: string }
+      accept_team_invite: { Args: { p_invite_id: string }; Returns: string }
+      decline_team_invite: { Args: { p_invite_id: string }; Returns: undefined }
+      leave_business: { Args: never; Returns: undefined }
+      list_my_team_invites: {
+        Args: never
+        Returns: {
+          id: string
+          business_name: string
+          permissions: string[]
+          invited_at: string
+        }[]
+      }
       decrement_inventory_stock: {
         Args: { p_product_name: string; p_quantity: number }
         Returns: undefined

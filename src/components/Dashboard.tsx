@@ -64,6 +64,7 @@ import { EntitlementsProvider } from '../contexts/EntitlementsContext';
 import { withPreviewPlan } from '../services/subscription/previewPlan';
 import { FEATURE_MIN_TIER, TIER_LABELS, describeEntitlements, resolveEntitlements, tierIncludes, type Feature } from '../services/subscription/entitlements';
 import { LimitGate, PlanBanner, TabGate } from './subscription/Gates';
+import { TeamInvitesBanner } from './team/TeamInvitesBanner';
 import FloatingHelp from './help/FloatingHelp';
 
 interface UserProfile {
@@ -864,6 +865,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
         </div>
 
         <PlanBanner onNavigate={setActiveTab} />
+        <TeamInvitesBanner />
 
         {/* Main Content Area — each tab that's been visited this session stays mounted (TabSlot), so switching away and back preserves in-progress forms, filters, and scroll instead of resetting them. */}
         <div key={accountCurrency}>

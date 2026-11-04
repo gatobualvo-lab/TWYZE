@@ -59,6 +59,25 @@
 --   -- expect: first 3 return true, then false
 
 -- ============================================================
+-- 7) Team membership is the member's own choice
+-- ============================================================
+-- Use two dummy accounts only. Login as owner A:
+--   INSERT INTO public.business_members (owner_id, member_id, invited_email, status)
+--     VALUES (auth.uid(), '<B_user_id>', 'b@example.test', 'active');
+--   -- expect: RLS rejection (new row violates policy)
+--   INSERT INTO public.business_members (owner_id, invited_email, permissions)
+--     VALUES (auth.uid(), 'b@example.test', '{sales}') RETURNING id;   -- expect: ok
+--   UPDATE public.business_members SET member_id = '<B_user_id>', status = 'active'
+--     WHERE id = '<invite_id>';
+--   -- expect: error "Only the invited person can accept a team invite"
+-- Login as B (confirmed email b@example.test):
+--   SELECT public.get_business_owner_id();                 -- expect B's own uid
+--   SELECT * FROM public.list_my_team_invites();           -- expect the one invite
+--   SELECT public.accept_team_invite('<invite_id>');       -- expect A's uid
+--   SELECT public.leave_business();
+--   SELECT public.get_business_owner_id();                 -- expect B's own uid again
+
+-- ============================================================
 -- Diagnostics: list every public policy
 -- ============================================================
 -- SELECT tablename, policyname, cmd, roles, qual, with_check

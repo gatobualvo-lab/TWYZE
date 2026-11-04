@@ -95,7 +95,7 @@ const MemberRow: React.FC<{ member: TeamMember; onChanged: () => void }> = ({ me
           <p className="font-medium text-gray-900">{member.invitedEmail}</p>
           <span className={`inline-flex items-center gap-1 text-xs mt-0.5 ${member.status === 'active' ? 'text-green-600' : 'text-amber-600'}`}>
             {member.status === 'active' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-            {member.status === 'active' ? `Joined ${formatDate(member.acceptedAt)}` : 'Invited — waiting for them to sign up or log in'}
+            {member.status === 'active' ? `Joined ${formatDate(member.acceptedAt)}` : 'Invited — waiting for them to log in and accept'}
           </span>
         </div>
         <button onClick={handleRevoke} className="text-gray-300 hover:text-red-500 flex-shrink-0 transition-colors" aria-label="Remove">
@@ -154,7 +154,7 @@ const TeamManagement: React.FC = () => {
     try {
       setSubmitting(true);
       await inviteTeamMember(email, permissions, { restrictToOwnRecords, hideFinancialDetails });
-      toast.success('Invite sent — they can now sign up or log in with this email to join');
+      toast.success('Invite sent — they can sign up or log in with this email, confirm it, and accept the invite to join');
       setEmail('');
       setPermissions([]);
       setRestrictToOwnRecords(true);

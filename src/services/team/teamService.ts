@@ -141,9 +141,47 @@ export async function fetchMyBusinessRole(): Promise<BusinessRole> {
   };
 }
 
-/** Links the current login to any pending invite matching their email. Safe to call every session — a no-op if there's nothing to claim. */
-export async function claimPendingInvite(): Promise<boolean> {
-  const { data, error } = await supabase.rpc('claim_pending_invite');
-  if (error) return false;
-  return data !== null;
+export interface TeamInvite {
+  id: string;
+  businessName: string;
+  permissions: PermissionSection[];
+  invitedAt: string;
+}
+
+/** Pending invites addressed to the signed-in user's confirmed email. Empty when there are none or the email isn't confirmed yet. */
+export async function listMyTeamInvites(): Promise<TeamInvite[]> {
+  const { data, error } = await supabase.rpc('list_my_team_invites');
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row: { id: string; business_name: string; permissions: string[]; invited_at: string }) => ({
+    id: row.id,
+    businessName: row.business_name,
+    permissions: (row.permissions ?? []) as PermissionSection[],
+    invitedAt: row.invited_at,
+  }));
+}
+
+const ACCEPT_ERRORS: Record<string, string> = {
+  email_not_confirmed: 'Please confirm your email address before joining a team.',
+  already_member: 'You are already on a team. Leave it before joining another.',
+  invite_not_found: 'This invite is no longer available.',
+};
+
+/** Joins the business that sent this invite. Only ever called from an explicit "Accept" click, never automatically. */
+export async function acceptTeamInvite(inviteId: string): Promise<void> {
+  const { error } = await supabase.rpc('accept_team_invite', { p_invite_id: inviteId });
+  if (error) {
+    const known = Object.keys(ACCEPT_ERRORS).find(key => error.message.includes(key));
+    throw new Error(known ? ACCEPT_ERRORS[known] : error.message);
+  }
+}
+
+export async function declineTeamInvite(inviteId: string): Promise<void> {
+  const { error } = await supabase.rpc('decline_team_invite', { p_invite_id: inviteId });
+  if (error) throw new Error(error.message);
+}
+
+/** Lets a staff member leave the business they work for. */
+export async function leaveBusiness(): Promise<void> {
+  const { error } = await supabase.rpc('leave_business');
+  if (error) throw new Error(error.message);
 }
