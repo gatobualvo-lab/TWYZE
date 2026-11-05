@@ -1,6 +1,6 @@
 import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, CreditCard as Edit, Trash2, AlertTriangle, TrendingDown, Search, Filter, Receipt, X, Palette, Image as ImageIcon, Briefcase } from 'lucide-react';
+import { Package, Plus, CreditCard as Edit, Trash2, AlertTriangle, TrendingDown, Search, Filter, Receipt, X, Palette, Image as ImageIcon, Briefcase, Tag } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
@@ -15,6 +15,7 @@ import FieldError from './ui/FieldError';
 import CategorySelect from './inventory/CategorySelect';
 import { mergeCategories } from '../services/inventory/categories';
 import ProductPerformance from './inventory/ProductPerformance';
+import CategoryManager from './inventory/CategoryManager';
 import { useEntitlements } from '../contexts/EntitlementsContext';
 import { LimitMeter } from './subscription/Gates';
 
@@ -69,6 +70,7 @@ const InventoryManagement: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState('');
   const [showLowStock, setShowLowStock] = useState(false);
   const [view, setView] = useState<'stock' | 'performance'>('stock');
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [salesProduct, setSalesProduct] = useState<InventoryItem | null>(null);
   const [salesRows, setSalesRows] = useState<ProductSaleRow[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
@@ -518,16 +520,26 @@ const InventoryManagement: React.FC = () => {
             />
           </div>
 
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          >
-            <option value="">All Categories</option>
-            {categories.map(category => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </select>
+          <div className="flex gap-2">
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            >
+              <option value="">All Categories</option>
+              {categories.map(category => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setShowCategoryManager(true)}
+              title="Manage categories"
+              className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 flex-shrink-0"
+            >
+              <Tag className="w-4 h-4" />
+            </button>
+          </div>
 
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -985,6 +997,15 @@ const InventoryManagement: React.FC = () => {
             setShowCameraScan(false);
           }}
           onClose={() => setShowCameraScan(false)}
+        />
+      )}
+
+      {showCategoryManager && (
+        <CategoryManager
+          items={items}
+          categories={categories}
+          onClose={() => setShowCategoryManager(false)}
+          onSaved={fetchInventory}
         />
       )}
     </div>
