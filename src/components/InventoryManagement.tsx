@@ -778,125 +778,101 @@ const InventoryManagement: React.FC = () => {
           </div>
         )}
 
-        {/* Items Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 sticky top-0">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prices</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredItems.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-600">
-                    No inventory items found
-                  </td>
-                </tr>
-              ) : (
-                filteredItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="flex items-start gap-3">
-                      {item.image_url ? (
-                        <img src={item.image_url} alt="" className="w-10 h-10 rounded-md object-cover border border-gray-200 flex-shrink-0" loading="lazy" />
-                      ) : null}
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {item.product_name}
-                          {item.item_type === 'service' && (
-                            <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-xs font-medium text-sky-700">
-                              <Briefcase className="w-3 h-3" /> Service
-                            </span>
-                          )}
-                        </div>
-                        {item.sku && <div className="text-sm text-gray-500">SKU: {item.sku}</div>}
-                        {item.category && <div className="text-sm text-gray-500">{item.category}</div>}
-                        {item.colors && item.colors.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {item.colors.map((color) => (
-                              <span
-                                key={color}
-                                className="inline-flex items-center px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-xs text-indigo-700"
-                              >
-                                {color}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+        {/* Items Grid */}
+        {filteredItems.length === 0 ? (
+          <div className="px-4 py-12 text-center text-gray-600">No inventory items found</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredItems.map((item) => {
+              const isService = item.item_type === 'service';
+              const isLowStock = !isService && item.current_stock <= item.reorder_level;
+              return (
+                <div key={item.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+                  <div className="relative aspect-square bg-gray-50 border-b border-gray-100">
+                    {item.image_url ? (
+                      <img src={item.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        {isService ? <Briefcase className="w-10 h-10 text-gray-300" /> : <Package className="w-10 h-10 text-gray-300" />}
                       </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      {item.item_type === 'service' ? (
-                        <div className="text-sm text-gray-400">Not tracked</div>
-                      ) : (<>
-                      <div className="text-sm text-gray-900">
-                        {item.current_stock} {item.unit}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        Reorder: {item.reorder_level}
-                      </div>
-                      </>)}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div>Cost: {formatCurrency(item.cost_price)}</div>
-                      <div>Sell: {formatCurrency(item.selling_price)}</div>
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm font-extrabold text-gray-900 text-right">
-                      {item.item_type === 'service' ? '—' : formatCurrency(item.current_stock * item.cost_price)}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      {item.item_type === 'service' ? (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-sky-100 text-sky-800">
-                          Service
+                    )}
+                    <div className="absolute top-2 right-2">
+                      {isService ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-sky-100 text-sky-800 shadow-sm">
+                          <Briefcase className="w-3 h-3" /> Service
                         </span>
-                      ) : item.current_stock <= item.reorder_level ? (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                          Low Stock
+                      ) : isLowStock ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 shadow-sm">
+                          <AlertTriangle className="w-3 h-3" /> Low Stock
                         </span>
                       ) : (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 shadow-sm">
                           In Stock
                         </span>
                       )}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center gap-2">
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 flex flex-col gap-2 flex-1">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 line-clamp-2">{item.product_name}</h3>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">
+                        {[item.sku && `SKU: ${item.sku}`, item.category].filter(Boolean).join(' · ') || ' '}
+                      </p>
+                    </div>
+
+                    {item.colors && item.colors.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {item.colors.slice(0, 4).map((color) => (
+                          <span key={color} className="inline-flex items-center px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-xs text-indigo-700">
+                            {color}
+                          </span>
+                        ))}
+                        {item.colors.length > 4 && <span className="text-xs text-gray-400 self-center">+{item.colors.length - 4}</span>}
+                      </div>
+                    )}
+
+                    <div className="mt-auto pt-2 border-t border-gray-100 space-y-1">
+                      <div className="flex items-end justify-between gap-2">
+                        <p className="text-base font-extrabold text-gray-900 tabular-nums">{formatCurrency(item.selling_price)}</p>
+                        {!isService && <p className="text-xs text-gray-500 whitespace-nowrap">{item.current_stock} {item.unit}</p>}
+                      </div>
+                      {!isService && (
+                        <div className="flex items-center justify-between text-xs text-gray-400">
+                          <span>Cost {formatCurrency(item.cost_price)}</span>
+                          <span>Value {formatCurrency(item.current_stock * item.cost_price)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-end gap-0.5 -mr-1.5">
                         <button
                           onClick={() => openSalesFor(item)}
-                          className="text-blue-600 hover:text-blue-900"
+                          className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors"
                           title="View sales for this product"
                         >
                           <Receipt className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => startEdit(item)}
-                          className="text-indigo-600 hover:text-indigo-900"
+                          className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-lg transition-colors"
                           title="Edit item"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => deleteItem(item.id)}
-                          className="text-red-600 hover:text-red-900"
+                          className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete item"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {salesProduct && (
