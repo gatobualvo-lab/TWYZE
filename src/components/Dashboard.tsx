@@ -28,6 +28,7 @@ import AccountSettings from './AccountSettings';
 import PaymentManagement from '../pages/PaymentManagement';
 import ClientManagement from './ClientManagement';
 import AdminPanel from '../pages/AdminPanel';
+import FeatureFeedback from './feedback/FeatureFeedback';
 import DashboardHome from './DashboardHome';
 import DocumentsPage from './documents/DocumentsPage';
 import NotificationBell from './notifications/NotificationBell';
@@ -185,6 +186,7 @@ const NAV_ITEMS: NavTopItem[] = [
     ],
   },
   { kind: 'leaf', id: 'projects', label: 'Projects', icon: Briefcase },
+  { kind: 'leaf', id: 'feedback', label: 'Suggest a Feature', icon: Lightbulb },
   {
     kind: 'group', id: 'planner', label: 'Planner', icon: CalendarCheck, iconClassName: 'text-violet-600',
     items: [
@@ -934,6 +936,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
           <TabSlot id="documents-receipts" activeTab={activeTab} visitedTabs={visitedTabs}><DocumentsPage initialTab="receipt" /></TabSlot>
           <TabSlot id="recurring-invoices" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="recurring-invoices"><RecurringInvoices /></TabGate></TabSlot>
           <TabSlot id="projects" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="projects"><ProjectsPage /></TabGate></TabSlot>
+          <TabSlot id="feedback" activeTab={activeTab} visitedTabs={visitedTabs}><FeatureFeedback /></TabSlot>
           <TabSlot id="documents-settings" activeTab={activeTab} visitedTabs={visitedTabs}><DocumentsPage initialTab="settings" /></TabSlot>
           <TabSlot id="monthly-dashboard" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="monthly-dashboard"><MonthlyDashboard /></TabGate></TabSlot>
           <TabSlot id="profit-analytics" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="profit-analytics"><ProfitAnalytics /></TabGate></TabSlot>
