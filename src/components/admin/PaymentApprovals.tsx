@@ -213,14 +213,14 @@ const PaymentApprovals: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <button
                           onClick={() => openReview(s, 'approve')}
-                          className="text-green-700 hover:text-green-900 flex items-center gap-1"
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-green-700 hover:text-green-900 hover:bg-green-50 transition-colors"
                         >
                           <CheckCircle2 className="w-4 h-4" />
                           Approve
                         </button>
                         <button
                           onClick={() => openReview(s, 'reject')}
-                          className="text-red-700 hover:text-red-900 flex items-center gap-1"
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-red-700 hover:text-red-900 hover:bg-red-50 transition-colors"
                         >
                           <XCircle className="w-4 h-4" />
                           Reject

@@ -14,7 +14,8 @@ import {
   ScrollText,
   AlertTriangle,
   Send,
-  Lightbulb
+  Lightbulb,
+  CheckCircle2
 } from 'lucide-react';
 import UserManagement from '../components/admin/UserManagement';
 import SystemSettings from '../components/admin/SystemSettings';
@@ -22,7 +23,7 @@ import PaymentApprovals from '../components/admin/PaymentApprovals';
 import AuditLogViewer from '../components/admin/AuditLogViewer';
 import BroadcastEmail from '../components/admin/BroadcastEmail';
 import FeedbackManagement from '../components/admin/FeedbackManagement';
-import { fetchPlatformStats } from '../services/admin/adminService';
+import { fetchPlatformStats, countNewFeedback } from '../services/admin/adminService';
 import type { PlatformStats } from '../services/admin/adminService';
 import { formatCurrency } from '../utils/format';
 import toast from 'react-hot-toast';
@@ -42,9 +43,11 @@ export default function AdminPanel() {
     monthRevenue: 0
   });
   const [loading, setLoading] = useState(true);
+  const [newFeedbackCount, setNewFeedbackCount] = useState(0);
 
   useEffect(() => {
     loadStats();
+    countNewFeedback().then(setNewFeedbackCount).catch(() => {});
   }, []);
 
   const loadStats = async () => {
@@ -332,32 +335,51 @@ export default function AdminPanel() {
                   </div>
                 </div>
 
-                {/* Recent Activity */}
+                {/* Needs Attention — real counts, not a decorative status light */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                  <h3 className="text-lg font-semibold text-slate-900 mb-4">System Status</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        <span className="text-sm font-medium text-slate-900">Database</span>
-                      </div>
-                      <span className="text-sm text-green-600 font-medium">Operational</span>
+                  <h3 className="text-lg font-semibold text-slate-900 mb-4">Needs Attention</h3>
+                  {stats.pendingPayments === 0 && newFeedbackCount === 0 && stats.suspendedUsers === 0 ? (
+                    <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                      <span className="text-sm font-medium text-slate-900">All caught up — nothing waiting on you.</span>
                     </div>
-                    <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        <span className="text-sm font-medium text-slate-900">Authentication</span>
-                      </div>
-                      <span className="text-sm text-green-600 font-medium">Operational</span>
+                  ) : (
+                    <div className="space-y-3">
+                      {stats.pendingPayments > 0 && (
+                        <button
+                          onClick={() => setActiveTab('payments')}
+                          className="w-full flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors text-left"
+                        >
+                          <span className="text-sm font-medium text-slate-900">
+                            {stats.pendingPayments} payment{stats.pendingPayments === 1 ? '' : 's'} awaiting review
+                          </span>
+                          <span className="text-sm font-medium text-amber-700">Review →</span>
+                        </button>
+                      )}
+                      {newFeedbackCount > 0 && (
+                        <button
+                          onClick={() => setActiveTab('feedback')}
+                          className="w-full flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-left"
+                        >
+                          <span className="text-sm font-medium text-slate-900">
+                            {newFeedbackCount} new feedback submission{newFeedbackCount === 1 ? '' : 's'}
+                          </span>
+                          <span className="text-sm font-medium text-blue-700">Review →</span>
+                        </button>
+                      )}
+                      {stats.suspendedUsers > 0 && (
+                        <button
+                          onClick={() => setActiveTab('users')}
+                          className="w-full flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors text-left"
+                        >
+                          <span className="text-sm font-medium text-slate-900">
+                            {stats.suspendedUsers} suspended account{stats.suspendedUsers === 1 ? '' : 's'}
+                          </span>
+                          <span className="text-sm font-medium text-orange-700">View →</span>
+                        </button>
+                      )}
                     </div>
-                    <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        <span className="text-sm font-medium text-slate-900">API Services</span>
-                      </div>
-                      <span className="text-sm text-green-600 font-medium">Operational</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             )}

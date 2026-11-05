@@ -13,7 +13,7 @@ export interface PlatformStats {
 }
 
 export async function fetchPlatformStats(): Promise<PlatformStats> {
-  const [{ data: profiles, error: profilesError }, { data: pending, error: pendingError }, { data: approved, error: approvedError }] =
+  const [{ data: profiles, error: profilesError }, { count: pendingCount, error: pendingError }, { data: approved, error: approvedError }] =
     await Promise.all([
       supabase.from('profiles').select('subscription_status'),
       supabase.from('payment_submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -35,7 +35,10 @@ export async function fetchPlatformStats(): Promise<PlatformStats> {
     trialUsers: rows.filter(p => p.subscription_status === 'trial').length,
     suspendedUsers: rows.filter(p => p.subscription_status === 'suspended').length,
     expiredUsers: rows.filter(p => p.subscription_status === 'expired').length,
-    pendingPayments: pending?.length ?? 0,
+    // A `head: true` count query returns its result in `count`, not `data` (which is always
+    // null for a head request) — reading `.length` off `data` here silently always gave 0,
+    // hiding real pending payments from the Overview banner and the sidebar badge.
+    pendingPayments: pendingCount ?? 0,
     monthRevenue: (approved ?? []).reduce((sum, p) => sum + Number(p.amount ?? 0), 0),
   };
 }
@@ -120,6 +123,16 @@ export interface AdminFeedbackEntry {
 }
 
 /** Every "Suggest a Feature" submission across the platform, newest first. Admin-only (RLS). */
+/** How many "Suggest a Feature" submissions are still unreviewed (status 'new'). */
+export async function countNewFeedback(): Promise<number> {
+  const { count, error } = await supabase
+    .from('feature_feedback' as never)
+    .select('id', { count: 'exact', head: true } as never)
+    .eq('status', 'new') as unknown as { count: number | null; error: { message: string } | null };
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
 export async function listFeedback(): Promise<AdminFeedbackEntry[]> {
   const { data, error } = await supabase
     .from('feature_feedback' as never)
@@ -312,6 +325,37 @@ export interface FeatureFlag {
   updatedAt: string;
 }
 
+export async function updateEmailTemplate(id: string, update: { name: string; subject: string; body: string }): Promise<void> {
+  const { error } = await supabase
+    .from('email_templates')
+    .update({ name: update.name, subject: update.subject, body: update.body, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
+
+  await writeAuditLog({
+    action: 'admin_update_email_template',
+    tableName: 'email_templates',
+    recordId: id,
+    newData: update as unknown as Record<string, unknown>,
+  });
+}
+
+export interface RlsTableStatus {
+  tableName: string;
+  rlsEnabled: boolean;
+  policyCount: number;
+}
+
+/** Live, not hard-coded: which public tables actually have RLS on and how many policies they have. */
+export async function listRlsStatus(): Promise<RlsTableStatus[]> {
+  const { data, error } = await supabase.rpc('admin_list_rls_status' as never) as unknown as {
+    data: { table_name: string; rls_enabled: boolean; policy_count: number }[] | null;
+    error: { message: string } | null;
+  };
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(r => ({ tableName: r.table_name, rlsEnabled: r.rls_enabled, policyCount: Number(r.policy_count) }));
+}
+
 export async function listFeatureFlags(): Promise<FeatureFlag[]> {
   const { data, error } = await supabase.from('feature_flags').select('*').order('name');
   if (error) throw new Error(error.message);
@@ -332,6 +376,12 @@ export async function setFeatureFlag(id: string, enabled: boolean): Promise<void
     .update({ enabled, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
     .eq('id', id);
   if (error) throw new Error(error.message);
+
+  await writeAuditLog({
+    action: enabled ? 'admin_enable_feature_flag' : 'admin_disable_feature_flag',
+    tableName: 'feature_flags',
+    recordId: id,
+  });
 }
 
 export interface SubscriptionUpdate {
@@ -339,6 +389,27 @@ export interface SubscriptionUpdate {
   subscriptionExpiry?: string | null;
   currentBillingCycle?: string;
   trialEndDate?: string | null;
+}
+
+/**
+ * Promotes or demotes a user's role. The single most security-sensitive action in the admin
+ * panel — granting admin access — so unlike most profile edits it always writes an audit log
+ * entry, with the role transition recorded in both directions.
+ */
+export async function updateUserRole(userId: string, fromRole: string, toRole: 'admin' | 'user'): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ role: toRole, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+  if (error) throw new Error(error.message);
+
+  await writeAuditLog({
+    action: toRole === 'admin' ? 'admin_promote_user' : 'admin_demote_user',
+    tableName: 'profiles',
+    recordId: userId,
+    oldData: { role: fromRole },
+    newData: { role: toRole },
+  });
 }
 
 export async function updateUserSubscription(userId: string, update: SubscriptionUpdate): Promise<void> {

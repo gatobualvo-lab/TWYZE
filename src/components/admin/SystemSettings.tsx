@@ -4,8 +4,8 @@ import { Mail, Save, Edit, Check, X, AlertCircle, Info } from 'lucide-react';
 import { supabase } from '../../utils/supabase';
 import toast from 'react-hot-toast';
 import LoadingScreen from '../LoadingScreen';
-import { listFeatureFlags, setFeatureFlag } from '../../services/admin/adminService';
-import type { FeatureFlag } from '../../services/admin/adminService';
+import { listFeatureFlags, setFeatureFlag, updateEmailTemplate, listRlsStatus } from '../../services/admin/adminService';
+import type { FeatureFlag, RlsTableStatus } from '../../services/admin/adminService';
 
 interface EmailTemplate {
   id: string;
@@ -31,11 +31,28 @@ const SystemSettings: React.FC = () => {
   const [togglingFlagId, setTogglingFlagId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'email' | 'features' | 'rls'>('email');
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [rlsStatus, setRlsStatus] = useState<RlsTableStatus[]>([]);
+  const [rlsLoading, setRlsLoading] = useState(true);
+  const [rlsError, setRlsError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEmailTemplates();
     fetchFeatureFlags();
+    fetchRlsStatus();
   }, []);
+
+  const fetchRlsStatus = async () => {
+    try {
+      setRlsLoading(true);
+      setRlsError(null);
+      setRlsStatus(await listRlsStatus());
+    } catch (error: any) {
+      console.error('Error fetching RLS status:', error);
+      setRlsError(error.message || 'Failed to load RLS status');
+    } finally {
+      setRlsLoading(false);
+    }
+  };
 
   const fetchFeatureFlags = async () => {
     try {
@@ -96,23 +113,10 @@ const SystemSettings: React.FC = () => {
 
     try {
       setSavingTemplate(true);
-
-      const { error } = await supabase
-        .from('email_templates')
-        .update({
-          name: templateForm.name,
-          subject: templateForm.subject,
-          body: templateForm.body,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', editingTemplate.id);
-
-      if (error) throw error;
-
+      await updateEmailTemplate(editingTemplate.id, templateForm);
       toast.success('Email template updated successfully');
       fetchEmailTemplates();
       handleCancelEdit();
-
     } catch (error: any) {
       console.error('Error updating email template:', error);
       toast.error('Failed to update email template');
@@ -267,7 +271,8 @@ const SystemSettings: React.FC = () => {
                       </div>
                       <button
                         onClick={() => handleEditTemplate(template)}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-md text-blue-600 hover:text-blue-900 hover:bg-blue-50 transition-colors"
+                        aria-label="Edit template"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
@@ -365,70 +370,79 @@ const SystemSettings: React.FC = () => {
 
       {activeTab === 'rls' && (
         <div className="space-y-6">
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+          <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
             <div className="flex">
               <div className="flex-shrink-0">
-                <AlertCircle className="h-5 w-5 text-yellow-400" />
+                <Info className="h-5 w-5 text-blue-400" />
               </div>
               <div className="ml-3">
-                <p className="text-sm text-yellow-700">
-                  Row Level Security (RLS) policies control data access. These are read-only and managed through database migrations.
+                <p className="text-sm text-blue-700">
+                  Row Level Security (RLS) restricts which rows a query can see or change, per table.
+                  This list is read live from the database every time you open this tab — it can't go
+                  stale the way a written description can. Policies themselves are still only changed
+                  through migrations.
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">RLS Policies Overview</h3>
-            
-            <div className="space-y-4">
-              <div className="border border-gray-200 rounded-lg p-4">
-                <h4 className="font-medium text-gray-900 mb-2">User Data Access</h4>
-                <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-                  <li>Regular users can only access their own data</li>
-                  <li>Admin users can access all user data</li>
-                  <li>Policies apply to profiles, sales, suppliers, expenses, and inventory</li>
-                </ul>
-              </div>
-              
-              <div className="border border-gray-200 rounded-lg p-4">
-                <h4 className="font-medium text-gray-900 mb-2">Admin Privileges</h4>
-                <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-                  <li>Full read access to all tables</li>
-                  <li>Can manage user subscriptions and payment approvals</li>
-                  <li>Can view and edit system email templates</li>
-                  <li>Can view audit logs for all users</li>
-                </ul>
-              </div>
-              
-              <div className="border border-gray-200 rounded-lg p-4">
-                <h4 className="font-medium text-gray-900 mb-2">Authentication Rules</h4>
-                <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-                  <li>Email/phone authentication with password</li>
-                  <li>Password reset functionality with secure tokens</li>
-                  <li>Session management with automatic token refresh</li>
-                </ul>
-              </div>
+          {rlsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Spinner className="w-6 h-6" tone="brand" />
             </div>
-            
-            <div className="mt-6 bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium text-gray-900 mb-2">Database Tables with RLS</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                {[
-                  'profiles', 'sales', 'suppliers', 'ad_expenses', 'general_expenses',
-                  'inventory_items', 'stock_transactions', 'payment_submissions',
-                  'user_settings', 'audit_log', 'email_logs', 'sms_logs',
-                  'password_resets', 'email_templates', 'user_products',
-                  'user_sellers', 'user_clients', 'user_delivery_guys',
-                  'user_expense_types', 'sale_items'
-                ].map(table => (
-                  <div key={table} className="px-3 py-2 bg-white rounded border border-gray-200 text-sm">
-                    {table}
+          ) : rlsError ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+              {rlsError}
+            </div>
+          ) : (
+            <>
+              {rlsStatus.some(t => !t.rlsEnabled || t.policyCount === 0) && (
+                <div className="bg-red-50 border-l-4 border-red-400 p-4">
+                  <div className="flex">
+                    <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
+                    <div className="ml-3">
+                      <p className="text-sm text-red-700 font-medium">
+                        {rlsStatus.filter(t => !t.rlsEnabled).length > 0 && `${rlsStatus.filter(t => !t.rlsEnabled).length} table(s) have RLS off. `}
+                        {rlsStatus.filter(t => t.rlsEnabled && t.policyCount === 0).length > 0 && `${rlsStatus.filter(t => t.rlsEnabled && t.policyCount === 0).length} table(s) have RLS on with zero policies (blocks every row, including yours).`}
+                      </p>
+                    </div>
                   </div>
-                ))}
+                </div>
+              )}
+
+              <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Table</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RLS</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Policies</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {rlsStatus.map(t => {
+                      const atRisk = !t.rlsEnabled || t.policyCount === 0;
+                      return (
+                        <tr key={t.tableName} className={atRisk ? 'bg-red-50/50' : undefined}>
+                          <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{t.tableName}</td>
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              t.rlsEnabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {t.rlsEnabled ? 'Enabled' : 'Disabled'}
+                            </span>
+                          </td>
+                          <td className={`px-6 py-3 whitespace-nowrap text-sm ${t.rlsEnabled && t.policyCount === 0 ? 'text-red-600 font-semibold' : 'text-gray-600'}`}>
+                            {t.policyCount}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       )}
     </div>

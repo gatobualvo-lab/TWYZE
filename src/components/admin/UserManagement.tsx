@@ -3,7 +3,7 @@ import { Search, Eye, ChevronLeft, ChevronRight, User, Calendar, Phone, Mail, Sh
 import { supabase } from '../../utils/supabase';
 import toast from 'react-hot-toast';
 import LoadingScreen from '../LoadingScreen';
-import { updateUserSubscription } from '../../services/admin/adminService';
+import { updateUserRole, updateUserSubscription } from '../../services/admin/adminService';
 import { getBillingCycleLabel } from '../../utils/subscription';
 import Modal from '../ui/Modal';
 
@@ -105,12 +105,9 @@ const UserManagement: React.FC = () => {
       return;
     }
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: nextRole, updated_at: new Date().toISOString() })
-      .eq('id', user.id);
-
-    if (error) {
+    try {
+      await updateUserRole(user.id, user.role, nextRole);
+    } catch (error: any) {
       toast.error(`Failed to update role: ${error.message}`);
       return;
     }
@@ -292,17 +289,17 @@ const UserManagement: React.FC = () => {
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => viewUserDetails(user)}
-                        className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
                       >
                         <Eye className="w-4 h-4" />
                         View
                       </button>
                       <button
                         onClick={() => toggleRole(user)}
-                        className={`flex items-center gap-1 ${
+                        className={`inline-flex items-center gap-1 px-2 py-1.5 rounded-md transition-colors ${
                           user.role === 'admin'
-                            ? 'text-amber-700 hover:text-amber-900'
-                            : 'text-emerald-700 hover:text-emerald-900'
+                            ? 'text-amber-700 hover:text-amber-900 hover:bg-amber-50'
+                            : 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50'
                         }`}
                         title={user.role === 'admin' ? 'Demote to user' : 'Promote to admin'}
                       >
@@ -341,7 +338,7 @@ const UserManagement: React.FC = () => {
             <button
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -351,7 +348,7 @@ const UserManagement: React.FC = () => {
             <button
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
