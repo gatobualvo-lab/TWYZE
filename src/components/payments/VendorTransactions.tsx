@@ -1,6 +1,7 @@
 import { useFormErrors } from '../../hooks/useFormErrors';
 import FieldError from '../ui/FieldError';
 import Spinner from '../ui/Spinner';
+import Modal from '../ui/Modal';
 import PeriodPicker from '../ui/PeriodPicker';
 import { periodFor, isWithin, describePeriod, type Period } from '../../utils/period';
 import { getAccountCurrency } from '../../utils/accountCurrency';
@@ -1838,6 +1839,7 @@ const VendorTransactions: React.FC = () => {
 
       {/* Add Expense Modal */}
       {showAddExpenseModal && (
+        <Modal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
             {/* Modal Header */}
@@ -1949,6 +1951,7 @@ const VendorTransactions: React.FC = () => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
     </div>
   );

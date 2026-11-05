@@ -1,4 +1,5 @@
 import Spinner from '../ui/Spinner';
+import Modal from '../ui/Modal';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, Printer, MessageCircle, X, Package, DollarSign, User, CheckCircle, AlertTriangle } from 'lucide-react';
 import { printHtml } from '../../services/printing/printHtml';
@@ -433,6 +434,7 @@ ${remaining > 0 ? `\n…and ${remaining} more. See the full printed statement fo
   if (!isOpen) return null;
 
   return (
+    <Modal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
@@ -599,6 +601,7 @@ ${remaining > 0 ? `\n…and ${remaining} more. See the full printed statement fo
         </div>
       </div>
     </div>
+    </Modal>
   );
 };
 

@@ -12,6 +12,7 @@ import { syncProductCatalog } from '../services/inventory/productCatalog';
 import CameraBarcodeScanner, { isCameraScanSupported } from './CameraBarcodeScanner';
 import { useFormErrors } from '../hooks/useFormErrors';
 import FieldError from './ui/FieldError';
+import Modal from './ui/Modal';
 import CategorySelect from './inventory/CategorySelect';
 import { mergeCategories } from '../services/inventory/categories';
 import ProductPerformance from './inventory/ProductPerformance';
@@ -888,6 +889,7 @@ const InventoryManagement: React.FC = () => {
       </div>
 
       {salesProduct && (
+        <Modal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeSalesModal}>
           <div
             className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col"
@@ -988,6 +990,7 @@ const InventoryManagement: React.FC = () => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
 
       {showCameraScan && (

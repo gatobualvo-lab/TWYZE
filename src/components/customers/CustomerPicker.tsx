@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { createCustomer, listCustomers, type Customer } from '../../services/customers/customerService';
 import { useFormErrors } from '../../hooks/useFormErrors';
 import FieldError from '../ui/FieldError';
+import Modal from '../ui/Modal';
 
 export interface PickedCustomer {
   name: string;
@@ -135,6 +136,7 @@ const CustomerPicker: React.FC<CustomerPickerProps> = ({ name, phone, onChange }
       )}
 
       {creating && (
+        <Modal>
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div ref={formRef} className="bg-white rounded-xl w-full max-w-sm p-5 space-y-3">
             <div className="flex items-center justify-between">
@@ -155,6 +157,7 @@ const CustomerPicker: React.FC<CustomerPickerProps> = ({ name, phone, onChange }
             </div>
           </div>
         </div>
+        </Modal>
       )}
     </div>
   );

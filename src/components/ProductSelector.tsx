@@ -7,6 +7,7 @@ import { uploadPublicImage, ImageUploadError } from '../services/storage/publicI
 import { toNum, parseInput, NumericInput } from '../utils/numberInput';
 import CategorySelect from './inventory/CategorySelect';
 import { useEntitlements } from '../contexts/EntitlementsContext';
+import Modal from './ui/Modal';
 
 interface NewProductDetails {
   sku: string;
@@ -545,6 +546,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
       
       {/* Add Modal */}
       {isAddModalOpen && (
+        <Modal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div ref={modalRef} className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold mb-1">Add New {Noun}</h3>
@@ -765,10 +767,12 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
             </div>
           </div>
         </div>
+        </Modal>
       )}
-      
+
       {/* Edit List Modal */}
       {isEditListOpen && (
+        <Modal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div ref={editListRef} className="bg-white rounded-lg p-6 w-full max-w-md max-h-[80vh] overflow-auto">
             <h3 className="text-lg font-bold mb-4">Manage Product List</h3>
@@ -905,6 +909,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
             </div>
           </div>
         </div>
+        </Modal>
       )}
     </div>
   );

@@ -11,3 +11,4 @@ export { default as Sparkline } from './Sparkline';
 export { default as TopProgress } from './TopProgress';
 export { default as FieldError } from './FieldError';
 export { default as PeriodPicker } from './PeriodPicker';
+export { default as Modal } from './Modal';

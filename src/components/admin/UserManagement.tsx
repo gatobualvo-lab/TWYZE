@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import LoadingScreen from '../LoadingScreen';
 import { updateUserSubscription } from '../../services/admin/adminService';
 import { getBillingCycleLabel } from '../../utils/subscription';
+import Modal from '../ui/Modal';
 
 interface UserProfile {
   id: string;
@@ -360,6 +361,7 @@ const UserManagement: React.FC = () => {
 
       {/* User Details Modal */}
       {showUserDetails && selectedUser && (
+        <Modal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
@@ -539,6 +541,7 @@ const UserManagement: React.FC = () => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
     </div>
   );

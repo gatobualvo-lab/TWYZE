@@ -1,5 +1,6 @@
 import { shortcutModifierLabel } from '../../utils/platform';
 import Spinner from '../ui/Spinner';
+import Modal from '../ui/Modal';
 import React, { useEffect, useRef, useState } from 'react';
 import { Search, X, Users, Package, ShoppingCart, FileText, Clock, CornerDownLeft, Truck, Briefcase, Trophy, Repeat, Receipt } from 'lucide-react';
 import { useUniversalSearch } from '../../hooks/useUniversalSearch';
@@ -131,6 +132,7 @@ const UniversalSearch: React.FC<UniversalSearchProps> = ({ onNavigate }) => {
       </button>
 
       {open && (
+        <Modal>
         <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center pt-20 px-4 animate-fade-in" onClick={() => setOpen(false)}>
           <div
             className="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden origin-top animate-scale-in"
@@ -182,6 +184,7 @@ const UniversalSearch: React.FC<UniversalSearchProps> = ({ onNavigate }) => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
     </>
   );

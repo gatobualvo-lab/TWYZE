@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, ScanLine } from 'lucide-react';
+import Modal from './ui/Modal';
 
 interface DetectedBarcode {
   rawValue: string;
@@ -83,6 +84,7 @@ const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({ onDetected,
   }, []);
 
   return (
+    <Modal>
     <div className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl w-full max-w-md overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
@@ -104,6 +106,7 @@ const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({ onDetected,
         <p className="px-4 py-3 text-xs text-gray-500">Hold the barcode inside the box. It is read automatically.</p>
       </div>
     </div>
+    </Modal>
   );
 };
 

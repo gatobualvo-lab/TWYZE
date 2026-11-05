@@ -3,6 +3,7 @@ import { X, Tag, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../utils/supabase';
 import { resolveCategory } from '../../services/inventory/categories';
+import Modal from '../ui/Modal';
 
 interface InventoryItemLite {
   id: string;
@@ -114,6 +115,7 @@ export default function CategoryManager({ items, categories, onClose, onSaved }:
   };
 
   return (
+    <Modal>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
         className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
@@ -254,5 +256,6 @@ export default function CategoryManager({ items, categories, onClose, onSaved }:
         </div>
       </div>
     </div>
+    </Modal>
   );
 }

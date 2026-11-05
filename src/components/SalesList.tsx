@@ -1,4 +1,5 @@
 import Spinner from './ui/Spinner';
+import Modal from './ui/Modal';
 import React, { useState, useEffect } from 'react';
 import { LayoutGrid, Table2, List } from 'lucide-react';
 import ReceiptActions from './ReceiptActions';
@@ -1393,6 +1394,7 @@ const SalesList: React.FC = () => {
 
       {/* Bulk Delete Confirmation Modal */}
       {bulkDeleteConfirm && (
+        <Modal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -1430,10 +1432,12 @@ const SalesList: React.FC = () => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
 
       {/* Bulk Archive Confirmation Modal */}
       {bulkArchiveConfirm && (
+        <Modal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -1471,6 +1475,7 @@ const SalesList: React.FC = () => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
 
       {/* Display type — cards, table or compact list; remembered on this device */}
@@ -1697,6 +1702,7 @@ const SalesList: React.FC = () => {
 
       {/* Edit Sale Modal */}
       {editingSale && (
+        <Modal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 space-y-5">
@@ -1891,10 +1897,12 @@ const SalesList: React.FC = () => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
+        <Modal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
             <div className="p-6">
@@ -1927,6 +1935,7 @@ const SalesList: React.FC = () => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
 
       {/* Undo Snackbar */}

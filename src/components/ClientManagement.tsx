@@ -1,4 +1,5 @@
 import Spinner from './ui/Spinner';
+import Modal from './ui/Modal';
 import { formatCurrency } from '../utils/format';
 import React, { useState, useEffect } from 'react';
 import { Users, Search, Phone, MapPin, ShoppingCart, DollarSign, ChevronDown, ChevronUp, Calendar, ArrowLeft, UserPlus, X } from 'lucide-react';
@@ -398,6 +399,7 @@ const ClientManagement: React.FC = () => {
         </div>
       )}
       {showAdd && (
+        <Modal>
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div ref={formRef} className="bg-white rounded-xl w-full max-w-sm p-5 space-y-3">
             <div className="flex items-center justify-between">
@@ -433,6 +435,7 @@ const ClientManagement: React.FC = () => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
     </div>
   );
