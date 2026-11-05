@@ -1,10 +1,11 @@
 import Spinner from './ui/Spinner';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, CreditCard, LogOut, Save, AlertCircle, CheckCircle, Briefcase } from 'lucide-react';
+import { User, Mail, Phone, CreditCard, LogOut, Save, AlertCircle, CheckCircle, Briefcase, Lock, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import LoadingScreen from './LoadingScreen';
+import { PageHeader } from './ui';
 import { getSubscriptionPlanLabel, getSubscriptionStatusLabel, getBillingCycleLabel } from '../utils/subscription';
 import { BUSINESS_CATEGORIES } from '../constants/businessCategory';
 import { ACCOUNT_CURRENCIES, setAccountCurrency } from '../utils/accountCurrency';
@@ -35,6 +36,11 @@ const AccountSettings: React.FC = () => {
     currency: 'KES',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [showPasswords, setShowPasswords] = useState(false);
 
   useEffect(() => {
     fetchUserData();
@@ -159,6 +165,29 @@ const AccountSettings: React.FC = () => {
     }
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const newErrors: Record<string, string> = {};
+    if (passwordForm.newPassword.length < 6) newErrors.newPassword = 'Use at least 6 characters';
+    if (passwordForm.confirmPassword !== passwordForm.newPassword) newErrors.confirmPassword = 'Passwords do not match';
+    setPasswordErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
+
+    try {
+      setChangingPassword(true);
+      const { error } = await supabase.auth.updateUser({ password: passwordForm.newPassword });
+      if (error) throw error;
+      toast.success('Password updated');
+      setPasswordForm({ newPassword: '', confirmPassword: '' });
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      toast.error(error.message || 'Failed to update password');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
@@ -184,24 +213,11 @@ const AccountSettings: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-full bg-blue-100">
-            <User className="w-8 h-8 text-blue-600" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-gray-800" style={{ color: '#374151' }}>
-              Account Settings
-            </h2>
-            <p className="text-gray-600">Manage your personal information and preferences</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader icon={User} title="Account Settings" />
 
       {/* Profile Information */}
       <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
+        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
           <User className="w-5 h-5 text-blue-600" />
           Profile Information
         </h3>
@@ -315,7 +331,7 @@ const AccountSettings: React.FC = () => {
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+              className="min-h-[44px] px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
             >
               {saving ? (
                 <>
@@ -333,9 +349,91 @@ const AccountSettings: React.FC = () => {
         </form>
       </div>
 
+      {/* Change Password */}
+      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <Lock className="w-5 h-5 text-blue-600" />
+          Change Password
+        </h3>
+
+        <form onSubmit={handleChangePassword} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type={showPasswords ? 'text' : 'password'}
+                autoComplete="new-password"
+                aria-invalid={passwordErrors.newPassword ? true : undefined}
+                aria-describedby={passwordErrors.newPassword ? 'field-newPassword-error' : undefined}
+                value={passwordForm.newPassword}
+                onChange={(e) => { setPasswordForm(prev => ({ ...prev, newPassword: e.target.value })); setPasswordErrors({}); }}
+                className={`pl-10 pr-11 w-full px-3 py-2 border ${
+                  passwordErrors.newPassword ? 'border-red-500' : 'border-gray-300'
+                } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                placeholder="At least 6 characters"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPasswords(v => !v)}
+                aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
+                className="min-h-[44px] min-w-[44px] absolute right-0 top-1/2 -translate-y-1/2 inline-flex items-center justify-center text-gray-400 hover:text-gray-600"
+              >
+                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {passwordErrors.newPassword && (
+              <p id="field-newPassword-error" role="alert" className="mt-1 text-sm text-red-600">{passwordErrors.newPassword}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type={showPasswords ? 'text' : 'password'}
+                autoComplete="new-password"
+                aria-invalid={passwordErrors.confirmPassword ? true : undefined}
+                aria-describedby={passwordErrors.confirmPassword ? 'field-confirmPassword-error' : undefined}
+                value={passwordForm.confirmPassword}
+                onChange={(e) => { setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value })); setPasswordErrors({}); }}
+                className={`pl-10 w-full px-3 py-2 border ${
+                  passwordErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                placeholder="Type it again"
+              />
+            </div>
+            {passwordErrors.confirmPassword && (
+              <p id="field-confirmPassword-error" role="alert" className="mt-1 text-sm text-red-600">{passwordErrors.confirmPassword}</p>
+            )}
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={changingPassword || !passwordForm.newPassword}
+              className="min-h-[44px] px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+            >
+              {changingPassword ? (
+                <>
+                  <Spinner className="w-4 h-4" tone="light" />
+                  Updating…
+                </>
+              ) : (
+                <>
+                  <Lock className="w-4 h-4" />
+                  Update Password
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+
       {/* Subscription Information */}
       <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
+        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
           <CreditCard className="w-5 h-5 text-blue-600" />
           Subscription Information
         </h3>
@@ -385,7 +483,7 @@ const AccountSettings: React.FC = () => {
           <div className="flex justify-center mt-4">
             <button
               type="button"
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+              className="min-h-[44px] px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
               onClick={() => navigate('/payment-management')}
             >
               <CreditCard className="w-4 h-4" />
