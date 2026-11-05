@@ -13,19 +13,21 @@ import {
   Activity,
   ScrollText,
   AlertTriangle,
-  Send
+  Send,
+  Lightbulb
 } from 'lucide-react';
 import UserManagement from '../components/admin/UserManagement';
 import SystemSettings from '../components/admin/SystemSettings';
 import PaymentApprovals from '../components/admin/PaymentApprovals';
 import AuditLogViewer from '../components/admin/AuditLogViewer';
 import BroadcastEmail from '../components/admin/BroadcastEmail';
+import FeedbackManagement from '../components/admin/FeedbackManagement';
 import { fetchPlatformStats } from '../services/admin/adminService';
 import type { PlatformStats } from '../services/admin/adminService';
 import { formatCurrency } from '../utils/format';
 import toast from 'react-hot-toast';
 
-type AdminTab = 'overview' | 'users' | 'payments' | 'audit' | 'settings' | 'broadcast';
+type AdminTab = 'overview' | 'users' | 'payments' | 'audit' | 'settings' | 'broadcast' | 'feedback';
 
 export default function AdminPanel() {
   const navigate = useNavigate();
@@ -183,6 +185,18 @@ export default function AdminPanel() {
               >
                 <Send className="w-5 h-5" />
                 <span>Broadcast Email</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('feedback')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                  activeTab === 'feedback'
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <Lightbulb className="w-5 h-5" />
+                <span>Feature Feedback</span>
               </button>
             </div>
           </div>
@@ -375,6 +389,12 @@ export default function AdminPanel() {
             {activeTab === 'broadcast' && (
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                 <BroadcastEmail />
+              </div>
+            )}
+
+            {activeTab === 'feedback' && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <FeedbackManagement />
               </div>
             )}
           </div>

@@ -104,6 +104,51 @@ async function fetchProfileLookup(userIds: string[]): Promise<Record<string, { f
   return map;
 }
 
+export type FeedbackCategory = 'feature' | 'bug' | 'general';
+export type FeedbackStatus = 'new' | 'reviewing' | 'planned' | 'done' | 'declined';
+
+export interface AdminFeedbackEntry {
+  id: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  category: FeedbackCategory;
+  message: string;
+  page: string | null;
+  status: FeedbackStatus;
+  createdAt: string;
+}
+
+/** Every "Suggest a Feature" submission across the platform, newest first. Admin-only (RLS). */
+export async function listFeedback(): Promise<AdminFeedbackEntry[]> {
+  const { data, error } = await supabase
+    .from('feature_feedback' as never)
+    .select('id, user_id, category, message, page, status, created_at')
+    .order('created_at', { ascending: false }) as unknown as { data: any[] | null; error: { message: string } | null };
+  if (error) throw new Error(error.message);
+
+  const rows = data ?? [];
+  const userIds = Array.from(new Set(rows.map(r => r.user_id)));
+  const profileMap = await fetchProfileLookup(userIds);
+
+  return rows.map(r => ({
+    id: r.id,
+    userId: r.user_id,
+    userName: profileMap[r.user_id]?.full_name ?? null,
+    userEmail: profileMap[r.user_id]?.email ?? null,
+    category: r.category,
+    message: r.message,
+    page: r.page,
+    status: r.status,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function updateFeedbackStatus(id: string, status: FeedbackStatus): Promise<void> {
+  const { error } = await supabase.from('feature_feedback' as never).update({ status } as never).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 export async function getPaymentScreenshotSignedUrl(path: string): Promise<string> {
   const { data, error } = await supabase.storage
     .from('payment-proofs')
