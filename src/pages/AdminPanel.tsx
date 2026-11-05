@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
@@ -23,6 +23,7 @@ import PaymentApprovals from '../components/admin/PaymentApprovals';
 import AuditLogViewer from '../components/admin/AuditLogViewer';
 import BroadcastEmail from '../components/admin/BroadcastEmail';
 import FeedbackManagement from '../components/admin/FeedbackManagement';
+import Spinner from '../components/ui/Spinner';
 import { fetchPlatformStats, countNewFeedback } from '../services/admin/adminService';
 import type { PlatformStats } from '../services/admin/adminService';
 import { formatCurrency } from '../utils/format';
@@ -206,7 +207,11 @@ export default function AdminPanel() {
 
           {/* Main Content Area */}
           <div className="lg:col-span-3">
-            {activeTab === 'overview' && (
+            {activeTab === 'overview' && loading ? (
+              <div className="flex items-center justify-center py-20">
+                <Spinner className="w-8 h-8" tone="brand" />
+              </div>
+            ) : activeTab === 'overview' && (
               <div className="space-y-6">
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900 mb-2">System Overview</h2>

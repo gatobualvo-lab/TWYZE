@@ -11,13 +11,13 @@ interface UserProfile {
   id: string;
   full_name: string | null;
   email: string | null;
-  phone_number: string;
-  created_at: string;
-  subscription_status: string;
+  phone_number: string | null;
+  created_at: string | null;
+  subscription_status: string | null;
   trial_start_date: string | null;
   trial_end_date: string | null;
   subscription_expiry: string | null;
-  current_billing_cycle: string;
+  current_billing_cycle: string | null;
   role: string;
   last_login: string | null;
 }
@@ -191,7 +191,9 @@ const UserManagement: React.FC = () => {
     return filteredUsers.slice(startIndex, endIndex);
   };
 
-  const getStatusBadgeClass = (status: string) => {
+  const getStatusLabel = (status: string | null) => (status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown');
+
+  const getStatusBadgeClass = (status: string | null) => {
     switch (status) {
       case 'trial':
         return 'bg-blue-100 text-blue-800';
@@ -279,7 +281,7 @@ const UserManagement: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(user.subscription_status)}`}>
-                      {user.subscription_status.charAt(0).toUpperCase() + user.subscription_status.slice(1)}
+                      {getStatusLabel(user.subscription_status)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -447,7 +449,7 @@ const UserManagement: React.FC = () => {
                     <div>
                       <p className="text-sm font-medium text-gray-700">Status</p>
                       <p className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(selectedUser.subscription_status)}`}>
-                        {selectedUser.subscription_status.charAt(0).toUpperCase() + selectedUser.subscription_status.slice(1)}
+                        {getStatusLabel(selectedUser.subscription_status)}
                       </p>
                     </div>
                     <div>

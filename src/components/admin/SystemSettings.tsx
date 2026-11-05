@@ -1,6 +1,6 @@
 import Spinner from '../ui/Spinner';
 import React, { useState, useEffect } from 'react';
-import { Mail, Save, Edit, Check, X, AlertCircle, Info } from 'lucide-react';
+import { Mail, Edit, Check, X, AlertCircle, Info } from 'lucide-react';
 import { supabase } from '../../utils/supabase';
 import toast from 'react-hot-toast';
 import LoadingScreen from '../LoadingScreen';
@@ -13,7 +13,7 @@ interface EmailTemplate {
   subject: string;
   body: string;
   variables?: any;
-  created_at: string;
+  created_at: string | null;
   updated_at: string | null;
 }
 

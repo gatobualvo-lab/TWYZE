@@ -1,6 +1,7 @@
 import { supabase } from '../../utils/supabase';
 import { sendPaymentApprovedEmail } from '../email/emailService';
 import { BILLING_PLANS, type BillingPlanKey } from '../../utils/subscription';
+import type { Json } from '../../lib/database.types';
 
 export interface PlatformStats {
   totalUsers: number;
@@ -486,7 +487,7 @@ async function writeAuditLog(entry: { action: string; tableName: string; recordI
     action: entry.action,
     table_name: entry.tableName,
     record_id: entry.recordId,
-    new_data: entry.newData ?? null,
-    old_data: entry.oldData ?? null,
+    new_data: (entry.newData ?? null) as Json,
+    old_data: (entry.oldData ?? null) as Json,
   });
 }
