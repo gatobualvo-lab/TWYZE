@@ -6,6 +6,7 @@ import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatDate } from '../utils/format';
 import { csvCell } from '../utils/safeContent';
+import { PageHeader } from './ui';
 
 interface DateRange {
   start: string;
@@ -775,27 +776,14 @@ const ReportsAnalytics: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-full bg-indigo-100">
-            <BarChart3 className="w-8 h-8 text-indigo-600" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-gray-800" style={{ color: '#374151' }}>
-              Reports & Analytics
-            </h2>
-            <p className="text-gray-600">Generate comprehensive business reports and export data</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader icon={BarChart3} title="Reports & Analytics" />
 
       {/* Filters & Controls */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Date Range Picker */}
           <div>
-            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-indigo-600" />
               Date Range
             </h3>
@@ -823,7 +811,7 @@ const ReportsAnalytics: React.FC = () => {
 
           {/* Entity Selection */}
           <div>
-            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
               <Filter className="w-5 h-5 text-indigo-600" />
               Data Entities
             </h3>
@@ -882,7 +870,7 @@ const ReportsAnalytics: React.FC = () => {
       {/* Report Summary */}
       {getTotalRecords() > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-green-600" />
             Report Summary
           </h3>
@@ -954,7 +942,7 @@ const ReportsAnalytics: React.FC = () => {
         return (
           <div key={entityType} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-800" style={{ color: '#374151' }}>
+              <h3 className="text-lg font-bold text-gray-800">
                 {entityType.replace(/([A-Z])/g, ' $1').trim()} ({data.length} records)
               </h3>
               <div className="flex gap-2">
