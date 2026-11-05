@@ -70,6 +70,20 @@ const InventoryManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [showLowStock, setShowLowStock] = useState(false);
+  const [showImages, setShowImages] = useState(() => {
+    try {
+      return localStorage.getItem('trackwyze_inventory_show_images') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const toggleShowImages = () => {
+    setShowImages(prev => {
+      const next = !prev;
+      try { localStorage.setItem('trackwyze_inventory_show_images', String(next)); } catch { /* private mode */ }
+      return next;
+    });
+  };
   const [view, setView] = useState<'stock' | 'performance'>('stock');
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [salesProduct, setSalesProduct] = useState<InventoryItem | null>(null);
@@ -551,6 +565,16 @@ const InventoryManagement: React.FC = () => {
             />
             <span className="text-sm text-gray-700">Low Stock Only</span>
           </label>
+
+          <label className="flex items-center gap-2 cursor-pointer" title="Hide photos to fit more items on screen">
+            <input
+              type="checkbox"
+              checked={showImages}
+              onChange={toggleShowImages}
+              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+            />
+            <span className="text-sm text-gray-700">Show Photos</span>
+          </label>
         </div>
 
         {/* Add/Edit Form */}
@@ -791,9 +815,58 @@ const InventoryManagement: React.FC = () => {
           </div>
         )}
 
-        {/* Items Grid */}
+        {/* Items */}
         {filteredItems.length === 0 ? (
           <div className="px-4 py-12 text-center text-gray-600">No inventory items found</div>
+        ) : !showImages ? (
+          <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden bg-white">
+            {filteredItems.map((item) => {
+              const isService = item.item_type === 'service';
+              const isLowStock = !isService && item.current_stock <= item.reorder_level;
+              return (
+                <div key={item.id} className="flex items-center gap-3 px-3 py-1.5 hover:bg-gray-50 transition-colors">
+                  <span
+                    aria-hidden="true"
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${isService ? 'bg-sky-500' : isLowStock ? 'bg-red-500' : 'bg-green-500'}`}
+                    title={isService ? 'Service' : isLowStock ? 'Low Stock' : 'In Stock'}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{item.product_name}</p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {[item.sku && `SKU: ${item.sku}`, item.category].filter(Boolean).join(' · ') || ' '}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-semibold text-gray-900 tabular-nums">{formatCurrency(item.selling_price)}</p>
+                    {!isService && <p className="text-xs text-gray-500 tabular-nums whitespace-nowrap">{item.current_stock} {item.unit}</p>}
+                  </div>
+                  <div className="flex items-center gap-0.5 flex-shrink-0 -mr-1.5">
+                    <button
+                      onClick={() => openSalesFor(item)}
+                      className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="View sales for this product"
+                    >
+                      <Receipt className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => startEdit(item)}
+                      className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-lg transition-colors"
+                      title="Edit item"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => deleteItem(item.id)}
+                      className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete item"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredItems.map((item) => {
