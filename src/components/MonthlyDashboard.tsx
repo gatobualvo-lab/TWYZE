@@ -4,6 +4,7 @@ import { TrendingUp, Calendar, DollarSign, BarChart3, PieChart, Target, Download
 import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
+import { PageHeader } from './ui';
 
 interface MonthlyData {
   month: string;
@@ -169,13 +170,10 @@ const MonthlyDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Year Selector */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2" style={{ color: '#374151' }}>
-            <TrendingUp className="w-5 h-5 text-purple-600" />
-            Monthly Business Dashboard
-          </h2>
+      <PageHeader
+        icon={TrendingUp}
+        title="Monthly Business Dashboard"
+        actions={
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-gray-600" />
             <select
@@ -188,8 +186,8 @@ const MonthlyDashboard: React.FC = () => {
               ))}
             </select>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Year Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -253,7 +251,7 @@ const MonthlyDashboard: React.FC = () => {
       {/* Monthly Breakdown */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-800" style={{ color: '#374151' }}>Monthly Breakdown</h3>
+          <h3 className="text-lg font-bold text-gray-800">Monthly Breakdown</h3>
           <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-200">
             <Download className="w-4 h-4" />
             Download Report
@@ -308,7 +306,7 @@ const MonthlyDashboard: React.FC = () => {
       {/* Visual Charts Placeholder */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-blue-600" />
             Revenue Trend
           </h3>
@@ -318,7 +316,7 @@ const MonthlyDashboard: React.FC = () => {
         </div>
         
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
             <PieChart className="w-5 h-5 text-green-600" />
             Expense Breakdown
           </h3>
