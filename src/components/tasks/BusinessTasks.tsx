@@ -6,10 +6,12 @@ import { listTasks, createTask, toggleTaskCompleted, deleteTask as deleteTaskRec
 import { REMINDER_OPTIONS, formatDueTime } from '../../services/tasks/reminders';
 import { ensureNotificationPermission } from '../../services/tasks/useTaskReminders';
 import { notifyTasksChanged, onTasksChanged } from '../../services/tasks/taskEvents';
+import { dueState, sortTasks, type DueState } from '../../services/tasks/taskUrgency';
 import { toISODate } from '../../utils/dateRange';
 
+export { dueState, sortTasks, type DueState };
+
 type Filter = 'todo' | 'done' | 'all';
-export type DueState = 'overdue' | 'today' | 'later' | 'none';
 
 interface BusinessTasksProps {
   /** "card" is the small box on the dashboard; "page" is the full Business Tasks page in the menu. */
@@ -18,19 +20,6 @@ interface BusinessTasksProps {
   onViewAll?: () => void;
   /** Opens the Business Calendar on a day. Leave out when the plan has no calendar. */
   onOpenCalendar?: (date: string) => void;
-}
-
-/** Open tasks first (soonest due first, undated last), finished ones after. */
-export function sortTasks(tasks: BusinessTask[]): BusinessTask[] {
-  const due = (t: BusinessTask) => (t.dueDate ? `${t.dueDate} ${t.dueTime ?? '99:99'}` : '9999');
-  return [...tasks].sort((a, b) => Number(a.completed) - Number(b.completed) || due(a).localeCompare(due(b)));
-}
-
-/** Whether an open task is late, due today, due later, or has no date. */
-export function dueState(task: BusinessTask, today: string = toISODate(new Date())): DueState {
-  if (task.completed || !task.dueDate) return 'none';
-  if (task.dueDate < today) return 'overdue';
-  return task.dueDate === today ? 'today' : 'later';
 }
 
 const CHIP_BY_STATE: Record<DueState, { light: string; dark: string }> = {
@@ -261,7 +250,7 @@ export default function BusinessTasks({ variant, onViewAll, onOpenCalendar }: Bu
                     onClick={() => onOpenCalendar(task.dueDate!)}
                     aria-label={`Show "${task.title}" on the calendar`}
                     title="Show on calendar"
-                    className="p-2 text-gray-400 hover:text-blue-600"
+                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-gray-400 hover:text-blue-600"
                   >
                     <CalendarDays className="w-4 h-4" aria-hidden="true" />
                   </button>
@@ -269,7 +258,7 @@ export default function BusinessTasks({ variant, onViewAll, onOpenCalendar }: Bu
                 <button
                   onClick={() => remove(task.id)}
                   aria-label={`Delete "${task.title}"`}
-                  className="p-2 text-red-400 hover:text-red-600 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                  className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-red-400 hover:text-red-600 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                 >
                   <Trash2 className="w-4 h-4" aria-hidden="true" />
                 </button>

@@ -8,7 +8,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 import { formatCurrency as formatKES, formatDate } from '../utils/format';
 import { getPeriodRange } from '../utils/dateRange';
 import BusinessHealthScore from './analytics/BusinessHealthScore';
-import BusinessTasks from './tasks/BusinessTasks';
+import NeedsAttention from './dashboard/NeedsAttention';
 import BestSellers from './dashboard/BestSellers';
 import { useEntitlements } from '../contexts/EntitlementsContext';
 import CountUp from './ui/CountUp';
@@ -490,8 +490,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
               { key: 'show_kpi_cards', label: 'KPI Cards' },
               { key: 'show_chart', label: `${categoryConfig.salesLabel} & Profit Chart` },
               { key: 'show_recent_sales', label: `Recent ${categoryConfig.salesLabel}` },
-              { key: 'show_attention', label: 'Attention Needed' },
-              { key: 'show_tasks', label: 'Business Tasks' },
+              { key: 'show_attention', label: 'Needs Attention' },
             ].map(item => (
               <label key={item.key} className={`flex items-center gap-2 text-sm cursor-pointer px-3 py-1.5 rounded-lg border ${
                 prefs[item.key as keyof DashboardPrefs]
@@ -699,58 +698,16 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
         )}
       </div>
 
-      {/* Attention + Best sellers + Tasks */}
+      {/* Needs attention + Best sellers: one prioritized "what do I do today" list beside "what's working" */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Attention Needed */}
         {prefs.show_attention && (
-          <div className={`rounded-xl border p-4 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
-            <h2 className={sectionTitle}>Attention Needed</h2>
-            {pendingDeliveries === 0 && lowStockItems === 0 && outstandingCustomers === 0 ? (
-              <div className={`flex items-center gap-3 mt-2 py-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                <span className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 animate-pop-check">
-                  <Check className="w-4 h-4 text-green-600" />
-                </span>
-                <p className="text-sm">Everything looks good today.</p>
-              </div>
-            ) : (
-              <div className="mt-2 space-y-1">
-                {pendingDeliveries > 0 && (
-                  <button onClick={() => onNavigate('delivery-payments')} className={`group w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-orange-500" />
-                      <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pendingDeliveries} pending {pendingDeliveries === 1 ? 'delivery' : 'deliveries'}</span>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-gray-400 transition-transform duration-150 group-hover:translate-x-0.5" />
-                  </button>
-                )}
-                {lowStockItems > 0 && (
-                  <button onClick={() => onNavigate('inventory')} className={`group w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-red-500" />
-                      <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{lowStockItems} low stock {lowStockItems === 1 ? 'item' : 'items'}</span>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-gray-400 transition-transform duration-150 group-hover:translate-x-0.5" />
-                  </button>
-                )}
-                {outstandingCustomers > 0 && (
-                  <button onClick={() => onNavigate('clients')} className={`group w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-amber-500" />
-                      <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{outstandingCustomers} {outstandingCustomers === 1 ? 'customer' : 'customers'} with outstanding balance</span>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-gray-400 transition-transform duration-150 group-hover:translate-x-0.5" />
-                  </button>
-                )}
-              </div>
-            )}
+          <div className="lg:col-span-2">
+            <NeedsAttention conditions={{ pendingDeliveries, lowStockItems, outstandingCustomers }} onNavigate={onNavigate} />
           </div>
         )}
 
         {/* Best sellers: part of the plan that includes product performance */}
         {has('product-performance') && <BestSellers onOpen={() => onNavigate('inventory')} />}
-
-        {/* Business Tasks (the full list is its own page in the menu) */}
-        {prefs.show_tasks && <BusinessTasks variant="card" onViewAll={() => onNavigate('tasks')} />}
       </div>
     </div>
   );
