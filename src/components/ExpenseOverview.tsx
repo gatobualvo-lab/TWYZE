@@ -1,6 +1,8 @@
 import { useFormErrors } from '../hooks/useFormErrors';
 import FieldError from './ui/FieldError';
 import Spinner from './ui/Spinner';
+import Modal from './ui/Modal';
+import { PageHeader } from './ui';
 import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect } from 'react';
 import { DollarSign, TrendingUp, Calendar, PieChart, BarChart3, ChevronDown, ChevronRight, Users, Plus, CreditCard as Edit, Trash2, Save, X, Check, RefreshCw, CheckCircle2, AlertTriangle, Archive } from 'lucide-react';
@@ -1088,13 +1090,10 @@ const ExpenseOverview: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Month Selector */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2" style={{ color: '#374151' }}>
-            <DollarSign className="w-5 h-5 text-red-600" />
-            Expense Overview
-          </h2>
+      <PageHeader
+        icon={DollarSign}
+        title="Expense Overview"
+        actions={
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-gray-600" />
             <input
@@ -1104,8 +1103,8 @@ const ExpenseOverview: React.FC = () => {
               className="min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
             />
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1153,7 +1152,7 @@ const ExpenseOverview: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Ad Expenses Breakdown */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
             <PieChart className="w-5 h-5 text-orange-600" />
             Ad Expenses by Type
           </h3>
@@ -1185,7 +1184,7 @@ const ExpenseOverview: React.FC = () => {
 
         {/* General Expenses Breakdown */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2" style={{ color: '#374151' }}>
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-purple-600" />
             General Expenses by Type
           </h3>
@@ -1227,7 +1226,7 @@ const ExpenseOverview: React.FC = () => {
               <Users className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-800" style={{ color: '#374151' }}>
+              <h3 className="text-lg font-bold text-gray-800">
                 Vendor Expenses
               </h3>
               <p className="text-sm text-gray-600">
@@ -1249,7 +1248,7 @@ const ExpenseOverview: React.FC = () => {
             <div className="pt-4">
               {/* Add New Button */}
               <div className="flex justify-between items-center mb-4">
-                <h4 className="text-md font-bold text-gray-800" style={{ color: '#374151' }}>
+                <h4 className="text-md font-bold text-gray-800">
                   Vendor Expense Entries
                 </h4>
                 <button
@@ -1264,7 +1263,7 @@ const ExpenseOverview: React.FC = () => {
               {/* Add/Edit Form */}
               {showAddVendorExpense && (
                 <div className="mb-6 p-4 border border-gray-200 rounded-xl bg-gray-50">
-                  <h5 className="text-md font-bold text-gray-800 mb-4" style={{ color: '#374151' }}>
+                  <h5 className="text-md font-bold text-gray-800 mb-4">
                     {editingVendorExpense ? 'Edit Vendor Expense' : 'Add New Vendor Expense'}
                   </h5>
                   <form onSubmit={handleVendorExpenseSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1365,7 +1364,7 @@ const ExpenseOverview: React.FC = () => {
               
               {/* Vendor Balances */}
               <div className="mb-6">
-                <h4 className="text-md font-bold text-gray-800 mb-4" style={{ color: '#374151' }}>
+                <h4 className="text-md font-bold text-gray-800 mb-4">
                   Vendor Balances
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1671,7 +1670,7 @@ const ExpenseOverview: React.FC = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <h3 className="text-lg font-bold text-gray-800" style={{ color: '#374151' }}>
+            <h3 className="text-lg font-bold text-gray-800">
               {showArchivedExpenses ? 'Archived Expenses' : 'Recent Expenses'}
             </h3>
             <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
@@ -1902,6 +1901,7 @@ const ExpenseOverview: React.FC = () => {
 
       {/* Edit Ad Expense Modal */}
       {editingAdExpense && (
+        <Modal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
             <div className="p-6 space-y-4">
@@ -1990,10 +1990,12 @@ const ExpenseOverview: React.FC = () => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
 
       {/* Edit General Expense Modal */}
       {editingGeneralExpense && (
+        <Modal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
             <div className="p-6 space-y-4">
@@ -2073,10 +2075,12 @@ const ExpenseOverview: React.FC = () => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
 
       {/* Bulk Delete Confirmation Modal */}
       {bulkDeleteConfirm && (
+        <Modal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -2114,10 +2118,12 @@ const ExpenseOverview: React.FC = () => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
 
       {/* Bulk Archive Confirmation Modal */}
       {bulkArchiveConfirm && (
+        <Modal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -2155,6 +2161,7 @@ const ExpenseOverview: React.FC = () => {
             </div>
           </div>
         </div>
+        </Modal>
       )}
     </div>
   );
