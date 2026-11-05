@@ -379,7 +379,7 @@ const EnhancedDropdown: React.FC<EnhancedDropdownProps> = ({
                         <button
                           type="button"
                           onClick={updateItem}
-                          className="p-1 text-green-600 hover:text-green-800"
+                          className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1 text-green-600 hover:text-green-800"
                           title="Save"
                         >
                           <Check className="w-4 h-4" />
@@ -387,7 +387,7 @@ const EnhancedDropdown: React.FC<EnhancedDropdownProps> = ({
                         <button
                           type="button"
                           onClick={() => setEditingItem(null)}
-                          className="p-1 text-gray-600 hover:text-gray-800"
+                          className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1 text-gray-600 hover:text-gray-800"
                           title="Cancel"
                         >
                           <X className="w-4 h-4" />
@@ -403,7 +403,7 @@ const EnhancedDropdown: React.FC<EnhancedDropdownProps> = ({
                               setEditingItem(item);
                               setEditValue(item.name);
                             }}
-                            className="p-1 text-blue-600 hover:text-blue-800"
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1 text-blue-600 hover:text-blue-800"
                             title="Edit"
                           >
                             <Edit className="w-4 h-4" />
@@ -411,7 +411,7 @@ const EnhancedDropdown: React.FC<EnhancedDropdownProps> = ({
                           <button
                             type="button"
                             onClick={() => deleteItem(item.id, item.name)}
-                            className="p-1 text-red-600 hover:text-red-800"
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1 text-red-600 hover:text-red-800"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />

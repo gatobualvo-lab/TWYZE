@@ -22,7 +22,7 @@ const OnboardingChecklist: React.FC<{ onNavigate: (tab: string) => void }> = ({ 
             <p className="text-xs text-gray-500">{doneCount} of {steps.length} done</p>
           </div>
         </div>
-        <button onClick={dismiss} className="text-gray-400 hover:text-gray-600 p-1" title="Dismiss">
+        <button onClick={dismiss} className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-gray-400 hover:text-gray-600 p-1" title="Dismiss">
           <X className="w-4 h-4" />
         </button>
       </div>

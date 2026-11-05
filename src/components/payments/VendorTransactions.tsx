@@ -1762,7 +1762,7 @@ const VendorTransactions: React.FC = () => {
                                               <button
                                                 onClick={() => startEditExpense(expense)}
                                                 disabled={editingExpenseId !== null}
-                                                className="text-blue-500 hover:text-blue-700 disabled:text-gray-400 p-1 hover:bg-blue-50 rounded"
+                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-blue-500 hover:text-blue-700 disabled:text-gray-400 p-1 hover:bg-blue-50 rounded"
                                                 title="Edit expense"
                                               >
                                                 <Edit className="w-3 h-3" />
@@ -1770,7 +1770,7 @@ const VendorTransactions: React.FC = () => {
                                               <button
                                                 onClick={() => setPendingDeleteExpenseId(expense.id)}
                                                 disabled={editingExpenseId !== null}
-                                                className="text-red-500 hover:text-red-700 disabled:text-gray-400 p-1 hover:bg-red-50 rounded"
+                                                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-red-500 hover:text-red-700 disabled:text-gray-400 p-1 hover:bg-red-50 rounded"
                                                 title="Delete expense"
                                               >
                                                 <Trash2 className="w-3 h-3" />

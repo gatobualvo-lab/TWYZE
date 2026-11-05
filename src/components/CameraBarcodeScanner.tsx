@@ -89,7 +89,7 @@ const CameraBarcodeScanner: React.FC<CameraBarcodeScannerProps> = ({ onDetected,
           <h3 className="font-semibold text-gray-800 flex items-center gap-2">
             <ScanLine className="w-4 h-4" /> Scan a barcode
           </h3>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100" aria-label="Close scanner">
+          <button type="button" onClick={onClose} className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-gray-100" aria-label="Close scanner">
             <X className="w-4 h-4" />
           </button>
         </div>

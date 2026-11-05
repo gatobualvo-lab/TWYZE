@@ -530,7 +530,7 @@ const SupplierDashboard: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
                           onClick={() => deleteSupplier(supplier.id)}
-                          className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded"
+                          className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded"
                           title="Delete transaction"
                         >
                           <Trash2 className="w-4 h-4" />

@@ -791,7 +791,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                           <button
                             type="button"
                             onClick={updateProduct}
-                            className="p-1 text-green-600 hover:text-green-800"
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1 text-green-600 hover:text-green-800"
                             title="Save"
                           >
                             <Check className="w-4 h-4" />
@@ -803,7 +803,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                               setEditColors([]);
                               setEditColorInput('');
                             }}
-                            className="p-1 text-gray-600 hover:text-gray-800"
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1 text-gray-600 hover:text-gray-800"
                             title="Cancel"
                           >
                             <X className="w-4 h-4" />
@@ -874,7 +874,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                               setEditColors(product.colors ?? []);
                               setEditColorInput('');
                             }}
-                            className="p-1 text-blue-600 hover:text-blue-800"
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1 text-blue-600 hover:text-blue-800"
                             title="Edit"
                           >
                             <Edit className="w-4 h-4" />
@@ -882,7 +882,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                           <button
                             type="button"
                             onClick={() => deleteProduct(product.id, product.name)}
-                            className="p-1 text-red-600 hover:text-red-800"
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1 text-red-600 hover:text-red-800"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />

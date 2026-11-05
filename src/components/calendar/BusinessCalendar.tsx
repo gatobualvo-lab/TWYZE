@@ -154,13 +154,13 @@ const BusinessCalendar: React.FC<BusinessCalendarProps> = ({ onNavigate }) => {
         title="Business Calendar"
         actions={
           <div className="flex items-center gap-2">
-            <button onClick={() => goToMonth(-1)} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all duration-150" aria-label="Previous month">
+            <button onClick={() => goToMonth(-1)} className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 rounded-lg border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all duration-150" aria-label="Previous month">
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button onClick={goToToday} className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all duration-150">
               Today
             </button>
-            <button onClick={() => goToMonth(1)} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all duration-150" aria-label="Next month">
+            <button onClick={() => goToMonth(1)} className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 rounded-lg border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all duration-150" aria-label="Next month">
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>

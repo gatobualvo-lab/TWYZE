@@ -402,7 +402,7 @@ const ClientManagement: React.FC = () => {
           <div ref={formRef} className="bg-white rounded-xl w-full max-w-sm p-5 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-800">New customer</h3>
-              <button type="button" onClick={() => setShowAdd(false)} className="p-1.5 rounded-lg hover:bg-gray-100" aria-label="Close">
+              <button type="button" onClick={() => setShowAdd(false)} className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-gray-100" aria-label="Close">
                 <X className="w-4 h-4" />
               </button>
             </div>

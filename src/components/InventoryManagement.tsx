@@ -911,7 +911,7 @@ const InventoryManagement: React.FC = () => {
               </div>
               <button
                 onClick={closeSalesModal}
-                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 rounded-lg hover:bg-gray-100 text-gray-500"
                 aria-label="Close"
               >
                 <X className="w-5 h-5" />

@@ -240,10 +240,10 @@ export default function FloatingHelp({ onNavigate, activeTab, labelFor, hidden =
                 </h2>
                 <p className="text-xs text-gray-500 truncate">AI assistant: ask how to use the app</p>
               </div>
-              <button type="button" onClick={startOver} aria-label="Start a new chat" title="Start a new chat" className="p-2 rounded-lg text-gray-500 hover:bg-gray-100">
+              <button type="button" onClick={startOver} aria-label="Start a new chat" title="Start a new chat" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 rounded-lg text-gray-500 hover:bg-gray-100">
                 <RotateCcw className="w-4 h-4" aria-hidden="true" />
               </button>
-              <button type="button" onClick={close} aria-label="Close the Guide" className="p-2 rounded-lg text-gray-500 hover:bg-gray-100">
+              <button type="button" onClick={close} aria-label="Close the Guide" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 rounded-lg text-gray-500 hover:bg-gray-100">
                 <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </header>
@@ -320,10 +320,10 @@ export default function FloatingHelp({ onNavigate, activeTab, labelFor, hidden =
                         ) : (
                           <>
                             <span className="mr-1">Was this helpful?</span>
-                            <button type="button" onClick={() => rate(m.id, 'up')} aria-label="Yes, this was helpful" className="rounded-lg p-2 hover:bg-gray-100 hover:text-green-700">
+                            <button type="button" onClick={() => rate(m.id, 'up')} aria-label="Yes, this was helpful" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg p-2 hover:bg-gray-100 hover:text-green-700">
                               <ThumbsUp className="w-4 h-4" aria-hidden="true" />
                             </button>
-                            <button type="button" onClick={() => rate(m.id, 'down')} aria-label="No, this was not helpful" className="rounded-lg p-2 hover:bg-gray-100 hover:text-red-700">
+                            <button type="button" onClick={() => rate(m.id, 'down')} aria-label="No, this was not helpful" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg p-2 hover:bg-gray-100 hover:text-red-700">
                               <ThumbsDown className="w-4 h-4" aria-hidden="true" />
                             </button>
                           </>

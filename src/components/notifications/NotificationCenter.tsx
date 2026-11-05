@@ -233,7 +233,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNavigate }) =
                 <Check className="w-4 h-4" /> Mark all read
               </button>
             )}
-            <button onClick={() => setShowSettings(s => !s)} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all duration-150" aria-label="Notification settings">
+            <button onClick={() => setShowSettings(s => !s)} className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 rounded-lg border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all duration-150" aria-label="Notification settings">
               <Settings className="w-4 h-4" />
             </button>
           </>

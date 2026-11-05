@@ -1569,14 +1569,14 @@ const ExpenseOverview: React.FC = () => {
                                     <div className="flex items-center gap-2">
                                       <button
                                         onClick={() => editVendorExpense(expense)}
-                                        className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
                                         title="Edit expense"
                                       >
                                         <Edit className="w-4 h-4" />
                                       </button>
                                       <button
                                         onClick={() => deleteVendorExpense(expense.id, vendorName)}
-                                        className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
                                         title="Delete expense"
                                       >
                                         <Trash2 className="w-4 h-4" />
@@ -1850,7 +1850,7 @@ const ExpenseOverview: React.FC = () => {
                         <div className="inline-flex items-center gap-1">
                           <button
                             onClick={() => openEditAdExpense(adExpenses.find(a => a.id === expense.id)!)}
-                            className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
                             title="Edit ad expense"
                           >
                             <Edit className="w-4 h-4" />
@@ -1858,7 +1858,7 @@ const ExpenseOverview: React.FC = () => {
                           <button
                             onClick={() => deleteAdExpense(expense.id)}
                             disabled={deletingExpenseId === expense.id}
-                            className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded disabled:opacity-50"
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded disabled:opacity-50"
                             title="Delete ad expense"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -1868,7 +1868,7 @@ const ExpenseOverview: React.FC = () => {
                         <div className="inline-flex items-center gap-1">
                           <button
                             onClick={() => openEditGeneralExpense(generalExpenses.find(g => g.id === expense.id)!)}
-                            className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
                             title="Edit general expense"
                           >
                             <Edit className="w-4 h-4" />
@@ -1876,7 +1876,7 @@ const ExpenseOverview: React.FC = () => {
                           <button
                             onClick={() => deleteGeneralExpense(expense.id)}
                             disabled={deletingExpenseId === expense.id}
-                            className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded disabled:opacity-50"
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded disabled:opacity-50"
                             title="Delete general expense"
                           >
                             <Trash2 className="w-4 h-4" />

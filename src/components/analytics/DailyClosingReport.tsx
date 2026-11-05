@@ -122,7 +122,7 @@ const DailyClosingReport: React.FC = () => {
         title="Daily Closing Report"
         actions={
           <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
-            <button onClick={() => shiftDay(-1)} className="p-1.5 rounded-md hover:bg-white text-gray-600 transition-colors" aria-label="Previous day">
+            <button onClick={() => shiftDay(-1)} className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 rounded-md hover:bg-white text-gray-600 transition-colors" aria-label="Previous day">
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="flex items-center gap-1.5 px-2 text-sm font-medium text-gray-800">

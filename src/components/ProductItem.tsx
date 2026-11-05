@@ -104,7 +104,7 @@ const ProductItem: React.FC<ProductItemProps> = ({
           <button
             type="button"
             onClick={onRemove}
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-150 active:scale-90"
+            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-150 active:scale-90"
             title={isService ? 'Remove service' : 'Remove product'}
           >
             <Trash2 className="w-4 h-4" />

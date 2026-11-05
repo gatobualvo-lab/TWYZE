@@ -593,14 +593,14 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                       <button
                         onClick={() => onView(doc.id)}
                         title="View"
-                        className="p-2 hover:bg-blue-100 dark:hover:bg-blue-900 rounded text-blue-600 dark:text-blue-400 transition-colors"
+                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 hover:bg-blue-100 dark:hover:bg-blue-900 rounded text-blue-600 dark:text-blue-400 transition-colors"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => onEdit(doc.id)}
                         title="Edit"
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-400 transition-colors"
+                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-400 transition-colors"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
@@ -609,7 +609,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                           <button
                             onClick={() => handleMarkAsPaid(doc.id)}
                             title="Mark as paid"
-                            className="p-2 hover:bg-green-100 dark:hover:bg-green-900 rounded text-green-600 dark:text-green-400 transition-colors"
+                            className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 hover:bg-green-100 dark:hover:bg-green-900 rounded text-green-600 dark:text-green-400 transition-colors"
                           >
                             <Check className="w-4 h-4" />
                           </button>
@@ -617,7 +617,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                       <button
                         onClick={() => setDeleteConfirm(doc.id)}
                         title="Delete"
-                        className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded text-red-600 dark:text-red-400 transition-colors"
+                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded text-red-600 dark:text-red-400 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

@@ -265,7 +265,7 @@ const ServicesManagement: React.FC = () => {
         <Card>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-800">{editing ? 'Edit service' : 'New service'}</h3>
-            <button type="button" onClick={closeForm} className="p-1.5 rounded-lg hover:bg-gray-100" aria-label="Close form">
+            <button type="button" onClick={closeForm} className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-gray-100" aria-label="Close form">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -368,8 +368,8 @@ const ServicesManagement: React.FC = () => {
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-semibold text-gray-800 truncate">{s.product_name}</p>
                       <div className="flex gap-1 flex-shrink-0">
-                        <button type="button" onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100" aria-label="Edit service"><Pencil className="w-4 h-4" /></button>
-                        <button type="button" onClick={() => remove(s)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50" aria-label="Delete service"><Trash2 className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => openEdit(s)} className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 rounded-lg text-gray-500 hover:bg-gray-100" aria-label="Edit service"><Pencil className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => remove(s)} className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50" aria-label="Delete service"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </div>
                     <p className="text-lg font-bold text-gray-900">
