@@ -67,4 +67,9 @@ describe('buildCalendarEvents', () => {
     });
     expect(map.get('2026-08-10')).toHaveLength(2);
   });
+
+  it('opens the Tasks page from a task on the calendar', () => {
+    const events = buildCalendarEvents({ tasks: [{ id: 't1', title: 'Call the supplier', dueDate: '2026-11-12', completed: false }] });
+    expect(events.get('2026-11-12')?.[0].actionTab).toBe('tasks');
+  });
 });

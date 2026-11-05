@@ -209,7 +209,6 @@ export default function AdminPanel() {
                         <h4 className="font-medium text-slate-900">
                           {stats.pendingPayments} payment{stats.pendingPayments === 1 ? '' : 's'} awaiting review
                         </h4>
-                        <p className="text-sm text-slate-600">Approve or reject submitted proof of payment</p>
                       </div>
                     </div>
                     <span className="text-sm font-medium text-amber-700">Review now →</span>
@@ -278,7 +277,6 @@ export default function AdminPanel() {
                       </div>
                       <div>
                         <h4 className="font-medium text-slate-900">Manage Users</h4>
-                        <p className="text-sm text-slate-600">View and manage user accounts</p>
                       </div>
                     </button>
 
@@ -291,7 +289,6 @@ export default function AdminPanel() {
                       </div>
                       <div>
                         <h4 className="font-medium text-slate-900">Payment Approvals</h4>
-                        <p className="text-sm text-slate-600">Review submitted proof of payment</p>
                       </div>
                     </button>
 
@@ -304,7 +301,6 @@ export default function AdminPanel() {
                       </div>
                       <div>
                         <h4 className="font-medium text-slate-900">Audit Log</h4>
-                        <p className="text-sm text-slate-600">See who changed what, and when</p>
                       </div>
                     </button>
 
@@ -317,7 +313,6 @@ export default function AdminPanel() {
                       </div>
                       <div>
                         <h4 className="font-medium text-slate-900">System Settings</h4>
-                        <p className="text-sm text-slate-600">Configure system preferences</p>
                       </div>
                     </button>
                   </div>

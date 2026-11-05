@@ -48,7 +48,6 @@ const AIBusinessAdvisor: React.FC<{ onNavigate?: (tab: string) => void }> = ({ o
         icon={Sparkles}
         iconColor="text-purple-500"
         title="Business Advisor"
-        description="A plain-language read on this month, built from your Health Score and Opportunity Center — plus a real conversation with your own business data below."
       />
 
       <div className="space-y-3">

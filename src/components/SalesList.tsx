@@ -1706,7 +1706,6 @@ const SalesList: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-gray-800">Edit Sale</h3>
-                  <p className="text-xs text-gray-500">Edit each product independently. Totals recalculate on save.</p>
                 </div>
               </div>
 

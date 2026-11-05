@@ -13,6 +13,7 @@ import { WATERMARK_TEXT } from '../../services/subscription/entitlements';
 import { describeDiscount, totalsDifference } from '../../utils/documentTotals';
 import { FONT_STACKS, documentColors, documentTitle, resolveDocumentStyle } from '../../utils/documentTheme';
 import { documentPrintCss } from './documentPrintCss';
+import { escapeHtml, safeImageSrc } from '../../utils/safeContent';
 
 interface DocumentItem {
   id: string;
@@ -94,17 +95,10 @@ const safeNum = (v: any) => {
 
 // generatePrintHTML() below builds a full HTML document from user-entered
 // business/customer/document fields and injects it via document.write() in a
-// new window. Every dynamic string must go through this before interpolation,
+// new window. Every dynamic string must go through escapeHtml before interpolation,
 // otherwise a customer name or note containing markup executes in that window.
-export const escapeHtml = (value: unknown): string => {
-  const str = value === null || value === undefined ? '' : String(value);
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-};
+// (Kept exported from here for the other printed pages that already import it.)
+export { escapeHtml };
 
 export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   documentId,
@@ -210,7 +204,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       .map(
         (item) => `
       <tr>
-        <td class="border-b border-gray-300 py-3 px-4 text-left">${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:10px">` : ''}${escapeHtml(item.product_name)}</td>
+        <td class="border-b border-gray-300 py-3 px-4 text-left">${safeImageSrc(item.image_url) ? `<img src="${safeImageSrc(item.image_url)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:10px">` : ''}${escapeHtml(item.product_name)}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-sm text-gray-600">${escapeHtml(item.description)}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-right">${safeNum(item.quantity)}</td>
         <td class="border-b border-gray-300 py-3 px-4 text-right">${formatCurrency(safeNum(item.unit_price))}</td>
@@ -224,13 +218,14 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
     const footerText = getFooterText();
     const docStyle = resolveDocumentStyle(businessSettings);
-    const docTypeLabel = documentTitle(docStyle, document.document_type).toUpperCase();
+    // The title is typed in the document settings, so it is escaped like everything else a person writes.
+    const docTypeLabel = escapeHtml(documentTitle(docStyle, document.document_type).toUpperCase());
     const signatureHTML =
-      docStyle.showSignature && (businessSettings.signature_url || businessSettings.stamp_url)
+      docStyle.showSignature && (safeImageSrc(businessSettings.signature_url) || safeImageSrc(businessSettings.stamp_url))
         ? `
           <div class="signatures">
-            <div class="signature-block">${businessSettings.signature_url ? `<img src="${escapeHtml(businessSettings.signature_url)}" alt="" /><div class="signature-line">Authorised signature</div>` : ''}</div>
-            ${businessSettings.stamp_url ? `<img class="stamp" src="${escapeHtml(businessSettings.stamp_url)}" alt="" />` : ''}
+            <div class="signature-block">${safeImageSrc(businessSettings.signature_url) ? `<img src="${safeImageSrc(businessSettings.signature_url)}" alt="" /><div class="signature-line">Authorised signature</div>` : ''}</div>
+            ${safeImageSrc(businessSettings.stamp_url) ? `<img class="stamp" src="${safeImageSrc(businessSettings.stamp_url)}" alt="" />` : ''}
           </div>`
         : '';
 
@@ -248,7 +243,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           <!-- Header -->
           <div class="header">
             <div class="header-left">
-              ${docStyle.showLogo && businessSettings.logo_url ? `<img class="logo" src="${escapeHtml(businessSettings.logo_url)}" alt="" />` : ''}
+              ${docStyle.showLogo && safeImageSrc(businessSettings.logo_url) ? `<img class="logo" src="${safeImageSrc(businessSettings.logo_url)}" alt="" />` : ''}
               <h1>${escapeHtml(businessSettings.business_name)}</h1>
               <p>${escapeHtml(businessSettings.physical_address)}</p>
               <p>${escapeHtml(businessSettings.city)}, ${escapeHtml(businessSettings.country)}</p>
@@ -908,7 +903,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             </div>
           )}
 
-          {docStyle.showSignature && (businessSettings.signature_url || businessSettings.stamp_url) && (
+          {docStyle.showSignature && (safeImageSrc(businessSettings.signature_url) || safeImageSrc(businessSettings.stamp_url)) && (
             <div className="flex items-end justify-between gap-6 px-8 pt-8">
               <div className="min-w-[200px]">
                 {businessSettings.signature_url && (

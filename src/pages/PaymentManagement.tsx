@@ -235,7 +235,6 @@ const PaymentManagement: React.FC = () => {
       <PageHeader
         icon={CreditCard}
         title="Manage Subscription"
-        description="Review your plan, submit a payment, and track past submissions."
         actions={
           <button
             type="button"
@@ -510,11 +509,11 @@ const PaymentManagement: React.FC = () => {
             <input
               id="screenshot-input"
               type="file"
-              accept="image/*"
+              accept="image/png,image/jpeg,image/webp"
               onChange={handleFileChange}
               className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
             />
-            <p className="mt-1 text-xs text-gray-500">JPG or PNG, up to 5MB</p>
+            <p className="mt-1 text-xs text-gray-500">JPG, PNG or WebP, up to 5MB</p>
           </div>
 
           <div className="flex justify-end">

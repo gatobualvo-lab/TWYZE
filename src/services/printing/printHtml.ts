@@ -43,7 +43,20 @@ export async function listPrinters(): Promise<DesktopPrinter[]> {
  * - Everywhere else: opens the print view, whose dialog lets the user pick
  *   any printer (or "Save as PDF").
  */
-export async function printHtml(html: string): Promise<void> {
+/**
+ * A printed page never needs to run a script, so none may: this policy is put in the page's head. Even if some
+ * text were ever left unescaped, the browser would refuse to run it. (The print window is opened from the app,
+ * so it shares the app's origin; this is the second lock behind escaping every value.)
+ */
+export const PRINT_PAGE_POLICY = `<meta http-equiv="Content-Security-Policy" content="script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">`;
+
+export function withPrintPagePolicy(html: string): string {
+  if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, match => `${match}${PRINT_PAGE_POLICY}`);
+  return `${PRINT_PAGE_POLICY}${html}`;
+}
+
+export async function printHtml(rawHtml: string): Promise<void> {
+  const html = withPrintPagePolicy(rawHtml);
   const prefs = getPrintPrefs();
   const bridge = window.trackwyze;
 

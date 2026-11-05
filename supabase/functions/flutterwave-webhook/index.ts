@@ -13,6 +13,14 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { BILLING_PLANS, normalizeStoredPlanKey } from '../_shared/plans.ts';
 import { sendEmail, emailLayout, APP_URL, unsubscribeLinks } from '../_shared/sendgrid.ts';
 
+/** Compares two secrets without stopping at the first difference, so timing reveals nothing. */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 function escapeHtml(input: string): string {
   return input.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
@@ -31,7 +39,7 @@ Deno.serve(async (req) => {
 
   const expectedHash = Deno.env.get('FLUTTERWAVE_WEBHOOK_HASH');
   const receivedHash = req.headers.get('verif-hash');
-  if (!expectedHash || !receivedHash || receivedHash !== expectedHash) {
+  if (!expectedHash || !receivedHash || !safeEqual(receivedHash, expectedHash)) {
     return new Response('Unauthorized', { status: 401 });
   }
 

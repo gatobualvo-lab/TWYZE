@@ -145,7 +145,6 @@ const RecurringInvoices: React.FC = () => {
       <PageHeader
         icon={Repeat}
         title="Recurring Invoices"
-        description="A repeat client billed the same amount every period — set it up once and a real invoice is generated automatically each time it's due."
         actions={
           <button
             onClick={() => setShowForm(s => !s)}

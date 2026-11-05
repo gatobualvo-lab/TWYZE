@@ -258,7 +258,6 @@ const ServicesManagement: React.FC = () => {
       <PageHeader
         icon={Briefcase}
         title="Services"
-        description="Things you do for customers. Set the price, how it is charged, how long it takes and who does it."
         actions={<Button icon={Plus} onClick={openAdd}>Add Service</Button>}
       />
 

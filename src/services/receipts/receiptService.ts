@@ -1,7 +1,7 @@
 import { WATERMARK_TEXT, tierIncludes } from '../subscription/entitlements';
 import { getTierSnapshot } from '../subscription/tierSnapshot';
 import { supabase } from '../../utils/supabase';
-import { escapeHtml } from '../../components/documents/DocumentPreview';
+import { escapeHtml } from '../../utils/safeContent';
 import { formatCurrency, formatDate } from '../../utils/format';
 import toast from 'react-hot-toast';
 import { buildReceiptPdf } from '../pdf/receiptPdf';

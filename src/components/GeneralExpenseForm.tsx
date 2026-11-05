@@ -233,10 +233,9 @@ const GeneralExpenseForm: React.FC = () => {
               <ScanLine className="w-6 h-6 text-orange-600" />
               <span>
                 <span className="block text-sm font-semibold text-gray-800">{isScanning ? 'Reading receipt...' : 'Scan a receipt'}</span>
-                <span className="block text-xs text-gray-600">Take a photo and the form fills itself in. You check it before saving.</span>
               </span>
             </span>
-            <input type="file" accept="image/*" className="hidden" onChange={handleScanReceipt} disabled={isScanning} />
+            <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleScanReceipt} disabled={isScanning} />
           </label>
 
           {/* Expense Type */}

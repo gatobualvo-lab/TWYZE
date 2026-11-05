@@ -425,7 +425,6 @@ const ClientManagement: React.FC = () => {
                 {field === 'name' && <FieldError name="name" message={addErrors.name} />}
               </React.Fragment>
             ))}
-            <p className="text-xs text-gray-400">You can pick this customer when you record a sale.</p>
             <div className="flex justify-end gap-2 pt-1">
               <button type="button" onClick={() => setShowAdd(false)} className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Cancel</button>
               <button type="button" onClick={addCustomer} disabled={adding} className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-60">

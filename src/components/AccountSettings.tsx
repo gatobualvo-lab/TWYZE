@@ -275,7 +275,6 @@ const AccountSettings: React.FC = () => {
                 ))}
               </select>
             </div>
-            <p className="mt-1 text-xs text-gray-500">Tailors wording and menu order across the app to your kind of business</p>
           </div>
 
           {/* Currency */}
@@ -309,7 +308,6 @@ const AccountSettings: React.FC = () => {
                 className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
               />
             </div>
-            <p className="mt-1 text-xs text-gray-500">Email cannot be changed</p>
           </div>
 
           {/* Submit Button */}

@@ -120,7 +120,6 @@ const DailyClosingReport: React.FC = () => {
       <PageHeader
         icon={Receipt}
         title="Daily Closing Report"
-        description="Today's numbers, reconciled — what came in, what's still owed, what it cost."
         actions={
           <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
             <button onClick={() => shiftDay(-1)} className="p-1.5 rounded-md hover:bg-white text-gray-600 transition-colors" aria-label="Previous day">
@@ -159,7 +158,6 @@ const DailyClosingReport: React.FC = () => {
             <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-blue-600" /> Revenue &amp; Profit
             </h3>
-            <p className="text-xs text-gray-400 mb-2">Accrual basis — every sale recorded today, whether paid or not.</p>
             <Row label="Sales revenue" value={formatCurrency(metrics?.salesRevenue ?? 0)} />
             <Row label="Supplier-tracked revenue" value={formatCurrency(metrics?.supplierRevenue ?? 0)} />
             <Row label="Gross profit" value={formatCurrency(metrics?.grossProfit ?? 0)} tone={(metrics?.grossProfit ?? 0) >= 0 ? 'green' : 'red'} />
@@ -175,7 +173,6 @@ const DailyClosingReport: React.FC = () => {
             <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
               <Wallet className="w-4 h-4 text-green-600" /> Cash Collected
             </h3>
-            <p className="text-xs text-gray-400 mb-2">Cash basis — only money actually received today. Not the same as profit.</p>
             <Row label="Cash received" value={formatCurrency(metrics?.cashReceived ?? 0)} tone="green" />
             <Row
               label="Still uncollected from today's sales"
@@ -201,7 +198,6 @@ const DailyClosingReport: React.FC = () => {
             <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
               <TrendingDown className="w-4 h-4 text-red-600" /> Expenses
             </h3>
-            <p className="text-xs text-gray-400 mb-2">Money spent today.</p>
             <Row label="Ad spend" value={formatCurrency(metrics?.adExpenses ?? 0)} />
             <Row label="Vendor payments" value={formatCurrency(metrics?.vendorExpenses ?? 0)} />
             <Row label="General expenses" value={formatCurrency(metrics?.generalExpenses ?? 0)} />
@@ -212,7 +208,6 @@ const DailyClosingReport: React.FC = () => {
             <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
               <ShoppingBag className="w-4 h-4 text-purple-600" /> Activity
             </h3>
-            <p className="text-xs text-gray-400 mb-2">How busy today was.</p>
             <Row label="Sales recorded" value={String(metrics?.salesCount ?? 0)} />
             <Row label="Supplier transactions" value={String(metrics?.supplierCount ?? 0)} />
             <Row

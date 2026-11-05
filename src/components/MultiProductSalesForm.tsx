@@ -512,7 +512,7 @@ const MultiProductSalesForm: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader icon={Plus} title="Record New Sale" description="Add a sale with one or multiple products" />
+      <PageHeader icon={Plus} title="Record New Sale" />
 
       <form ref={formRef} onSubmit={handleSubmit} className="space-y-6" noValidate>
         {/* Barcode scan — a USB/Bluetooth scanner types the code and presses Enter,
@@ -748,7 +748,6 @@ const MultiProductSalesForm: React.FC = () => {
                     } rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                     placeholder="0.00"
                   />
-                  <p className="mt-1 text-xs text-gray-400">Amount the customer pays for delivery. Adds to sale revenue.</p>
                   {errors.clientDeliveryCharge && (
                     <p id="client-delivery-error" role="alert" className="mt-1 text-sm text-red-600">{errors.clientDeliveryCharge}</p>
                   )}

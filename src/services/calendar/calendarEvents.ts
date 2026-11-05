@@ -107,7 +107,7 @@ export function buildCalendarEvents(inputs: CalendarEventInputs): Map<string, Ca
       type: 'task',
       title: task.title,
       subtitle: [task.dueTime ? formatDueTime(task.dueTime) : '', task.hasReminder ? 'Reminder set' : ''].filter(Boolean).join(' · ') || null,
-      actionTab: 'dashboard',
+      actionTab: 'tasks',
       severity: 'info',
     });
   }

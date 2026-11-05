@@ -18,7 +18,7 @@ const ScoreRing: React.FC<{ score: number; color: string }> = ({ score, color })
   const shown = useCountUp(score, 1200);
   const offset = circumference * (1 - shown / 100);
   return (
-    <svg width="140" height="140" viewBox="0 0 140 140" className="flex-shrink-0">
+    <svg width="104" height="104" viewBox="0 0 140 140" className="flex-shrink-0">
       <circle cx="70" cy="70" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="12" />
       <circle
         cx="70" cy="70" r={radius} fill="none" stroke={color} strokeWidth="12" strokeLinecap="round"
@@ -40,9 +40,9 @@ const BusinessHealthScore: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="h-5 w-40 skeleton-shimmer rounded-md mb-4" />
-        <div className="h-32 skeleton-shimmer rounded-lg" />
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <div className="h-5 w-40 skeleton-shimmer rounded-md mb-3" />
+        <div className="h-24 skeleton-shimmer rounded-lg" />
       </div>
     );
   }
@@ -52,10 +52,10 @@ const BusinessHealthScore: React.FC = () => {
   const colors = result.band ? BAND_COLORS[result.band] : null;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-200/70 p-6">
-      <div className="flex items-center gap-2 mb-4">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200/70 p-4">
+      <div className="flex items-center gap-2 mb-2">
         <HeartPulse className="w-5 h-5 text-blue-600" />
-        <h3 className="font-semibold text-gray-800">Business Health</h3>
+        <h3 className="text-base font-semibold text-gray-800">Business Health</h3>
         <span className="text-xs text-gray-400">This month</span>
       </div>
 
@@ -83,10 +83,10 @@ const BusinessHealthScore: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="flex flex-col sm:flex-row items-center gap-6">
+          <div className="flex flex-row items-center gap-4">
             <ScoreRing score={result.score} color={colors!.ring} />
             <div className="flex-1 w-full">
-              <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mb-3 ${colors!.bg} ${colors!.text}`}>
+              <span className={`inline-block px-3 py-0.5 rounded-full text-sm font-semibold mb-2 ${colors!.bg} ${colors!.text}`}>
                 {result.bandLabel}
               </span>
               {result.factorsIncluded < result.factorsPossible && (
@@ -95,10 +95,10 @@ const BusinessHealthScore: React.FC = () => {
                   Based on {result.factorsIncluded} of {result.factorsPossible} factors — some don't have enough data yet.
                 </p>
               )}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {result.factors.map(f => (
                   <div key={f.key} className="flex items-center gap-3">
-                    <span className="text-xs text-gray-500 w-32 flex-shrink-0">{f.label}</span>
+                    <span className="text-xs text-gray-500 w-28 sm:w-32 flex-shrink-0">{f.label}</span>
                     <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-700 ease-smooth"
@@ -110,14 +110,6 @@ const BusinessHealthScore: React.FC = () => {
                 ))}
               </div>
             </div>
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
-            {result.factors.map(f => (
-              <p key={f.key} className="text-xs text-gray-500">
-                <span className="font-medium text-gray-700">{f.label}:</span> {f.explanation}
-              </p>
-            ))}
           </div>
         </>
       )}

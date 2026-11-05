@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BarChart3, Plus, Menu, X, Target, TrendingUp, Download, Zap, LogOut, Users, History, Settings, User, User as UserIcon, Package, BookOpen, Layers, Calendar, TrendingDown, Wallet, Truck, ChevronLeft, ChevronRight, Receipt, ChevronDown, ShoppingCart, FileText, Percent, Lightbulb, Sparkles, Trophy, Bell, UserCog, Repeat, HelpCircle, Briefcase, RefreshCw, Lock } from 'lucide-react';
+import { BarChart3, Plus, Menu, X, Target, TrendingUp, Download, Zap, LogOut, Users, History, Settings, User, User as UserIcon, Package, BookOpen, Layers, Calendar, TrendingDown, Wallet, Truck, ChevronLeft, ChevronRight, Receipt, ChevronDown, ShoppingCart, FileText, Percent, Lightbulb, Sparkles, Trophy, Bell, UserCog, Repeat, HelpCircle, Briefcase, RefreshCw, Lock, ListChecks, CalendarCheck, Landmark } from 'lucide-react';
 import { CSSTransition } from 'react-transition-group';
 import { supabase, refreshSession } from '../utils/supabase';
 import { DownloadModal } from './DownloadModal';
@@ -35,6 +35,7 @@ import { useOfflineSalesSync } from '../hooks/useOfflineSalesSync';
 import { useOfflineWriteSync } from '../hooks/useOfflineWriteSync';
 import ProfitAnalytics from './analytics/ProfitAnalytics';
 import DailyClosingReport from './analytics/DailyClosingReport';
+import TaxReport from './analytics/TaxReport';
 import CustomerTimeline from './customers/CustomerTimeline';
 import SmartInventoryPredictions from './inventory/SmartInventoryPredictions';
 import OpportunityCenter from './opportunities/OpportunityCenter';
@@ -66,6 +67,8 @@ import { FEATURE_MIN_TIER, TIER_LABELS, describeEntitlements, resolveEntitlement
 import { LimitGate, PlanBanner, TabGate } from './subscription/Gates';
 import { TeamInvitesBanner } from './team/TeamInvitesBanner';
 import FloatingHelp from './help/FloatingHelp';
+import BusinessTasks from './tasks/BusinessTasks';
+import { requestCalendarDate } from '../services/tasks/taskEvents';
 
 interface UserProfile {
   id: string;
@@ -183,22 +186,29 @@ const NAV_ITEMS: NavTopItem[] = [
   },
   { kind: 'leaf', id: 'projects', label: 'Projects', icon: Briefcase },
   {
+    kind: 'group', id: 'planner', label: 'Planner', icon: CalendarCheck, iconClassName: 'text-violet-600',
+    items: [
+      { id: 'tasks', label: 'Business Tasks', icon: ListChecks },
+      { id: 'calendar', label: 'Business Calendar', icon: Calendar },
+      { id: 'goals', label: 'Business Goals', icon: Trophy },
+    ],
+  },
+  {
     kind: 'group', id: 'insights-group', label: 'Insights', icon: Lightbulb, iconClassName: 'text-amber-600',
     items: [
       { id: 'opportunities', label: 'Opportunity Center', icon: Lightbulb },
       { id: 'advisor', label: 'Business Advisor', icon: Sparkles },
-      { id: 'goals', label: 'Business Goals', icon: Trophy },
-      { id: 'calendar', label: 'Business Calendar', icon: Calendar },
-      { id: 'notifications', label: 'Notification Center', icon: Bell },
       { id: 'monthly-dashboard', label: 'Monthly Dashboard', icon: TrendingUp },
       { id: 'profit-analytics', label: 'Profit Analytics', icon: Percent },
       { id: 'daily-closing', label: 'Daily Closing Report', icon: Receipt },
+      { id: 'tax-report', label: 'Tax Report', icon: Landmark },
       { id: 'data-export', label: 'Data Export', icon: Download },
     ],
   },
   {
     kind: 'group', id: 'settings-group', label: 'Settings', icon: Settings, iconClassName: 'text-gray-600',
     items: [
+      { id: 'notifications', label: 'Notification Center', icon: Bell },
       { id: 'dropdown-management', label: 'Dropdown Management', icon: Settings },
       { id: 'team', label: 'Team', icon: UserCog },
     ],
@@ -310,7 +320,6 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   const { theme, toggleTheme } = useTheme();
   // Re-key the content area when the account currency changes so every screen re-renders in it.
   const accountCurrency = useAccountCurrency();
-  useTaskReminders();
   const navigate = useNavigate();
   const { showModal, handleCloseModal } = useDownloadReminder();
   useNotificationSync();
@@ -378,6 +387,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   // restore whichever tab was last active so reopening the app (or reloading
   // the page) doesn't dump the user back on Dashboard.
   const [activeTab, setActiveTab] = useState<string>(() => getLandingTab(initialActiveTab));
+  useTaskReminders(true, () => setActiveTab('tasks'));
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([getLandingTab(initialActiveTab)]));
   useEffect(() => {
     setVisitedTabs(prev => (prev.has(activeTab) ? prev : new Set(prev).add(activeTab)));
@@ -878,6 +888,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
           </TabSlot>
           <TabSlot id="opportunities" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="opportunities"><OpportunityCenter onNavigate={setActiveTab} /></TabGate></TabSlot>
           <TabSlot id="advisor" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="advisor"><AIBusinessAdvisor onNavigate={setActiveTab} /></TabGate></TabSlot>
+          <TabSlot id="tasks" activeTab={activeTab} visitedTabs={visitedTabs}><BusinessTasks variant="page" onOpenCalendar={tierIncludes(tier, 'calendar') ?(date) => { requestCalendarDate(date); setActiveTab('calendar'); } : undefined} /></TabSlot>
           <TabSlot id="goals" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="goals"><BusinessGoals /></TabGate></TabSlot>
           <TabSlot id="calendar" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="calendar"><BusinessCalendar onNavigate={setActiveTab} /></TabGate></TabSlot>
           <TabSlot id="notifications" activeTab={activeTab} visitedTabs={visitedTabs}><NotificationCenter onNavigate={setActiveTab} /></TabSlot>
@@ -927,6 +938,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
           <TabSlot id="monthly-dashboard" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="monthly-dashboard"><MonthlyDashboard /></TabGate></TabSlot>
           <TabSlot id="profit-analytics" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="profit-analytics"><ProfitAnalytics /></TabGate></TabSlot>
           <TabSlot id="daily-closing" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="daily-closing"><DailyClosingReport /></TabGate></TabSlot>
+          <TabSlot id="tax-report" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="tax-report"><TaxReport /></TabGate></TabSlot>
           <TabSlot id="data-export" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="data-export"><ReportsAnalytics /></TabGate></TabSlot>
           <TabSlot id="cash-position" activeTab={activeTab} visitedTabs={visitedTabs}><CashPosition onNavigate={setActiveTab} /></TabSlot>
           <TabSlot id="delivery-payments" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="delivery-payments"><DeliveryPayments /></TabGate></TabSlot>

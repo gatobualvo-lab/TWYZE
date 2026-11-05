@@ -5,7 +5,7 @@ import { printHtml } from '../../services/printing/printHtml';
 import { supabase } from '../../utils/supabase';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatDate } from '../../utils/format';
-import { escapeHtml } from '../documents/DocumentPreview';
+import { escapeHtml } from '../../utils/safeContent';
 
 interface Transaction {
   id: string;

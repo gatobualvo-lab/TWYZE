@@ -1,7 +1,10 @@
 import { supabase } from '../../utils/supabase';
 import type { BillingPlanKey } from '../../utils/subscription';
+import { prepareImage, uniqueFileStem } from '../storage/imageValidation';
 
 const SCREENSHOT_BUCKET = 'payment-proofs';
+/** The most a payment screenshot may weigh when it is picked (it is shrunk before it is stored). */
+const MAX_SCREENSHOT_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 export interface SubscriptionInfo {
   status?: string;
@@ -77,11 +80,13 @@ export async function submitPayment(input: SubmitPaymentInput): Promise<void> {
 
   let screenshotPath: string | null = null;
   if (input.screenshotFile) {
-    const ext = input.screenshotFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const path = `${user.id}/${Date.now()}.${ext}`;
+    // Checked (size, real image type) and redrawn as a clean JPEG; the name and type are chosen here, never
+    // taken from the person's file. The bucket also refuses anything that is not a small image.
+    const { blob, ext, type } = await prepareImage(input.screenshotFile, { maxBytes: MAX_SCREENSHOT_UPLOAD_BYTES, maxDim: 1600, allowTransparency: false });
+    const path = `${user.id}/${uniqueFileStem()}.${ext}`;
     const { error: uploadError } = await supabase.storage
       .from(SCREENSHOT_BUCKET)
-      .upload(path, input.screenshotFile, { upsert: false, contentType: input.screenshotFile.type || undefined });
+      .upload(path, blob, { upsert: false, contentType: type });
     if (uploadError) throw new Error(uploadError.message);
     screenshotPath = path;
   }

@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Trophy, CheckSquare, Package, FileText } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Trophy, CheckSquare, Package, FileText, Check } from 'lucide-react';
 import { getMonthGrid } from '../../utils/dateRange';
 import { useCalendarEvents } from '../../services/calendar/useCalendarEvents';
 import type { CalendarEvent, CalendarEventType } from '../../services/calendar/calendarEvents';
@@ -7,7 +7,8 @@ import { formatDate } from '../../utils/format';
 import { PageHeader } from '../ui';
 import toast from 'react-hot-toast';
 import { Bell } from 'lucide-react';
-import { createTask } from '../../services/tasks/taskService';
+import { createTask, toggleTaskCompleted } from '../../services/tasks/taskService';
+import { notifyTasksChanged, onCalendarDateRequested, takeRequestedCalendarDate } from '../../services/tasks/taskEvents';
 import { REMINDER_OPTIONS } from '../../services/tasks/reminders';
 import { ensureNotificationPermission } from '../../services/tasks/useTaskReminders';
 
@@ -36,8 +37,27 @@ function monthLabel(year: number, month: number): string {
   return new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
-const EventRow: React.FC<{ event: CalendarEvent; onNavigate: (tab: string) => void }> = ({ event, onNavigate }) => {
+const EventRow: React.FC<{ event: CalendarEvent; onNavigate: (tab: string) => void; onCompleteTask: (taskId: string) => void }> = ({ event, onNavigate, onCompleteTask }) => {
   const Icon = TYPE_META[event.type].icon;
+  if (event.type === 'task') {
+    // A task can be ticked off right here; its title opens the Tasks page.
+    return (
+      <div className={`w-full flex items-start gap-2.5 px-3 py-2 rounded-lg border ${SEVERITY_STYLE[event.severity]}`}>
+        <button
+          type="button"
+          onClick={() => onCompleteTask(event.id.replace(/^task:/, ''))}
+          aria-label={`Mark "${event.title}" as done`}
+          className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-gray-300 text-transparent hover:border-blue-500 hover:text-blue-500"
+        >
+          <Check className="h-3 w-3" aria-hidden="true" />
+        </button>
+        <button onClick={() => onNavigate(event.actionTab)} className="min-w-0 flex-1 text-left">
+          <span className="block text-sm font-medium text-gray-800 truncate">{event.title}</span>
+          {event.subtitle && <span className="block text-xs text-gray-500 truncate">{event.subtitle}</span>}
+        </button>
+      </div>
+    );
+  }
   return (
     <button
       onClick={() => onNavigate(event.actionTab)}
@@ -60,12 +80,35 @@ const BusinessCalendar: React.FC<BusinessCalendarProps> = ({ onNavigate }) => {
   const { events, loading, reloadTasks } = useCalendarEvents(cursor.year, cursor.month);
   const [reminderTitle, setReminderTitle] = useState('');
   const [reminderTime, setReminderTime] = useState('');
-  const [reminderLead, setReminderLead] = useState<number>(15);
+  const [reminderLead, setReminderLead] = useState<number | null>(15);
   const [savingReminder, setSavingReminder] = useState(false);
+
+  // Opening the calendar from a task shows that task's day. If the calendar was already open it moves there now.
+  const showDate = (date: string) => {
+    const [y, m] = date.split('-').map(Number);
+    setCursor({ year: y, month: m - 1 });
+    setSelectedDate(date);
+  };
+  useEffect(() => {
+    const waiting = takeRequestedCalendarDate();
+    if (waiting) showDate(waiting);
+    return onCalendarDateRequested(showDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const completeTask = async (taskId: string) => {
+    try {
+      await toggleTaskCompleted(taskId, false);
+      notifyTasksChanged();
+      reloadTasks();
+    } catch {
+      toast.error('Could not update the task');
+    }
+  };
 
   const addReminder = async () => {
     if (!selectedDate) return;
-    if (!reminderTitle.trim()) return toast.error('What should we remind you about?');
+    if (!reminderTitle.trim()) return toast.error('What is the task?');
     setSavingReminder(true);
     try {
       await createTask({
@@ -78,10 +121,11 @@ const BusinessCalendar: React.FC<BusinessCalendarProps> = ({ onNavigate }) => {
       setReminderTitle('');
       setReminderTime('');
       reloadTasks();
-      toast.success('Reminder added');
-      ensureNotificationPermission();
+      notifyTasksChanged();
+      toast.success(reminderLead === null ? 'Task added' : 'Task added. You will be reminded');
+      if (reminderLead !== null) ensureNotificationPermission();
     } catch {
-      toast.error('Could not add the reminder');
+      toast.error('Could not add the task');
     } finally {
       setSavingReminder(false);
     }
@@ -108,7 +152,6 @@ const BusinessCalendar: React.FC<BusinessCalendarProps> = ({ onNavigate }) => {
       <PageHeader
         icon={CalendarIcon}
         title="Business Calendar"
-        description="Sales, expenses, goal deadlines, tasks, restocks, and payment due dates in one place."
         actions={
           <div className="flex items-center gap-2">
             <button onClick={() => goToMonth(-1)} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all duration-150" aria-label="Previous month">
@@ -178,14 +221,12 @@ const BusinessCalendar: React.FC<BusinessCalendarProps> = ({ onNavigate }) => {
             <h3 className="font-semibold text-gray-800 mb-1">
               {selectedDate ? formatDate(selectedDate, { weekday: 'long', month: 'long', day: 'numeric' }) : 'Select a day'}
             </h3>
-            {!selectedDate ? (
-              <p className="text-sm text-gray-400 mt-2">Tap a date to see what's happening that day.</p>
-            ) : selectedEvents.length === 0 ? (
+            {!selectedDate ? null : selectedEvents.length === 0 ? (
               <p className="text-sm text-gray-400 mt-2">Nothing recorded or scheduled for this day.</p>
             ) : (
               <div className="space-y-2 mt-3">
                 {selectedEvents.map(event => (
-                  <EventRow key={event.id} event={event} onNavigate={onNavigate} />
+                  <EventRow key={event.id} event={event} onNavigate={onNavigate} onCompleteTask={completeTask} />
                 ))}
               </div>
             )}
@@ -193,14 +234,14 @@ const BusinessCalendar: React.FC<BusinessCalendarProps> = ({ onNavigate }) => {
             {selectedDate && (
               <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
                 <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-                  <Bell className="w-4 h-4 text-blue-500" /> Add a reminder for this day
+                  <Bell className="w-4 h-4 text-blue-500" /> Add a task for this day
                 </p>
                 <input
                   type="text"
                   value={reminderTitle}
                   onChange={e => setReminderTitle(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addReminder()}
-                  placeholder="e.g., Call the supplier"
+                  placeholder="e.g., Call the supplier" aria-label="Task"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                 />
                 <div className="flex gap-2">
@@ -208,16 +249,17 @@ const BusinessCalendar: React.FC<BusinessCalendarProps> = ({ onNavigate }) => {
                     type="time"
                     value={reminderTime}
                     onChange={e => setReminderTime(e.target.value)}
-                    title="Time (optional, 9:00 am if empty)"
+                    aria-label="Time"
                     className="px-2 py-2 border border-gray-200 rounded-lg text-sm"
                   />
                   <select
-                    value={String(reminderLead)}
-                    onChange={e => setReminderLead(Number(e.target.value))}
+                    value={reminderLead === null ? '' : String(reminderLead)}
+                    onChange={e => setReminderLead(e.target.value === '' ? null : Number(e.target.value))}
+                    aria-label="Reminder"
                     className="flex-1 px-2 py-2 border border-gray-200 rounded-lg text-sm"
                   >
-                    {REMINDER_OPTIONS.filter(o => o.value !== null).map(o => (
-                      <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
+                    {REMINDER_OPTIONS.map(o => (
+                      <option key={String(o.value)} value={o.value === null ? '' : String(o.value)}>{o.value === null ? 'No reminder' : `Remind: ${o.label.toLowerCase()}`}</option>
                     ))}
                   </select>
                 </div>
@@ -227,7 +269,7 @@ const BusinessCalendar: React.FC<BusinessCalendarProps> = ({ onNavigate }) => {
                   disabled={savingReminder}
                   className="w-full px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
                 >
-                  {savingReminder ? 'Saving...' : 'Add reminder'}
+                  {savingReminder ? 'Saving...' : 'Add task'}
                 </button>
               </div>
             )}

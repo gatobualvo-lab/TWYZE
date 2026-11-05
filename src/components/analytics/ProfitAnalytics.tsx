@@ -207,7 +207,6 @@ const ProfitAnalytics: React.FC = () => {
       <PageHeader
         icon={Percent}
         title="Profit Analytics"
-        description="What's actually making you money, and what isn't."
         actions={
           <div className="flex flex-wrap gap-1 bg-gray-100 rounded-lg p-1">
             {PERIODS.map(p => (

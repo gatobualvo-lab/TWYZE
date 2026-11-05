@@ -185,7 +185,6 @@ const TeamManagement: React.FC = () => {
       <PageHeader
         icon={Users}
         title="Team"
-        description="Invite staff and choose exactly which parts of the business each person can see and use."
         actions={
           <button
             onClick={() => setShowForm(s => !s)}

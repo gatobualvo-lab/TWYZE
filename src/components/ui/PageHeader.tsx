@@ -5,15 +5,14 @@ interface PageHeaderProps {
   icon: React.ComponentType<{ className?: string }>;
   iconColor?: string;
   title: string;
-  description?: string;
   actions?: React.ReactNode;
   children?: React.ReactNode;
 }
 
 const DEFAULT_ICON_COLOR = 'text-blue-600';
 
-/** The title-card every feature page opens with — icon, heading, one-line explanation, and optional right-aligned actions (a button, nav controls). `children` renders below the header row for things like tabs or filters. */
-const PageHeader: React.FC<PageHeaderProps> = ({ icon: Icon, iconColor = DEFAULT_ICON_COLOR, title, description, actions, children }) => {
+/** The title-card every feature page opens with — icon, heading, and optional right-aligned actions (a button, nav controls). `children` renders below the header row for things like tabs or filters. */
+const PageHeader: React.FC<PageHeaderProps> = ({ icon: Icon, iconColor = DEFAULT_ICON_COLOR, title, actions, children }) => {
   const branded = iconColor === DEFAULT_ICON_COLOR;
   return (
     <Card className="relative overflow-hidden animate-slide-up">
@@ -30,7 +29,6 @@ const PageHeader: React.FC<PageHeaderProps> = ({ icon: Icon, iconColor = DEFAULT
           </span>
           <div className="min-w-0">
             <h2 className="text-xl font-bold text-gray-900 leading-tight">{title}</h2>
-            {description && <p className="text-gray-500 text-sm mt-0.5">{description}</p>}
           </div>
         </div>
         {actions && <div className="flex items-center gap-2">{actions}</div>}

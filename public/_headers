@@ -1,0 +1,14 @@
+# Security headers for every page (Netlify reads this file).
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+  # Reported only for now: the browser logs anything it would have blocked (open the browser console) but
+  # blocks nothing. Once a few days of normal use show no reports, rename this header to Content-Security-Policy.
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' https://us-assets.i.posthog.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io; worker-src 'self' blob:; frame-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+
+# Never cache the service worker, so a new version of the app reaches people quickly.
+/sw.js
+  Cache-Control: no-cache

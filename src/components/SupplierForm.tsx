@@ -252,7 +252,6 @@ const SupplierForm: React.FC = () => {
                 placeholder="What it cost you"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">Your cost to acquire/produce the product.</p>
             </div>
 
             <div>
@@ -271,7 +270,6 @@ const SupplierForm: React.FC = () => {
                 required
               />
               <FieldError name="selling_price" message={errors.selling_price} />
-              <p className="text-xs text-gray-500 mt-1">Total price billed to the client.</p>
             </div>
 
             <EnhancedDropdown
@@ -387,7 +385,6 @@ const SupplierForm: React.FC = () => {
                 >
                   {formatKES(balanceDue)}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Auto-calculated from selling price.</p>
               </div>
             </div>
           </div>

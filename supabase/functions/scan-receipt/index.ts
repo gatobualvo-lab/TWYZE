@@ -4,9 +4,11 @@
 // to the database here. Reuses the same ANTHROPIC_API_KEY secret as
 // ai-business-assistant, so the key never reaches the browser.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { tierOf } from '../_shared/aiLimits.ts';
+import { isImageOfType } from '../_shared/imageCheck.ts';
 
-// Inlined (same values as _shared/cors.ts) so this file works on its own when
-// pasted into the Supabase dashboard editor, which has no shared folder.
+// Inlined (same values as _shared/cors.ts). The shared plan check below is inlined when this file
+// is prepared for pasting into the Supabase dashboard editor, which has no shared folder.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -52,10 +54,11 @@ Deno.serve(async (req) => {
     // Costs money per call, so gate server-side (never trust the client).
     const { data: profile } = await supabase
       .from('profiles')
-      .select('subscription_status')
+      .select('subscription_status, subscription_expiry, trial_end_date, current_billing_cycle')
       .eq('id', user.id)
       .maybeSingle();
-    if (!['active', 'trial'].includes(profile?.subscription_status ?? '')) {
+    // Business plan (and the free month) only, worked out from the account itself like the app does.
+    if (tierOf(profile) !== 'business') {
       return json({ error: 'subscription_required' }, 403);
     }
 
@@ -81,6 +84,10 @@ Deno.serve(async (req) => {
       return json({ error: 'invalid_image' }, 400);
     }
     if (!mediaType || !ALLOWED_MEDIA_TYPES.includes(mediaType)) {
+      return json({ error: 'invalid_image' }, 400);
+    }
+    // The declared type is only a label: the bytes must be a real image of that type.
+    if (!isImageOfType(image, mediaType)) {
       return json({ error: 'invalid_image' }, 400);
     }
 

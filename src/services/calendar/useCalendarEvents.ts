@@ -5,6 +5,7 @@ import type { DateRange } from '../../utils/dateRange';
 import { listGoals } from '../goals/goalService';
 import type { GoalRecord } from '../goals/goalProgress';
 import { listTasks } from '../tasks/taskService';
+import { onTasksChanged } from '../tasks/taskEvents';
 import type { BusinessTask } from '../tasks/taskService';
 import { fetchDueDocuments } from './calendarService';
 import type { DueDocument } from './calendarService';
@@ -95,6 +96,9 @@ export function useCalendarEvents(year: number, month: number): { events: Map<st
   const reloadTasks = () => {
     listTasks().then(setTasks).catch(() => {});
   };
+
+  // A task added, ticked off or deleted on the Tasks page or in a reminder shows here straight away.
+  useEffect(() => onTasksChanged(() => { listTasks().then(setTasks).catch(() => {}); }), []);
 
   return { events, loading, reloadTasks };
 }

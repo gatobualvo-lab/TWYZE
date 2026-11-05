@@ -44,6 +44,7 @@ export const FEATURE_MIN_TIER = {
   'expense-overview': 'starter',
   'customer-timeline': 'starter',
   'daily-closing': 'starter',
+  'tax-report': 'starter',
   calendar: 'starter',
   'document-appearance': 'starter',
   'document-signature': 'starter',
@@ -80,6 +81,7 @@ export const FEATURE_NAMES: Record<Feature, string> = {
   'expense-overview': 'Expense overview',
   'customer-timeline': 'Customer timeline',
   'daily-closing': 'Daily closing report',
+  'tax-report': 'Tax report',
   calendar: 'Business calendar and reminders',
   'document-appearance': 'Document colours and layout',
   'document-signature': 'Signature and stamp on documents',
@@ -128,6 +130,7 @@ export const TIER_PITCH: Record<Tier, { tagline: string; highlights: string[] }>
       'No TrackWyze line on documents',
       'Daily closing report and calendar reminders',
       'Ad expenses and expense overview',
+      'Tax report (VAT and Turnover Tax)',
     ],
   },
   business: {

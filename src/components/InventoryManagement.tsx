@@ -478,7 +478,6 @@ const InventoryManagement: React.FC = () => {
       {view === 'performance' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h2 className="text-xl font-bold text-gray-800 mb-1" style={{ color: '#374151' }}>How your products are selling</h2>
-          <p className="text-sm text-gray-500 mb-5">Best and slowest sellers, by product and by category.</p>
           <ProductPerformance items={items} />
         </div>
       )}
@@ -658,7 +657,6 @@ const InventoryManagement: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   placeholder="0"
                 />
-                <p className="text-xs text-gray-500 mt-1">Alert when stock falls to this level</p>
               </div>
               </>
               )}
@@ -679,7 +677,6 @@ const InventoryManagement: React.FC = () => {
                     placeholder="0.00"
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">What it costs you per unit</p>
               </div>
 
               <div>
@@ -700,7 +697,6 @@ const InventoryManagement: React.FC = () => {
                   />
                 </div>
                   <FieldError name="selling_price" message={errors.selling_price} />
-                <p className="text-xs text-gray-500 mt-1">What you charge customers per unit</p>
               </div>
 
               <div className="md:col-span-2">
@@ -750,7 +746,6 @@ const InventoryManagement: React.FC = () => {
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-gray-500 mt-1">Optional. Add each color this item is available in.</p>
               </div>
 
               <div className="md:col-span-2">
@@ -913,9 +908,6 @@ const InventoryManagement: React.FC = () => {
             <div className="flex items-start justify-between p-6 border-b border-gray-200">
               <div>
                 <h3 className="text-xl font-bold text-gray-800">Sales for {salesProduct.product_name}</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  Every recorded sale of this product, with vendor and payment details.
-                </p>
               </div>
               <button
                 onClick={closeSalesModal}

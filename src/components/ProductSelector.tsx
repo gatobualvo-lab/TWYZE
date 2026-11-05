@@ -548,7 +548,6 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div ref={modalRef} className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold mb-1">Add New {Noun}</h3>
-            <p className="text-sm text-gray-500 mb-4">Saved to your inventory, so stock and prices are tracked from the start.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
@@ -651,7 +650,6 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="0"
                 />
-                <p className="text-xs text-gray-500 mt-1">Alert when stock falls to this level</p>
               </div>
               </>
               )}
@@ -670,7 +668,6 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                     placeholder="0.00"
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">What it costs you per unit</p>
               </div>
 
               <div>
@@ -689,7 +686,6 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                     placeholder="0.00"
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">What you charge customers per unit</p>
               </div>
 
               <div className="sm:col-span-2">
@@ -733,7 +729,6 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-gray-500 mt-1">Optional. Press Enter or click Add to include each color.</p>
               </div>
 
               <div className="sm:col-span-2">

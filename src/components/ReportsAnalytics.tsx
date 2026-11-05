@@ -5,6 +5,7 @@ import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatDate } from '../utils/format';
+import { csvCell } from '../utils/safeContent';
 
 interface DateRange {
   start: string;
@@ -723,10 +724,8 @@ const ReportsAnalytics: React.FC = () => {
     }
 
     // Build CSV content (proper RFC 4180 escaping, BOM for Excel)
-    const escape = (cell: any) => {
-      const value = cell === null || cell === undefined ? '' : String(cell);
-      return `"${value.replace(/"/g, '""')}"`;
-    };
+    // csvCell also stops a text cell that starts with = + - or @ from running as a formula in Excel.
+    const escape = csvCell;
     csvContent = '\uFEFF' + [
       headers.map(escape).join(','),
       ...rows.map(row => row.map(escape).join(',')),

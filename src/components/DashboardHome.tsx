@@ -1,22 +1,20 @@
 import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, TrendingUp, DollarSign, Users, Receipt, ChevronDown, Check, Trash2, ArrowRight, Settings, ShoppingCart, Truck } from 'lucide-react';
+import { Plus, TrendingUp, DollarSign, Users, Receipt, ChevronDown, Check, ArrowRight, Settings, ShoppingCart, Truck } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import { useTheme } from '../contexts/ThemeContext';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
-import toast from 'react-hot-toast';
 import { formatCurrency as formatKES, formatDate } from '../utils/format';
 import { getPeriodRange } from '../utils/dateRange';
 import BusinessHealthScore from './analytics/BusinessHealthScore';
-import { listTasks, createTask, toggleTaskCompleted, deleteTask as deleteTaskRecord } from '../services/tasks/taskService';
-import { REMINDER_OPTIONS, formatDueTime } from '../services/tasks/reminders';
+import BusinessTasks from './tasks/BusinessTasks';
+import BestSellers from './dashboard/BestSellers';
+import { useEntitlements } from '../contexts/EntitlementsContext';
 import CountUp from './ui/CountUp';
 import Spinner from './ui/Spinner';
 import Sparkline from './ui/Sparkline';
 import { useRotatingMessage } from './LoadingScreen';
-import { ensureNotificationPermission } from '../services/tasks/useTaskReminders';
-import type { BusinessTask } from '../services/tasks/taskService';
 import { Skeleton, SkeletonStatGrid, SkeletonList } from './ui';
 import OnboardingChecklist from './onboarding/OnboardingChecklist';
 import { getCategoryConfig } from '../constants/businessCategory';
@@ -60,6 +58,7 @@ const safeNum = (v: unknown): number => {
 
 const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, businessCategory }) => {
   const { theme } = useTheme();
+  const { has } = useEntitlements();
   const categoryConfig = getCategoryConfig(businessCategory);
   const saleNounPlural = `${categoryConfig.saleNounSingular}s`;
   const [loading, setLoading] = useState(true);
@@ -101,12 +100,6 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
   const [outstandingCustomers, setOutstandingCustomers] = useState(0);
 
   // Tasks
-  const [tasks, setTasks] = useState<BusinessTask[]>([]);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskType, setNewTaskType] = useState('general');
-  const [newTaskDueDate, setNewTaskDueDate] = useState('');
-  const [newTaskDueTime, setNewTaskDueTime] = useState('');
-  const [newTaskRemind, setNewTaskRemind] = useState<number | null>(null);
 
   // A fill that fades from the line colour down to nothing, built from the chart's own canvas.
   const areaGradient = (rgb: string) => (context: { chart: { ctx: CanvasRenderingContext2D; chartArea?: { top: number; bottom: number } } }) => {
@@ -276,10 +269,6 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
       const uniqueCustomers = new Set((custData || []).map(s => s.client_name?.toLowerCase()).filter(Boolean));
       setOutstandingCustomers(uniqueCustomers.size);
 
-      // Tasks
-      const tasksData = await listTasks();
-      setTasks(tasksData);
-
     } catch (err) {
       console.error('Dashboard data error:', err);
     } finally {
@@ -351,39 +340,6 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
 
   useEffect(() => { fetchDashboardData(); }, [fetchDashboardData]);
 
-  const addTask = async () => {
-    if (!newTaskTitle.trim()) return;
-    try {
-      const wantsReminder = newTaskRemind !== null && !!newTaskDueDate;
-      const created = await createTask({
-        title: newTaskTitle.trim(),
-        taskType: newTaskType,
-        dueDate: newTaskDueDate || null,
-        dueTime: newTaskDueTime || null,
-        remindMinutesBefore: wantsReminder ? newTaskRemind : null,
-      });
-      setTasks(prev => [created, ...prev]);
-      setNewTaskTitle('');
-      setNewTaskDueDate('');
-      setNewTaskDueTime('');
-      setNewTaskRemind(null);
-      toast.success(wantsReminder ? 'Task added. You will be reminded' : 'Task added');
-      if (wantsReminder) ensureNotificationPermission();
-    } catch {
-      toast.error('Failed to add task');
-    }
-  };
-
-  const toggleTask = async (id: string, completed: boolean) => {
-    await toggleTaskCompleted(id, completed);
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !completed } : t));
-  };
-
-  const deleteTask = async (id: string) => {
-    await deleteTaskRecord(id);
-    setTasks(prev => prev.filter(t => t.id !== id));
-  };
-
   const savePrefs = async (newPrefs: DashboardPrefs) => {
     setPrefs(newPrefs);
     const { data: { user } } = await supabase.auth.getUser();
@@ -396,10 +352,10 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
   };
 
   const isDark = theme === 'dark';
-  const cardClass = `spotlight rounded-2xl border p-5 transition-all duration-300 ease-smooth cursor-pointer hover:-translate-y-1 active:translate-y-0 ${
+  const cardClass = `spotlight rounded-xl border p-3.5 transition-all duration-300 ease-smooth cursor-pointer hover:-translate-y-0.5 active:translate-y-0 ${
     isDark ? 'bg-slate-800 border-slate-700 hover:shadow-lg hover:shadow-black/30' : 'bg-white border-gray-200/70 shadow-sm hover:shadow-lg hover:border-blue-200'
   }`;
-  const sectionTitle = `text-lg font-semibold ${isDark ? 'text-gray-100' : 'text-gray-800'}`;
+  const sectionTitle = `text-base font-semibold ${isDark ? 'text-gray-100' : 'text-gray-800'}`;
   const loadingMessage = useRotatingMessage();
 
   if (loading) {
@@ -443,7 +399,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
   }
 
   return (
-    <div className="space-y-6 stagger-soft">
+    <div className="space-y-4 stagger-soft">
       <OnboardingChecklist onNavigate={onNavigate} />
 
       {/* Hero: greeting, today's headline number, and the main action */}
@@ -455,20 +411,19 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
           <div className="absolute -right-8 -top-12 w-64 h-64 rounded-full bg-accent-400/25 blur-3xl" />
           <div className="absolute -left-10 -bottom-16 w-72 h-72 rounded-full bg-blue-400/20 blur-3xl" />
         </div>
-        <div className="relative p-6 sm:p-8 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+        <div className="relative p-4 sm:p-5 flex flex-col lg:flex-row lg:items-end justify-between gap-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.2em] text-white/60 font-semibold">
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
-            <h1 className="font-display text-3xl sm:text-4xl font-extrabold mt-1.5 tracking-tight text-white">
+            <h1 className="font-display text-2xl sm:text-3xl font-extrabold mt-1 tracking-tight text-white">
               {getGreeting()}, <span className="text-gradient">{userName.split(' ')[0] || 'there'}</span>
             </h1>
-            <p className="mt-1 text-white/70">Here's today's business overview.</p>
           </div>
-          <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+          <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
             <div>
               <p className="text-xs font-medium text-white/60">Today's {categoryConfig.salesLabel}</p>
-              <p className="font-display text-3xl sm:text-4xl font-extrabold tabular-nums leading-tight">
+              <p className="font-display text-2xl sm:text-3xl font-extrabold tabular-nums leading-tight">
                 <CountUp value={todaySales} format={formatKES} />
               </p>
               {todayOrderCount > 0 && (
@@ -481,7 +436,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
               <div className="relative">
                 <button
                   onClick={() => setShowQuickAdd(!showQuickAdd)}
-                  className="sheen-host flex items-center gap-2 px-5 py-3 bg-gradient-to-b from-accent-300 to-accent-500 hover:shadow-glow-accent text-gray-900 rounded-xl font-bold shadow-md shadow-inset transition-all duration-200 ease-smooth active:scale-[0.97] text-sm"
+                  className="sheen-host flex items-center gap-2 px-4 py-2.5 bg-gradient-to-b from-accent-300 to-accent-500 hover:shadow-glow-accent text-gray-900 rounded-xl font-bold shadow-md shadow-inset transition-all duration-200 ease-smooth active:scale-[0.97] text-sm"
                 >
                   <Plus className="w-4 h-4" />
                   Quick Add
@@ -513,7 +468,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
               </div>
               <button
                 onClick={() => setShowCustomize(!showCustomize)}
-                className="p-3 rounded-xl border border-white/20 text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+                className="p-2.5 rounded-xl border border-white/20 text-white/80 hover:bg-white/10 hover:text-white transition-colors"
                 title="Customize Dashboard"
                 aria-label="Customize dashboard"
               >
@@ -564,7 +519,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
 
       {/* KPI Cards */}
       {prefs.show_kpi_cards && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 no-stagger">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 no-stagger">
           {([
             {
               tab: 'view-sales', bg: 'bg-blue-500/12', icon: TrendingUp, iconColor: 'text-blue-600',
@@ -604,12 +559,12 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
               onClick={() => onNavigate(kpi.tab)}
             >
               <div className="flex items-center gap-3">
-                <div className={`p-2.5 rounded-xl ${kpi.bg} transition-transform duration-300 ease-spring group-hover:scale-110 group-hover:-rotate-3`}>
-                  <kpi.icon className={`w-5 h-5 ${kpi.iconColor}`} />
+                <div className={`p-2 rounded-lg ${kpi.bg} transition-transform duration-300 ease-spring group-hover:scale-110 group-hover:-rotate-3`}>
+                  <kpi.icon className={`w-4 h-4 ${kpi.iconColor}`} />
                 </div>
                 <div className="min-w-0">
                   <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{kpi.label}</p>
-                  <p className={`font-display text-xl font-extrabold truncate tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}><CountUp value={kpi.value} format={formatKES} /></p>
+                  <p className={`font-display text-lg font-extrabold truncate tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}><CountUp value={kpi.value} format={formatKES} /></p>
                   {kpi.sub && (
                     <p className={`text-xs mt-0.5 truncate ${
                       kpi.subTone === 'good' ? 'text-green-600' : kpi.subTone === 'bad' ? 'text-red-500' : isDark ? 'text-gray-500' : 'text-gray-400'
@@ -620,8 +575,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                 </div>
               </div>
               {kpi.spark && kpi.spark.length > 1 && kpi.spark.some(v => v !== 0) && (
-                <div className="mt-3 -mx-1">
-                  <Sparkline values={kpi.spark} color={kpi.sparkColor} className="w-full h-7" />
+                <div className="mt-2 -mx-1">
+                  <Sparkline values={kpi.spark} color={kpi.sparkColor} className="w-full h-6" />
                 </div>
               )}
             </div>
@@ -630,14 +585,13 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
       )}
 
       {/* Chart + Recent Sales Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Chart */}
         {prefs.show_chart && (
-          <div className={`lg:col-span-2 rounded-xl border p-5 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
-            <h2 className={sectionTitle}>{categoryConfig.salesLabel} & Profit</h2>
-            <p className={`text-xs mb-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Last 30 days</p>
+          <div className={`lg:col-span-2 rounded-xl border p-4 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
+            <h2 className={`${sectionTitle} mb-2`}>{categoryConfig.salesLabel} & Profit · 30 days</h2>
             {!chartHasData ? (
-              <div className="h-56 flex flex-col items-center justify-center text-center gap-3">
+              <div className="h-44 flex flex-col items-center justify-center text-center gap-3">
                 <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>No {categoryConfig.salesLabel.toLowerCase()} in the last 30 days yet.</p>
                 <button
                   type="button"
@@ -648,7 +602,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
                 </button>
               </div>
             ) : (
-            <div className="h-56" role="img" aria-label={chartSummary}>
+            <div className="h-44" role="img" aria-label={chartSummary}>
               <Line
                 data={chartData}
                 options={{
@@ -710,16 +664,16 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
 
         {/* Recent Sales */}
         {prefs.show_recent_sales && (
-          <div className={`rounded-xl border p-5 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
-            <div className="flex items-center justify-between mb-4">
+          <div className={`rounded-xl border p-4 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
+            <div className="flex items-center justify-between mb-2">
               <h2 className={sectionTitle}>Recent {categoryConfig.salesLabel}</h2>
             </div>
             {recentSales.length === 0 ? (
               <p className={`text-sm py-6 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No {saleNounPlural} recorded yet.</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-0.5">
                 {recentSales.map(sale => (
-                  <div key={sale.id} className={`flex items-center justify-between py-2 px-2 -mx-2 rounded-lg border-b last:border-0 transition-colors ${isDark ? 'border-slate-700 hover:bg-slate-700/50' : 'border-gray-50 hover:bg-gray-50'}`}>
+                  <div key={sale.id} className={`flex items-center justify-between py-1.5 px-2 -mx-2 rounded-lg border-b last:border-0 transition-colors ${isDark ? 'border-slate-700 hover:bg-slate-700/50' : 'border-gray-50 hover:bg-gray-50'}`}>
                     <div className="min-w-0 flex-1">
                       <p className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                         {sale.client_name || sale.product_name || 'Sale'}
@@ -737,7 +691,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
             )}
             <button
               onClick={() => onNavigate('view-sales')}
-              className="group flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium mt-4 w-full justify-center"
+              className="group flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium mt-2 w-full justify-center"
             >
               View all sales <ArrowRight className="w-3.5 h-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
             </button>
@@ -745,21 +699,21 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
         )}
       </div>
 
-      {/* Attention + Tasks Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* Attention + Best sellers + Tasks */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Attention Needed */}
         {prefs.show_attention && (
-          <div className={`rounded-xl border p-5 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
+          <div className={`rounded-xl border p-4 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
             <h2 className={sectionTitle}>Attention Needed</h2>
             {pendingDeliveries === 0 && lowStockItems === 0 && outstandingCustomers === 0 ? (
-              <div className={`flex items-center gap-3 mt-4 py-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              <div className={`flex items-center gap-3 mt-2 py-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 <span className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 animate-pop-check">
                   <Check className="w-4 h-4 text-green-600" />
                 </span>
                 <p className="text-sm">Everything looks good today.</p>
               </div>
             ) : (
-              <div className="mt-3 space-y-2">
+              <div className="mt-2 space-y-1">
                 {pendingDeliveries > 0 && (
                   <button onClick={() => onNavigate('delivery-payments')} className={`group w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
                     <div className="flex items-center gap-3">
@@ -792,104 +746,11 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
           </div>
         )}
 
-        {/* Business Tasks */}
-        {prefs.show_tasks && (
-          <div className={`rounded-xl border p-5 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
-            <h2 className={sectionTitle}>Business Tasks</h2>
-            <div className="flex gap-2 mt-3">
-              <input
-                type="text"
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addTask()}
-                placeholder="Add a task..."
-                className={`flex-1 min-w-0 text-sm px-3 py-2 rounded-lg border ${
-                  isDark ? 'bg-slate-700 border-slate-600 text-gray-200 placeholder:text-gray-500' : 'border-gray-200 placeholder:text-gray-400'
-                }`}
-              />
-              <button onClick={addTask} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium flex-shrink-0">
-                Add
-              </button>
-            </div>
-            {/* Two columns on a phone so the four controls fit its width; a wider row would stretch the whole page. */}
-            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mt-2">
-              <select
-                value={newTaskType}
-                onChange={(e) => setNewTaskType(e.target.value)}
-                className={`w-full min-w-0 sm:w-auto text-xs px-2 py-2 rounded-lg border ${
-                  isDark ? 'bg-slate-700 border-slate-600 text-gray-300' : 'border-gray-200 text-gray-600'
-                }`}
-              >
-                <option value="general">General</option>
-                <option value="follow_up">Follow up</option>
-                <option value="pay_supplier">Pay supplier</option>
-                <option value="restock">Restock</option>
-                <option value="deliver">Deliver</option>
-              </select>
-              <input
-                type="date"
-                value={newTaskDueDate}
-                onChange={(e) => setNewTaskDueDate(e.target.value)}
-                title="Due date (optional) — shows this task on the Business Calendar"
-                className={`w-full min-w-0 sm:w-auto text-xs px-2 py-2 rounded-lg border ${
-                  isDark ? 'bg-slate-700 border-slate-600 text-gray-300' : 'border-gray-200 text-gray-600'
-                }`}
-              />
-              <input
-                type="time"
-                value={newTaskDueTime}
-                onChange={(e) => setNewTaskDueTime(e.target.value)}
-                disabled={!newTaskDueDate}
-                title="Time (optional)"
-                className={`w-full min-w-0 sm:w-auto text-xs px-2 py-2 rounded-lg border disabled:opacity-50 ${
-                  isDark ? 'bg-slate-700 border-slate-600 text-gray-300' : 'border-gray-200 text-gray-600'
-                }`}
-              />
-              <select
-                value={newTaskRemind === null ? '' : String(newTaskRemind)}
-                onChange={(e) => setNewTaskRemind(e.target.value === '' ? null : Number(e.target.value))}
-                disabled={!newTaskDueDate}
-                title="Remind me (needs a due date)"
-                className={`w-full min-w-0 sm:w-auto text-xs px-2 py-2 rounded-lg border disabled:opacity-50 ${
-                  isDark ? 'bg-slate-700 border-slate-600 text-gray-300' : 'border-gray-200 text-gray-600'
-                }`}
-              >
-                {REMINDER_OPTIONS.map(o => (
-                  <option key={String(o.value)} value={o.value === null ? '' : String(o.value)}>{o.value === null ? 'No reminder' : `Remind: ${o.label.toLowerCase()}`}</option>
-                ))}
-              </select>
-            </div>
-            <div className="mt-3 space-y-1 max-h-48 overflow-y-auto">
-              {tasks.length === 0 ? (
-                <p className={`text-sm py-4 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No tasks yet.</p>
-              ) : (
-                tasks.map(task => (
-                  <div key={task.id} className={`flex items-center gap-2 px-2 py-2 rounded-lg group animate-scale-in transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
-                    <button onClick={() => toggleTask(task.id, task.completed)} className={`w-5 h-5 rounded border flex-shrink-0 flex items-center justify-center transition-all duration-150 active:scale-90 ${
-                      task.completed ? 'bg-blue-600 border-blue-600' : isDark ? 'border-slate-500 hover:border-blue-400' : 'border-gray-300 hover:border-blue-400'
-                    }`}>
-                      {task.completed && <Check className="w-3 h-3 text-white animate-pop-check" />}
-                    </button>
-                    <span className={`flex-1 text-sm ${task.completed ? 'line-through opacity-50' : ''} ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                      {task.title}
-                    </span>
-                    {task.dueDate && (
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${isDark ? 'bg-slate-600 text-gray-400' : 'bg-gray-100 text-gray-400'}`}>
-                        {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{task.dueTime ? ` · ${formatDueTime(task.dueTime)}` : ''}{task.remindAt && !task.completed ? ' ⏰' : ''}
-                      </span>
-                    )}
-                    <span className={`text-xs px-1.5 py-0.5 rounded ${isDark ? 'bg-slate-600 text-gray-400' : 'bg-gray-100 text-gray-400'}`}>
-                      {task.taskType.replace('_', ' ')}
-                    </span>
-                    <button onClick={() => deleteTask(task.id)} className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 transition-opacity">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
+        {/* Best sellers: part of the plan that includes product performance */}
+        {has('product-performance') && <BestSellers onOpen={() => onNavigate('inventory')} />}
+
+        {/* Business Tasks (the full list is its own page in the menu) */}
+        {prefs.show_tasks && <BusinessTasks variant="card" onViewAll={() => onNavigate('tasks')} />}
       </div>
     </div>
   );

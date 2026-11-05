@@ -226,7 +226,6 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNavigate }) =
       <PageHeader
         icon={Bell}
         title="Notification Center"
-        description="Everything that needs your attention, in one prioritized list."
         actions={
           <>
             {unreadCount > 0 && (

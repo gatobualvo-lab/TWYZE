@@ -97,7 +97,6 @@ const OpportunityCenter: React.FC<{ onNavigate?: (tab: string) => void }> = ({ o
         icon={Lightbulb}
         iconColor="text-amber-500"
         title="Opportunity Center"
-        description="Things worth acting on, found in your actual sales, customers, inventory, and expenses — nothing here is guessed."
       />
 
       {opportunities.length === 0 ? (

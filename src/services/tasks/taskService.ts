@@ -44,7 +44,7 @@ export async function listTasks(): Promise<BusinessTask[]> {
     .select('*')
     .order('completed', { ascending: true })
     .order('created_at', { ascending: false })
-    .limit(50);
+    .limit(300);
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapRow);
 }

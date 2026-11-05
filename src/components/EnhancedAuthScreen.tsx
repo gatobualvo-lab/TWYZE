@@ -1,7 +1,7 @@
 import Spinner from './ui/Spinner';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Mail, Lock, User as UserIcon, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Mail, Lock, User as UserIcon, AlertCircle, CheckCircle, Check, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast, { Toaster } from 'react-hot-toast';
 import { checkRateLimit, RATE_LIMIT_MESSAGE, checkLeakedPassword, LEAKED_PASSWORD_MESSAGE } from '../utils/security';
@@ -11,6 +11,9 @@ import { BUSINESS_CATEGORIES, REFERRAL_SOURCES } from '../constants/businessCate
 import { ACCOUNT_CURRENCIES, DEFAULT_CURRENCY } from '../utils/accountCurrency';
 import Logo from './brand/Logo';
 import { usePageMeta } from '../utils/pageMeta';
+import { AGE_GROUPS, isAllowedAgeGroup, UNDER_AGE_MESSAGE } from '../utils/ageGroup';
+import { TERMS_VERSION } from '../constants/legal';
+import CheckEmailPanel from './auth/CheckEmailPanel';
 
 type Mode = 'login' | 'signup';
 
@@ -18,15 +21,22 @@ interface FormData {
   name: string;
   email: string;
   password: string;
-  confirmPassword: string;
   businessCategory: string;
   referralSource: string;
   currency: string;
+  /** The age group ticked on the form (under 18 cannot sign up). */
+  ageGroup: string;
+  /** Agreed to the Terms of Service and Privacy Policy (required to sign up). */
+  acceptedTerms: boolean;
   /** The "email me" tick box. Off until the person ticks it. */
   emailOptIn: boolean;
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 8;
+
+/** Signup is two short steps instead of one long form: first the account, then the business. */
+type SignupStep = 1 | 2;
 
 const EnhancedAuthScreen: React.FC = () => {
   usePageMeta({
@@ -41,18 +51,34 @@ const EnhancedAuthScreen: React.FC = () => {
     name: '',
     email: '',
     password: '',
-    confirmPassword: '',
     businessCategory: '',
     referralSource: '',
     currency: DEFAULT_CURRENCY,
+    ageGroup: '',
+    acceptedTerms: false,
     emailOptIn: false,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [step, setStep] = useState<SignupStep>(1);
+  /** Set once the account exists but the email still has to be confirmed. */
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const signupStartedTracked = useRef(false);
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const firstRender = useRef(true);
 
   const isLogin = mode === 'login';
+
+  // Moving between steps puts keyboard and screen-reader focus on the new step's heading.
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    stepHeadingRef.current?.focus();
+  }, [step]);
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -60,13 +86,21 @@ const EnhancedAuthScreen: React.FC = () => {
     setSuccess('');
   };
 
-  const validateSignUp = (): string | null => {
+  const validateAccountStep = (): string | null => {
     if (!formData.name.trim()) return 'Full name is required';
     if (!EMAIL_REGEX.test(formData.email.trim())) return 'Please enter a valid email address';
-    if (formData.password.length < 8) return 'Password must be at least 8 characters';
-    if (formData.password !== formData.confirmPassword) return 'Passwords do not match';
+    if (formData.password.length < MIN_PASSWORD_LENGTH) return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+    return null;
+  };
+
+  const validateSignUp = (): string | null => {
+    const accountError = validateAccountStep();
+    if (accountError) return accountError;
     if (!formData.businessCategory) return 'Please select your business type';
     if (!formData.referralSource) return 'Please tell us how you heard about Trackwyze';
+    if (!formData.ageGroup) return 'Please tick your age group';
+    if (!isAllowedAgeGroup(formData.ageGroup)) return UNDER_AGE_MESSAGE;
+    if (!formData.acceptedTerms) return 'Please agree to the Terms of Service and Privacy Policy';
     return null;
   };
 
@@ -79,12 +113,14 @@ const EnhancedAuthScreen: React.FC = () => {
   const handleSignUp = async () => {
     const validationError = validateSignUp();
     if (validationError) {
+      trackEvent(validationError === UNDER_AGE_MESSAGE ? 'signup_blocked_under_age' : 'signup_validation_failed', { step: 2, reason: validationError });
       setError(validationError);
       toast.error(validationError);
       return;
     }
 
     setIsSubmitting(true);
+    trackEvent('signup_submitted');
     try {
       if (!(await checkRateLimit('auth.signup'))) {
         setError(RATE_LIMIT_MESSAGE);
@@ -110,6 +146,9 @@ const EnhancedAuthScreen: React.FC = () => {
             business_category: formData.businessCategory,
             currency: formData.currency,
             referral_source: formData.referralSource,
+            age_group: formData.ageGroup,
+            terms_accepted: formData.acceptedTerms,
+            terms_version: TERMS_VERSION,
             email_opt_in: formData.emailOptIn,
           },
         },
@@ -124,20 +163,28 @@ const EnhancedAuthScreen: React.FC = () => {
         return;
       }
 
-      // If session is null, email confirmation is required.
+      // With email confirmation on, Supabase answers "success" for an address that already has an account,
+      // without creating one or sending anything (so as not to reveal it). It shows as a user with no identities.
+      if (!data.session && Array.isArray(data.user?.identities) && data.user.identities.length === 0) {
+        const msg = 'This email is already registered. Please log in instead.';
+        setError(msg);
+        toast.error(msg);
+        return;
+      }
+
+      // If session is null, email confirmation is required: tell the person what to do next.
       if (!data.session) {
-        const msg = 'Account created successfully. Please check your email to confirm your account.';
-        setSuccess(msg);
-        toast.success('Account created. Check your email to confirm.');
-        setFormData({ name: '', email: '', password: '', confirmPassword: '', businessCategory: '', referralSource: '', currency: DEFAULT_CURRENCY, emailOptIn: false });
-        setMode('login');
+        trackEvent('user_signed_up', { needs_confirmation: true });
+        trackEvent('signup_check_email_shown');
+        setFormData(prev => ({ ...prev, password: '' }));
+        setPendingEmail(email);
         return;
       }
 
       // Email confirmation disabled - user is logged in immediately.
       toast.success('Welcome to Trackwyze!');
       if (formData.emailOptIn) sendWelcomeEmail(); // only to people who ticked the box
-      trackEvent('user_signed_up');
+      trackEvent('user_signed_up', { needs_confirmation: false });
       navigate('/app', { replace: true });
     } catch (err: any) {
       const msg = err?.message || 'Registration failed. Please try again.';
@@ -205,13 +252,45 @@ const EnhancedAuthScreen: React.FC = () => {
     }
   };
 
+  const resendConfirmation = async () => {
+    if (!pendingEmail) return;
+    trackEvent('signup_email_resent');
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email: pendingEmail,
+      options: { emailRedirectTo: `${window.location.origin}/login` },
+    });
+    if (resendError) {
+      throw new Error(/rate|seconds|too many/i.test(resendError.message) ? 'Please wait a little before asking for another email.' : 'Could not send the email. Please try again shortly.');
+    }
+  };
+
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (isLogin) handleLogin();
-    else handleSignUp();
+    if (isLogin) {
+      handleLogin();
+    } else if (step === 1) {
+      const accountError = validateAccountStep();
+      if (accountError) {
+        trackEvent('signup_validation_failed', { step: 1, reason: accountError });
+        setError(accountError);
+        return;
+      }
+      setError('');
+      trackEvent('signup_step_completed', { step: 1 });
+      setStep(2);
+    } else {
+      handleSignUp();
+    }
   };
 
   const switchMode = (next: Mode) => {
+    setStep(1);
+    setPendingEmail(null);
+    if (next === 'signup' && !signupStartedTracked.current) {
+      signupStartedTracked.current = true;
+      trackEvent('signup_started');
+    }
     setMode(next);
     setError('');
     setSuccess('');
@@ -274,12 +353,32 @@ const EnhancedAuthScreen: React.FC = () => {
           </Link>
         </div>
 
+        {pendingEmail ? (
+          <CheckEmailPanel
+            email={pendingEmail}
+            onResend={resendConfirmation}
+            onChangeEmail={() => { setPendingEmail(null); setMode('signup'); setStep(1); }}
+            onLogin={() => switchMode('login')}
+          />
+        ) : (
+        <>
         <div className="text-center mb-8">
           <div className="flex justify-center mb-5 lg:hidden">
             <Logo markClassName="w-12 h-12" wordmarkClassName="text-3xl" />
           </div>
-          <h1 className="font-display text-3xl font-extrabold text-gray-900 mb-1 tracking-tight">{isLogin ? 'Welcome back' : 'Create your account'}</h1>
-          <p className="text-gray-500 mb-6">{isLogin ? 'Log in to see how your business is doing.' : 'Start tracking sales, stock and profit in minutes.'}</p>
+          <h1 ref={stepHeadingRef} tabIndex={-1} className="font-display text-3xl font-extrabold text-gray-900 mb-1 tracking-tight outline-none">
+            {isLogin ? 'Welcome back' : step === 1 ? 'Create your account' : 'About your business'}
+          </h1>
+          <p className="text-gray-500 mb-4">
+            {isLogin ? 'Log in to see how your business is doing.' : step === 1 ? 'Start tracking sales, stock and profit in minutes.' : 'Almost done. This helps us set up the app for you.'}
+          </p>
+          {!isLogin && step === 1 && (
+            <p className="mb-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs font-medium text-emerald-700">
+              <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5" aria-hidden="true" /> First month free</span>
+              <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5" aria-hidden="true" /> No credit card</span>
+              <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5" aria-hidden="true" /> Cancel anytime</span>
+            </p>
+          )}
 
           <div className="relative grid grid-cols-2 bg-gray-100 rounded-xl p-1">
             <span
@@ -305,201 +404,257 @@ const EnhancedAuthScreen: React.FC = () => {
           </div>
         </div>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-4" onSubmit={handleSubmit} noValidate>
           {!isLogin && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
-              </label>
-              <div className="relative">
-                <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  autoComplete="name"
-                  value={formData.name}
-                  onChange={e => handleInputChange('name', e.target.value)}
-                  className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter your full name"
-                  disabled={isSubmitting}
-                />
+            <div className="mb-1">
+              <div className="mb-2 flex items-center justify-between text-xs font-semibold text-gray-500">
+                <span>Step {step} of 2</span>
+                <span>{step === 1 ? 'Your account' : 'Your business'}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2" role="progressbar" aria-label="Signup progress" aria-valuemin={1} aria-valuemax={2} aria-valuenow={step}>
+                <span className="h-1.5 rounded-full bg-blue-600" />
+                <span className={`h-1.5 rounded-full transition-colors duration-300 ${step === 2 ? 'bg-blue-600' : 'bg-gray-200'}`} />
               </div>
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email Address
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="email"
-                autoComplete="email"
-                value={formData.email}
-                onChange={e => handleInputChange('email', e.target.value)}
-                className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="you@example.com"
-                disabled={isSubmitting}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              {isLogin && (
-                <Link to="/forgot-password" className="text-xs text-blue-600 hover:text-blue-800">
-                  Forgot password?
-                </Link>
+          {(isLogin || step === 1) && (
+            <>
+              {!isLogin && (
+                <div>
+                  <label htmlFor="signup-name" className="block text-sm font-medium text-gray-700 mb-1.5">Full name</label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
+                    <input
+                      id="signup-name"
+                      type="text"
+                      autoComplete="name"
+                      value={formData.name}
+                      onChange={e => handleInputChange('name', e.target.value)}
+                      className="pl-10 w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter your full name"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
               )}
-            </div>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                autoComplete={isLogin ? 'current-password' : 'new-password'}
-                value={formData.password}
-                onChange={e => handleInputChange('password', e.target.value)}
-                className="pl-10 pr-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder={isLogin ? 'Enter your password' : 'At least 8 characters'}
-                disabled={isSubmitting}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(s => !s)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                tabIndex={-1}
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
 
-          {!isLogin && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  value={formData.confirmPassword}
-                  onChange={e => handleInputChange('confirmPassword', e.target.value)}
-                  className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Re-enter your password"
-                  disabled={isSubmitting}
-                />
+              <div>
+                <label htmlFor="auth-email" className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
+                  <input
+                    id="auth-email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    value={formData.email}
+                    onChange={e => handleInputChange('email', e.target.value)}
+                    className="pl-10 w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="you@example.com"
+                    disabled={isSubmitting}
+                  />
+                </div>
               </div>
-            </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="auth-password" className="block text-sm font-medium text-gray-700">Password</label>
+                  {isLogin && (
+                    <Link to="/forgot-password" className="text-xs text-blue-600 hover:text-blue-800">
+                      Forgot password?
+                    </Link>
+                  )}
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
+                  <input
+                    id="auth-password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete={isLogin ? 'current-password' : 'new-password'}
+                    value={formData.password}
+                    onChange={e => handleInputChange('password', e.target.value)}
+                    className="pl-10 w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-11"
+                    placeholder={isLogin ? 'Enter your password' : 'At least 8 characters'}
+                    disabled={isSubmitting}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-pressed={showPassword}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+                  </button>
+                </div>
+                {!isLogin && (
+                  <p className={`mt-1.5 flex items-center gap-1.5 text-xs ${formData.password.length >= MIN_PASSWORD_LENGTH ? 'text-emerald-700' : 'text-gray-500'}`}>
+                    <Check className={`w-3.5 h-3.5 ${formData.password.length >= MIN_PASSWORD_LENGTH ? '' : 'opacity-30'}`} aria-hidden="true" />
+                    At least {MIN_PASSWORD_LENGTH} characters
+                  </p>
+                )}
+              </div>
+            </>
           )}
 
-          {!isLogin && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                What kind of business is it?
+          {!isLogin && step === 2 && (
+            <>
+              <div>
+                <label htmlFor="signup-business" className="block text-sm font-medium text-gray-700 mb-1.5">What kind of business is it?</label>
+                <select
+                  id="signup-business"
+                  value={formData.businessCategory}
+                  onChange={e => handleInputChange('businessCategory', e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  disabled={isSubmitting}
+                >
+                  <option value="" disabled>Select your business type</option>
+                  {BUSINESS_CATEGORIES.map(c => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="signup-currency" className="block text-sm font-medium text-gray-700 mb-1.5">Which currency do you work in?</label>
+                <select
+                  id="signup-currency"
+                  value={formData.currency}
+                  onChange={e => handleInputChange('currency', e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  disabled={isSubmitting}
+                >
+                  {ACCOUNT_CURRENCIES.map(c => (
+                    <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="signup-referral" className="block text-sm font-medium text-gray-700 mb-1.5">How did you hear about Trackwyze?</label>
+                <select
+                  id="signup-referral"
+                  value={formData.referralSource}
+                  onChange={e => handleInputChange('referralSource', e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  disabled={isSubmitting}
+                >
+                  <option value="" disabled>Select an option</option>
+                  {REFERRAL_SOURCES.map(r => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <fieldset disabled={isSubmitting}>
+                <legend className="block text-sm font-medium text-gray-700 mb-1.5">Your age</legend>
+                <div className="grid grid-cols-3 gap-2">
+                  {AGE_GROUPS.map(group => (
+                    <label
+                      key={group.value}
+                      className={`flex min-h-[44px] cursor-pointer items-center justify-center rounded-lg border px-2 py-2 text-center text-sm font-medium transition-colors focus-within:ring-2 focus-within:ring-blue-500 ${
+                        formData.ageGroup === group.value ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="age-group"
+                        value={group.value}
+                        checked={formData.ageGroup === group.value}
+                        onChange={() => handleInputChange('ageGroup', group.value)}
+                        className="sr-only"
+                      />
+                      {group.label}
+                    </label>
+                  ))}
+                </div>
+                {formData.ageGroup === 'under_18' && (
+                  <p role="alert" className="mt-2 text-sm text-red-600">{UNDER_AGE_MESSAGE}</p>
+                )}
+              </fieldset>
+
+              <label className="flex items-start gap-3 cursor-pointer rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <input
+                  type="checkbox"
+                  checked={formData.emailOptIn}
+                  onChange={e => setFormData(prev => ({ ...prev, emailOptIn: e.target.checked }))}
+                  disabled={isSubmitting}
+                  className="mt-0.5 h-5 w-5 flex-shrink-0 rounded border-gray-300"
+                />
+                <span className="text-sm text-gray-700">
+                  Email me reminders, business reports and tips.
+                  <span className="block text-xs text-gray-500 mt-0.5">
+                    Optional. You can unsubscribe at any time, and payment receipts are always sent.
+                  </span>
+                </span>
               </label>
-              <select
-                value={formData.businessCategory}
-                onChange={e => handleInputChange('businessCategory', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                disabled={isSubmitting}
-              >
-                <option value="" disabled>Select your business type</option>
-                {BUSINESS_CATEGORIES.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </div>
+            </>
           )}
 
-          {!isLogin && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Which currency do you work in?
-              </label>
-              <select
-                value={formData.currency}
-                onChange={e => handleInputChange('currency', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                disabled={isSubmitting}
-              >
-                {ACCOUNT_CURRENCIES.map(c => (
-                  <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">Prices, sales and reports will all use this. You can change it later in Account Settings.</p>
-            </div>
-          )}
-
-          {!isLogin && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                How did you hear about Trackwyze?
-              </label>
-              <select
-                value={formData.referralSource}
-                onChange={e => handleInputChange('referralSource', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                disabled={isSubmitting}
-              >
-                <option value="" disabled>Select an option</option>
-                {REFERRAL_SOURCES.map(r => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {!isLogin && (
-            <label className="flex items-start gap-3 cursor-pointer rounded-lg border border-gray-200 bg-gray-50 p-3">
+          {!isLogin && step === 2 && (
+            <label className="flex items-start gap-3 cursor-pointer text-sm text-gray-700">
               <input
                 type="checkbox"
-                checked={formData.emailOptIn}
-                onChange={e => setFormData(prev => ({ ...prev, emailOptIn: e.target.checked }))}
+                checked={formData.acceptedTerms}
+                onChange={e => { setError(''); setFormData(prev => ({ ...prev, acceptedTerms: e.target.checked })); }}
                 disabled={isSubmitting}
                 className="mt-0.5 h-5 w-5 flex-shrink-0 rounded border-gray-300"
               />
-              <span className="text-sm text-gray-700">
-                Email me reminders, business reports and tips.
-                <span className="block text-xs text-gray-500 mt-0.5">
-                  Optional. You can unsubscribe at any time, and payment receipts are always sent.
-                </span>
+              <span>
+                I agree to the{' '}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-700 underline">Terms of Service</a>{' '}
+                and{' '}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-700 underline">Privacy Policy</a>.
               </span>
             </label>
           )}
 
           {error && (
             <div role="alert" className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
 
           {success && (
             <div role="status" className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
               <p className="text-sm text-green-600">{success}</p>
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="sheen-host w-full bg-gradient-to-b from-blue-500 to-blue-700 hover:shadow-glow disabled:from-blue-300 disabled:to-blue-300 disabled:shadow-none text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-inset transition-all duration-200 ease-smooth active:scale-[0.98] flex items-center justify-center gap-2 min-h-[50px]"
-          >
-            {isSubmitting ? (
-              <>
-                <Spinner className="w-4 h-4" tone="light" />
-                {isLogin ? 'Logging in...' : 'Creating account...'}
-              </>
-            ) : (
-              isLogin ? 'Login' : 'Create Account'
+          <div className="flex gap-3">
+            {!isLogin && step === 2 && (
+              <button
+                type="button"
+                onClick={() => { setError(''); setStep(1); }}
+                disabled={isSubmitting}
+                className="min-h-[50px] rounded-xl border border-gray-300 px-5 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Back
+              </button>
             )}
-          </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="sheen-host flex-1 bg-gradient-to-b from-blue-500 to-blue-700 hover:shadow-glow disabled:from-blue-300 disabled:to-blue-300 disabled:shadow-none text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-inset transition-all duration-200 ease-smooth active:scale-[0.98] flex items-center justify-center gap-2 min-h-[50px]"
+            >
+              {isSubmitting ? (
+                <>
+                  <Spinner className="w-4 h-4" tone="light" />
+                  {isLogin ? 'Logging in...' : 'Creating account...'}
+                </>
+              ) : isLogin ? (
+                'Login'
+              ) : step === 1 ? (
+                'Continue'
+              ) : (
+                'Create account'
+              )}
+            </button>
+          </div>
+
         </form>
 
         <div className="mt-6 text-center text-sm text-gray-600">
@@ -527,6 +682,8 @@ const EnhancedAuthScreen: React.FC = () => {
             </>
           )}
         </div>
+        </>
+        )}
 
       </div>
       </div>

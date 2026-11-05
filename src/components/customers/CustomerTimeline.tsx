@@ -260,7 +260,7 @@ const CustomerTimeline: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader icon={Users} title="Customer Timeline" description="Full history, lifetime value, and notes for every customer.">
+      <PageHeader icon={Users} title="Customer Timeline">
         <div className="relative mt-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input

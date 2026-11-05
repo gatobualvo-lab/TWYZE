@@ -22,6 +22,7 @@ function maskPhone(phone: string): string {
 
 const REQUEST_COOLDOWN_MS = 90 * 1000;
 const MAX_REQUESTS_PER_HOUR = 6;
+const MAX_PROMPTS_PER_PHONE_PER_HOUR = 4;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -66,6 +67,17 @@ Deno.serve(async (req) => {
     }
     if (rows.length >= MAX_REQUESTS_PER_HOUR) {
       return json({ error: 'Too many payment requests. Please try again in an hour, or contact support.' }, 429);
+    }
+
+    // The same phone cannot be sent a stream of prompts from several accounts either (the note holds the masked number).
+    const { count: promptsToPhone } = await admin
+      .from('payment_submissions')
+      .select('id', { count: 'exact', head: true })
+      .eq('gateway', 'mpesa')
+      .eq('admin_notes', `STK push requested for ${maskPhone(msisdn)}`)
+      .gte('submitted_at', hourAgo);
+    if ((promptsToPhone ?? 0) >= MAX_PROMPTS_PER_PHONE_PER_HOUR) {
+      return json({ error: 'Too many payment requests were sent to that number. Please try again in an hour, or contact support.' }, 429);
     }
 
     const txRef = `mp_${user.id.slice(0, 8)}_${Date.now()}`;

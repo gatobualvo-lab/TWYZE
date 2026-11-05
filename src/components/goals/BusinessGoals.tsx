@@ -164,7 +164,6 @@ const BusinessGoals: React.FC = () => {
       <PageHeader
         icon={Target}
         title="Business Goals"
-        description="Set a target, track real progress against it, get warned before you miss it."
         actions={
           <button
             onClick={() => setShowForm(s => !s)}

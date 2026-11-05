@@ -27,7 +27,6 @@ const CashPosition: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavi
         icon={Wallet}
         iconColor="text-orange-600"
         title="Cash Position"
-        description="Who owes you, who you owe, and where you stand — pulled together from customers, vendors, and delivery balances in one place."
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

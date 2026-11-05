@@ -102,9 +102,6 @@ const ResetPasswordPage: React.FC = () => {
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Set a new password</h1>
-          <p className="text-sm text-gray-600">
-            Choose a strong password you haven&apos;t used before.
-          </p>
         </div>
 
         {!hasRecoverySession ? (

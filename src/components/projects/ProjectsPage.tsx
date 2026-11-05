@@ -222,7 +222,6 @@ const ProjectsPage: React.FC = () => {
       <PageHeader
         icon={Briefcase}
         title="Projects"
-        description="Track budget vs. money invoiced and spent for a job billed across multiple invoices."
         actions={
           <button
             onClick={() => setShowForm(s => !s)}

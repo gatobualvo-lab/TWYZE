@@ -1,3 +1,5 @@
+import { isSafeImageUrl } from '../../utils/safeContent';
+
 export interface PdfImage {
   dataUrl: string;
   format: 'PNG' | 'JPEG';
@@ -29,7 +31,8 @@ function loadBitmap(dataUrl: string): Promise<HTMLImageElement> {
  * Returns null on any failure — a missing logo must never block a receipt.
  */
 export async function loadImageForPdf(url: string | null | undefined): Promise<PdfImage | null> {
-  if (!url) return null;
+  // Only pictures this app stored itself: saved data must not make the PDF reach out to another website.
+  if (!isSafeImageUrl(url)) return null;
   try {
     const response = await fetch(url);
     if (!response.ok) return null;

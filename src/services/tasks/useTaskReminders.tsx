@@ -1,13 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { listDueReminders } from './taskService';
+import { listDueReminders, toggleTaskCompleted, type BusinessTask } from './taskService';
 import { formatDueTime } from './reminders';
+import { notifyTasksChanged } from './taskEvents';
 import { publishNotification } from '../notifications/notificationService';
+import { ReminderPopup } from '../../components/tasks/ReminderToast';
 
 const SEEN_KEY = 'trackwyze_reminded_tasks';
 const CHECK_EVERY_MS = 60_000;
 /** A reminder missed for more than this long (app closed all week) is shown in the bell only, not as a pop-up. */
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
+/** One pop-up for all reminders due together; a newer one replaces it instead of stacking up. */
+export const REMINDER_TOAST_ID = 'task-reminders';
+const POPUP_DURATION_MS = 30_000;
 
 function readSeen(): Record<string, string> {
   try {
@@ -27,8 +32,15 @@ function writeSeen(seen: Record<string, string>) {
   }
 }
 
-/** Raises a pop-up (and a system notification when allowed) when a task's reminder time arrives while Trackwyze is open. */
-export function useTaskReminders(enabled = true): void {
+/**
+ * Raises ONE pop-up (and a system notification when allowed) when task reminders come due while Trackwyze is
+ * open. The pop-up can be closed, lists up to three reminders with a tick-off button each, and links to the
+ * Tasks page. Reminders that came due while the app was closed show on opening, together, not one by one.
+ */
+export function useTaskReminders(enabled = true, onOpenTasks?: () => void): void {
+  const openTasks = useRef(onOpenTasks);
+  openTasks.current = onOpenTasks;
+
   useEffect(() => {
     if (!enabled) return;
     let stopped = false;
@@ -39,6 +51,7 @@ export function useTaskReminders(enabled = true): void {
         const due = await listDueReminders();
         const seen = readSeen();
         let changed = false;
+        const popup: BusinessTask[] = [];
 
         for (const task of due) {
           // Re-fires if the owner moves the reminder to a new time.
@@ -56,12 +69,13 @@ export function useTaskReminders(enabled = true): void {
             body: when ? `Due ${when}` : undefined,
             entityType: 'task',
             entityId: task.id,
-            actionTab: 'dashboard',
+            actionTab: 'tasks',
             dedupeKey: `task_reminder:${task.id}:${task.remindAt}`,
           }).catch(() => {});
 
           if (!fresh) continue;
-          toast(`Reminder: ${task.title}${when ? ` (${when})` : ''}`, { icon: '⏰', duration: 12_000 });
+          popup.push(task);
+
           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             try {
               new Notification('Trackwyze reminder', { body: task.title, tag: `task-${task.id}` });
@@ -71,6 +85,27 @@ export function useTaskReminders(enabled = true): void {
           }
         }
         if (changed) writeSeen(seen);
+
+        if (popup.length > 0) {
+          toast.custom(
+            t => (
+              <ReminderPopup
+                initial={popup}
+                onClose={() => toast.dismiss(t.id)}
+                onOpenTasks={() => {
+                  toast.dismiss(t.id);
+                  openTasks.current?.();
+                }}
+                complete={task => {
+                  toggleTaskCompleted(task.id, false)
+                    .then(() => notifyTasksChanged())
+                    .catch(() => toast.error('Could not update the task'));
+                }}
+              />
+            ),
+            { id: REMINDER_TOAST_ID, duration: POPUP_DURATION_MS }
+          );
+        }
       } catch {
         // Reminders are best-effort; the next tick tries again.
       }

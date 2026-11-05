@@ -1,4 +1,5 @@
 import { supabase } from '../../utils/supabase';
+import { sniffImageKind } from '../storage/imageValidation';
 
 export interface ScannedReceipt {
   isReceipt: boolean;
@@ -14,6 +15,16 @@ export interface ScannedReceipt {
 export class ReceiptScanError extends Error {}
 
 const MAX_DIM = 1600;
+const MAX_RECEIPT_PHOTO_BYTES = 15 * 1024 * 1024;
+
+function headOf(file: Blob): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+    reader.onerror = () => reject(new ReceiptScanError('That file could not be read'));
+    reader.readAsArrayBuffer(file.slice(0, 16));
+  });
+}
 
 /** Phone photos are huge; a 1600px JPEG is plenty for reading a receipt and keeps the upload small. */
 async function toJpegBase64(file: File): Promise<string> {
@@ -52,7 +63,10 @@ async function readErrorCode(error: unknown): Promise<{ status?: number; code?: 
 }
 
 export async function scanReceiptImage(file: File): Promise<ScannedReceipt> {
-  if (!file.type.startsWith('image/')) throw new ReceiptScanError('Please choose a photo of the receipt');
+  // Size and real file type are checked here; the photo is then redrawn as a JPEG, so only a clean picture is sent.
+  if (file.size === 0 || file.size > MAX_RECEIPT_PHOTO_BYTES) throw new ReceiptScanError('Please choose a photo under 15MB');
+  const kind = sniffImageKind(await headOf(file));
+  if (!kind) throw new ReceiptScanError('Please choose a photo of the receipt (JPG, PNG or WebP)');
   const image = await toJpegBase64(file);
 
   const { data, error } = await supabase.functions.invoke('scan-receipt', {

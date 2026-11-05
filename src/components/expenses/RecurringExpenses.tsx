@@ -142,7 +142,6 @@ const RecurringExpenses: React.FC = () => {
       <PageHeader
         icon={Repeat}
         title="Recurring Expenses"
-        description="Rent, salaries, subscriptions — set it up once and it logs itself each period."
         actions={
           <button
             onClick={() => setShowForm(s => !s)}

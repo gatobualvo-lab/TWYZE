@@ -45,12 +45,14 @@ export const HELP_PAGES: HelpPage[] = [
   { id: 'projects', label: 'Projects', what: 'Group sales and expenses by project.', tier: 'business' },
   { id: 'opportunities', label: 'Opportunity Center', what: 'Spots things to act on, such as overdue customers and low stock.', tier: 'business' },
   { id: 'advisor', label: 'Business Advisor', what: 'The AI that analyses the business\'s own numbers and answers questions about sales, profit and stock.', tier: 'business' },
+  { id: 'tasks', label: 'Business Tasks', what: 'Your to-do list: add tasks with a type, due date and time, and a reminder; tick them off when done. The same tasks appear on the Business Calendar and, in short, on the Dashboard.' },
   { id: 'goals', label: 'Business Goals', what: 'Set and track targets.', tier: 'business' },
   { id: 'calendar', label: 'Business Calendar', what: 'Tasks and reminders on a calendar; email reminders.', tier: 'starter' },
   { id: 'notifications', label: 'Notification Center', what: 'Alerts, plus Settings for which emails you get and a master switch to turn TrackWyze emails off.' },
   { id: 'monthly-dashboard', label: 'Monthly Dashboard', what: 'A month at a glance.', tier: 'business' },
   { id: 'profit-analytics', label: 'Profit Analytics', what: 'What is making and losing money, by product, customer and more.', tier: 'business' },
   { id: 'daily-closing', label: 'Daily Closing Report', what: "End-of-day summary of the day's sales, expenses and cash.", tier: 'starter' },
+  { id: 'tax-report', label: 'Tax Report', what: 'VAT and Turnover Tax collected on sales, plus tax recorded on invoices and receipts, for a period you choose; exports to CSV.', tier: 'starter' },
   { id: 'data-export', label: 'Data Export', what: 'Download your data as files.', tier: 'business' },
   { id: 'dropdown-management', label: 'Dropdown Management', what: 'Edit the choices that appear in dropdown lists.' },
   { id: 'team', label: 'Team', what: 'Invite staff with limited permissions (up to 5 users in total).', tier: 'business' },
@@ -69,7 +71,7 @@ const PLAN_FACTS = `PLANS (all prices KES per month):
 - The first month is completely free with every feature.
 - After that there are three plans that always exist: Free, Starter (KES 500) and Business (KES 1,000).
 - Free: up to 40 sales a month, 20 products, 15 customers and 1 user. Receipts, invoices and quotations, expenses and cash position. Documents carry a small "Created with TrackWyze" line.
-- Starter: unlimited sales, products and customers; own colours/logo/signature on documents and no TrackWyze line; daily closing report; calendar and reminders; ad expenses and expense overview; customer timeline.
+- Starter: unlimited sales, products and customers; own colours/logo/signature on documents and no TrackWyze line; daily closing report; tax report (VAT and Turnover Tax); calendar and reminders; ad expenses and expense overview; customer timeline.
 - Business: everything in Starter plus profit analytics and performance by product, the AI Business Advisor and receipt scanning, wholesale, vendor and delivery tracking, recurring invoices and expenses, emailed business reports, projects, data export, barcode scanning with the camera, documents in other currencies, services, smart inventory, and up to 5 users.
 - Questions to the AIs are limited by plan. This Guide: ${AI_LIMITS.guide.free.perDay} a day on Free, ${AI_LIMITS.guide.starter.perDay} a day on Starter, ${AI_LIMITS.guide.business.perDay} a day on Business (and a monthly total). The AI Business Advisor is Business only (also during the free month): ${AI_LIMITS.advisor.business.perDay} questions a day. The limits reset on their own as time passes; the app shows how many questions are left.
 - If a paid plan ends, the account continues on Free. Nothing is ever deleted and nobody is locked out; only the Free limits and plan features apply.

@@ -135,6 +135,15 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get('SENDGRID_API_KEY');
     if (!apiKey) return json({ error: 'Email is not configured yet.' }, 503);
 
+    // Fails closed: sending costs money and affects the sender's reputation, so a broken check blocks the email.
+    const { data: withinLimit, error: rateLimitError } = await supabase.rpc('check_rate_limit', {
+      p_action: 'email.transactional',
+      p_max: 20,
+      p_window_seconds: 3600,
+      p_anon_key: '',
+    });
+    if (rateLimitError || withinLimit !== true) return json({ error: 'rate_limited' }, 429);
+
     const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', user.id).maybeSingle();
 
     // Someone who unsubscribed (or did not tick the box at signup) gets only the account notices.
