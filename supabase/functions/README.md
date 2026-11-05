@@ -114,6 +114,28 @@ receipts still arrive), plus the mail app's own one-click Unsubscribe button (`L
   settings instead of a signed link.
 - Same master switch in the app: Notification Center, Settings, "Send me emails from TrackWyze".
 
+## Replying to a TrackWyze email
+
+Every email sends from `notifications@trackwyze.com`, which only sends — `trackwyze.com` has no mail
+server of its own, so a reply straight to that address bounces. Every send (`_shared/sendgrid.ts`) carries
+a `Reply-To` of `support@trackwyze.com` instead.
+
+**`support@trackwyze.com` needs to actually work**, or replies bounce there too. The free way, without
+moving `trackwyze.com`'s DNS off Netlify:
+
+1. Make a free account at [improvmx.com](https://improvmx.com), add `trackwyze.com`, and set an alias
+   forwarding `support` to the inbox you want replies to land in.
+2. In Netlify (Domains → `trackwyze.com` → DNS records), add the MX and TXT records ImprovMX shows you —
+   typically `mx1.improvmx.com` (priority 10) and `mx2.improvmx.com` (priority 20) as MX records on `@`,
+   plus a TXT record `v=spf1 include:spf.improvmx.com ~all` on `@`. `trackwyze.com` had no SPF record at
+   all as of November 2026, so this one can be added as-is; if one is ever added later, merge into it
+   instead of adding a second TXT record (two SPF records on one name breaks SPF).
+3. Wait for DNS to propagate (Netlify is usually fast), then verify the domain in ImprovMX.
+
+Separately: `trackwyze.com` also has no SPF or DKIM record authorising SendGrid to send as it, which can
+hurt deliverability (mail landing in spam) independent of the reply problem above. That's a SendGrid
+domain-authentication setup, not covered here.
+
 ## TrackWyze Guide (`app-help`)
 
 The floating Help button in the app opens a chat that explains how to use TrackWyze, opens the right page,

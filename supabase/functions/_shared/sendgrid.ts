@@ -5,6 +5,9 @@
 const SENDGRID_API_URL = 'https://api.sendgrid.com/v3/mail/send';
 const FROM_EMAIL = 'notifications@trackwyze.com';
 const FROM_NAME = 'TrackWyze';
+// notifications@ only sends; it was never set up to receive mail, so a reply to it bounces. Replies go
+// here instead. Needs support@trackwyze.com to actually work (see supabase/functions/README.md).
+const REPLY_TO_EMAIL = 'support@trackwyze.com';
 
 export class EmailSendError extends Error {}
 
@@ -33,6 +36,7 @@ export async function sendEmail(params: {
     body: JSON.stringify({
       personalizations: [{ to: [{ email: params.to }] }],
       from: { email: FROM_EMAIL, name: FROM_NAME },
+      reply_to: { email: REPLY_TO_EMAIL, name: FROM_NAME },
       subject: params.subject,
       ...(headers ? { headers } : {}),
       content: [
@@ -90,6 +94,7 @@ export async function sendBulkEmail(params: {
           };
         }),
         from: { email: FROM_EMAIL, name: FROM_NAME },
+        reply_to: { email: REPLY_TO_EMAIL, name: FROM_NAME },
         subject: params.subject,
         content: [
           { type: 'text/plain', value: withTextFooter(params.text, UNSUBSCRIBE_PLACEHOLDER) },

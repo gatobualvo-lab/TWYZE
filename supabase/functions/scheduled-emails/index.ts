@@ -27,6 +27,9 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const FROM_EMAIL = 'notifications@trackwyze.com';
 const FROM_NAME = 'TrackWyze';
+// notifications@ only sends; it was never set up to receive mail, so a reply to it bounces. Replies go
+// here instead. Needs support@trackwyze.com to actually work (see supabase/functions/README.md).
+const REPLY_TO_EMAIL = 'support@trackwyze.com';
 const SENDGRID_API_URL = 'https://api.sendgrid.com/v3/mail/send';
 
 const corsHeaders = {
@@ -468,6 +471,7 @@ async function sendEmail(apiKey: string, to: string, mail: { subject: string; ht
     body: JSON.stringify({
       personalizations: [{ to: [{ email: to }] }],
       from: { email: FROM_EMAIL, name: FROM_NAME },
+      reply_to: { email: REPLY_TO_EMAIL, name: FROM_NAME },
       subject: mail.subject,
       ...(links?.oneClickUrl ? { headers: { 'List-Unsubscribe': `<${links.oneClickUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : {}),
       content: [
