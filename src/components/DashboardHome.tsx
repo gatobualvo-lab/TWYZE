@@ -661,6 +661,18 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
           </div>
         )}
 
+        {/* Best sellers: part of the plan that includes product performance */}
+        {has('product-performance') && <BestSellers onOpen={() => onNavigate('inventory')} />}
+      </div>
+
+      {/* Needs attention + Recent sales: one prioritized "what do I do today" list beside "what just happened" */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {prefs.show_attention && (
+          <div className="lg:col-span-2">
+            <NeedsAttention conditions={{ pendingDeliveries, lowStockItems, outstandingCustomers }} onNavigate={onNavigate} />
+          </div>
+        )}
+
         {/* Recent Sales */}
         {prefs.show_recent_sales && (
           <div className={`rounded-xl border p-4 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100 shadow-sm'}`}>
@@ -696,18 +708,6 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ userName, onNavigate, bus
             </button>
           </div>
         )}
-      </div>
-
-      {/* Needs attention + Best sellers: one prioritized "what do I do today" list beside "what's working" */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {prefs.show_attention && (
-          <div className="lg:col-span-2">
-            <NeedsAttention conditions={{ pendingDeliveries, lowStockItems, outstandingCustomers }} onNavigate={onNavigate} />
-          </div>
-        )}
-
-        {/* Best sellers: part of the plan that includes product performance */}
-        {has('product-performance') && <BestSellers onOpen={() => onNavigate('inventory')} />}
       </div>
     </div>
   );
