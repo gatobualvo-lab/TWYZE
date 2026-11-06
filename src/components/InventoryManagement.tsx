@@ -924,29 +924,29 @@ const InventoryManagement: React.FC = () => {
                         {!isService && <p className="text-xs text-gray-500 whitespace-nowrap">{item.current_stock} {item.unit}</p>}
                       </div>
                       {!isService && (
-                        <div className="hidden sm:flex items-center justify-between text-xs text-gray-400">
-                          <span>Cost {formatCurrency(item.cost_price)}</span>
-                          <span>Value {formatCurrency(item.current_stock * item.cost_price)}</span>
+                        <div className="text-[11px] leading-snug text-gray-400">
+                          <p className="truncate">Cost {formatCurrency(item.cost_price)}</p>
+                          <p className="truncate">Value {formatCurrency(item.current_stock * item.cost_price)}</p>
                         </div>
                       )}
                       <div className="flex items-center justify-end flex-wrap gap-0.5 -mr-1.5">
                         <button
                           onClick={() => openSalesFor(item)}
-                          className="min-h-9 min-w-9 sm:min-h-[44px] sm:min-w-[44px] inline-flex items-center justify-center text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors"
                           title="View sales for this product"
                         >
                           <Receipt className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => startEdit(item)}
-                          className="min-h-9 min-w-9 sm:min-h-[44px] sm:min-w-[44px] inline-flex items-center justify-center text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-lg transition-colors"
+                          className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-lg transition-colors"
                           title="Edit item"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => deleteItem(item.id)}
-                          className="min-h-9 min-w-9 sm:min-h-[44px] sm:min-w-[44px] inline-flex items-center justify-center text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
+                          className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete item"
                         >
                           <Trash2 className="w-4 h-4" />
