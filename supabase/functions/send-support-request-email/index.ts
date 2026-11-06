@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
       apiKey,
       to: SUPPORT_INBOX,
       subject,
-      html: emailLayout(subject, bodyHtml, {
+      html: emailLayout(escapeHtml(subject), bodyHtml, {
         cta: { label: 'Open in Admin Panel', url: adminUrl },
       }),
       text: `New support request from ${fromName} (${fromEmail})${cleanPage ? `\nPage: ${cleanPage}` : ''}\n\n${cleanMessage}\n\nReply to this email to respond directly to them.\n\nOpen in Admin Panel: ${adminUrl}`,

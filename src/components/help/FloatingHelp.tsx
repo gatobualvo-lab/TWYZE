@@ -139,10 +139,12 @@ export default function FloatingHelp({ onNavigate, activeTab, labelFor, hidden =
     return () => document.removeEventListener('keydown', onKey);
   }, [open, close]);
 
-  // A phone's menu drawer sits over everything; the Guide steps aside while it is open.
+  // A phone's menu drawer sits over everything; the Guide steps aside while it is open. Goes
+  // through close() (not a bare setOpen(false)) so a report in progress doesn't resurface the
+  // next time the Guide reopens.
   useEffect(() => {
-    if (hidden) setOpen(false);
-  }, [hidden]);
+    if (hidden) close();
+  }, [hidden, close]);
 
   const send = async (text: string) => {
     const question = text.replace(/\s+/g, ' ').trim().slice(0, MAX_INPUT);
