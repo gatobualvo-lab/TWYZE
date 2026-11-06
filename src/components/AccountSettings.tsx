@@ -1,7 +1,7 @@
 import Spinner from './ui/Spinner';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, CreditCard, LogOut, Save, AlertCircle, CheckCircle, Briefcase, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Phone, CreditCard, LogOut, Save, AlertCircle, CheckCircle, Briefcase, Lock, Eye, EyeOff, ShieldCheck, ShieldOff } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import LoadingScreen from './LoadingScreen';
@@ -9,6 +9,7 @@ import { PageHeader } from './ui';
 import { getSubscriptionPlanLabel, getSubscriptionStatusLabel, getBillingCycleLabel } from '../utils/subscription';
 import { BUSINESS_CATEGORIES } from '../constants/businessCategory';
 import { ACCOUNT_CURRENCIES, setAccountCurrency } from '../utils/accountCurrency';
+import MfaEnroll from './admin/MfaEnroll';
 
 interface UserProfile {
   id: string;
@@ -42,9 +43,45 @@ const AccountSettings: React.FC = () => {
   const [changingPassword, setChangingPassword] = useState(false);
   const [showPasswords, setShowPasswords] = useState(false);
 
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [mfaLoading, setMfaLoading] = useState(true);
+  const [showMfaSetup, setShowMfaSetup] = useState(false);
+  const [disablingMfa, setDisablingMfa] = useState(false);
+
   useEffect(() => {
     fetchUserData();
+    fetchMfaStatus();
   }, []);
+
+  const fetchMfaStatus = async () => {
+    try {
+      const { data, error } = await supabase.auth.mfa.listFactors();
+      if (error) throw error;
+      const verified = data.totp.find(f => f.status === 'verified');
+      setMfaFactorId(verified?.id ?? null);
+    } catch (error: any) {
+      console.error('Error fetching 2FA status:', error);
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleDisableMfa = async () => {
+    if (!mfaFactorId) return;
+    if (!window.confirm('Turn off two-factor authentication? Admin accounts are strongly encouraged to keep it on.')) return;
+
+    setDisablingMfa(true);
+    try {
+      const { error } = await supabase.auth.mfa.unenroll({ factorId: mfaFactorId });
+      if (error) throw error;
+      setMfaFactorId(null);
+      toast.success('Two-factor authentication turned off');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to turn off two-factor authentication');
+    } finally {
+      setDisablingMfa(false);
+    }
+  };
 
   const fetchUserData = async () => {
     try {
@@ -430,6 +467,60 @@ const AccountSettings: React.FC = () => {
           </div>
         </form>
       </div>
+
+      {/* Two-Factor Authentication (admins only) */}
+      {profile?.role === 'admin' && (
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-blue-600" />
+            Two-Factor Authentication
+          </h3>
+
+          {mfaLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Spinner className="w-6 h-6" tone="brand" />
+            </div>
+          ) : showMfaSetup ? (
+            <MfaEnroll
+              onEnrolled={() => { setShowMfaSetup(false); fetchMfaStatus(); }}
+              onCancel={() => setShowMfaSetup(false)}
+              title="Set up two-factor authentication"
+              description="Scan the QR code with an authenticator app, then enter the 6-digit code it shows."
+            />
+          ) : mfaFactorId ? (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-green-700">
+                <ShieldCheck className="w-4 h-4" />
+                Enabled — required for admin access to the admin panel.
+              </div>
+              <button
+                type="button"
+                onClick={handleDisableMfa}
+                disabled={disablingMfa}
+                className="min-h-[40px] px-3 inline-flex items-center justify-center gap-1.5 text-sm font-medium rounded-md border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50"
+              >
+                {disablingMfa ? <Spinner className="w-4 h-4" tone="light" /> : <ShieldOff className="w-4 h-4" />}
+                Turn off
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-amber-700">
+                <AlertCircle className="w-4 h-4" />
+                Not set up yet — you'll be asked to enable it next time you open the Admin Panel.
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMfaSetup(true)}
+                className="min-h-[40px] px-3 inline-flex items-center justify-center gap-1.5 text-sm font-medium rounded-md border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                Set up now
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Subscription Information */}
       <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
