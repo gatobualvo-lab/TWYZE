@@ -1,6 +1,6 @@
 // Emails the team when someone submits the Guide's "Report a problem" form. The form's row is
-// already saved to support_requests by the caller (via the regular RLS-scoped client) before this
-// is invoked — this call is a best-effort notification on top of that, so losing it never loses
+// already saved as a feature_feedback row (category 'problem') by the caller before this is
+// invoked — this call is a best-effort notification on top of that, so losing it never loses
 // the report itself, only the speed of noticing it. The message goes to support@trackwyze.com
 // with Reply-To set to the reporting person's own address, so replying in a normal mail client
 // goes straight to them — not back to the team's own inbox.

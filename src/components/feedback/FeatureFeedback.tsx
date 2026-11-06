@@ -1,16 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { Lightbulb, Bug, MessageSquare, Send } from 'lucide-react';
+import { Lightbulb, Bug, MessageSquare, LifeBuoy, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader, EmptyState, SkeletonList } from '../ui';
 import { submitFeedback, fetchMyFeedback } from '../../services/feedback/featureFeedbackService';
 import type { FeedbackCategory, FeedbackEntry, FeedbackStatus } from '../../services/feedback/featureFeedbackService';
 import { formatDate } from '../../utils/format';
 
+// The picker only offers these three — "problem" reports come from the Guide's own "Report a
+// problem" form, not from here, but they land in the same table and so can show up below in
+// "Your past suggestions" too.
 const CATEGORIES: { value: FeedbackCategory; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { value: 'feature', label: 'Feature idea', icon: Lightbulb },
   { value: 'bug', label: 'Something broken', icon: Bug },
   { value: 'general', label: 'General feedback', icon: MessageSquare },
 ];
+
+const HISTORY_ICON: Record<FeedbackCategory, React.ComponentType<{ className?: string }>> = {
+  feature: Lightbulb,
+  bug: Bug,
+  general: MessageSquare,
+  problem: LifeBuoy,
+};
 
 const STATUS_STYLE: Record<FeedbackStatus, string> = {
   new: 'bg-gray-100 text-gray-600',
@@ -133,7 +143,7 @@ const FeatureFeedback: React.FC = () => {
         ) : (
           <div className="space-y-3">
             {entries.map((entry) => {
-              const { icon: Icon } = CATEGORIES.find((c) => c.value === entry.category) ?? CATEGORIES[0];
+              const Icon = HISTORY_ICON[entry.category];
               return (
                 <div key={entry.id} className="flex items-start gap-3 p-3.5 rounded-lg border border-gray-100 bg-gray-50">
                   <Icon className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />

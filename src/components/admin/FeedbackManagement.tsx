@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Lightbulb, Bug, MessageSquare } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Lightbulb, Bug, MessageSquare, LifeBuoy, Mail, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingScreen from '../LoadingScreen';
 import { listFeedback, updateFeedbackStatus } from '../../services/admin/adminService';
@@ -9,6 +9,7 @@ const CATEGORY_META: Record<FeedbackCategory, { label: string; icon: React.Compo
   feature: { label: 'Feature idea', icon: Lightbulb },
   bug: { label: 'Bug report', icon: Bug },
   general: { label: 'General', icon: MessageSquare },
+  problem: { label: 'Problem report', icon: LifeBuoy },
 };
 
 const STATUS_OPTIONS: FeedbackStatus[] = ['new', 'reviewing', 'planned', 'done', 'declined'];
@@ -29,27 +30,42 @@ const STATUS_LABEL: Record<FeedbackStatus, string> = {
   declined: "Won't do",
 };
 
+const PAGE_SIZE = 20;
+
 const formatDateTime = (value: string) =>
   new Date(value).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 const FeedbackManagement: React.FC = () => {
   const [entries, setEntries] = useState<AdminFeedbackEntry[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<'all' | FeedbackCategory>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | FeedbackStatus>('all');
+  const [page, setPage] = useState(1);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { setPage(1); }, [categoryFilter, statusFilter]);
+  useEffect(() => { load(); }, [categoryFilter, statusFilter, page]);
 
   const load = async () => {
     try {
       setLoading(true);
-      setEntries(await listFeedback());
+      const { entries: rows, total: rowCount } = await listFeedback({
+        category: categoryFilter,
+        status: statusFilter,
+        page,
+        pageSize: PAGE_SIZE,
+      });
+      setEntries(rows);
+      setTotal(rowCount);
     } catch (error: any) {
       console.error('Error loading feedback:', error);
       toast.error(error.message || 'Failed to load feedback');
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   };
 
@@ -68,21 +84,13 @@ const FeedbackManagement: React.FC = () => {
     }
   };
 
-  const filtered = useMemo(
-    () => entries.filter(e =>
-      (categoryFilter === 'all' || e.category === categoryFilter) &&
-      (statusFilter === 'all' || e.status === statusFilter)
-    ),
-    [entries, categoryFilter, statusFilter]
-  );
-
-  if (loading) return <LoadingScreen />;
+  if (initialLoading) return <LoadingScreen />;
 
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-bold text-slate-900">Feature Feedback</h2>
-        <p className="text-sm text-slate-600">{entries.length} submission{entries.length === 1 ? '' : 's'} from the "Suggest a Feature" page.</p>
+        <h2 className="text-lg font-bold text-slate-900">Feedback</h2>
+        <p className="text-sm text-slate-600">{total} submission{total === 1 ? '' : 's'} — feature ideas, bug reports, and "Report a problem" messages from the Guide.</p>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -108,44 +116,80 @@ const FeedbackManagement: React.FC = () => {
         </select>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">
-          No feedback matches these filters.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((entry) => {
-            const { icon: Icon, label } = CATEGORY_META[entry.category];
-            return (
-              <div key={entry.id} className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0">
-                    <Icon className="w-4 h-4 text-slate-400 flex-shrink-0 mt-1" />
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</span>
-                        <span className="text-xs text-slate-400">{formatDateTime(entry.createdAt)}</span>
+      <div className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
+        {entries.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">
+            No feedback matches these filters.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {entries.map((entry) => {
+              const { icon: Icon, label } = CATEGORY_META[entry.category];
+              return (
+                <div key={entry.id} className="bg-white rounded-xl border border-slate-200 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <Icon className="w-4 h-4 text-slate-400 flex-shrink-0 mt-1" />
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</span>
+                          <span className="text-xs text-slate-400">{formatDateTime(entry.createdAt)}</span>
+                        </div>
+                        <p className="text-sm text-slate-800 whitespace-pre-wrap break-words">{entry.message}</p>
+                        <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                          <p className="text-xs text-slate-400">
+                            {entry.userName || entry.userEmail || 'Unknown'}{entry.userName && entry.userEmail ? ` · ${entry.userEmail}` : ''}
+                          </p>
+                          {entry.userEmail && (
+                            <a
+                              href={`mailto:${encodeURIComponent(entry.userEmail)}?subject=${encodeURIComponent('Re: your TrackWyze feedback')}`}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900"
+                            >
+                              <Mail className="w-3 h-3" /> Reply by email
+                            </a>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-sm text-slate-800 whitespace-pre-wrap break-words">{entry.message}</p>
-                      <p className="text-xs text-slate-400 mt-1.5">
-                        {entry.userName || 'Unknown'}{entry.userEmail ? ` · ${entry.userEmail}` : ''}
-                      </p>
                     </div>
+                    <select
+                      value={entry.status}
+                      disabled={savingId === entry.id}
+                      onChange={(e) => handleStatusChange(entry.id, e.target.value as FeedbackStatus)}
+                      className={`flex-shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-full border disabled:opacity-50 ${STATUS_STYLE[entry.status]}`}
+                    >
+                      {STATUS_OPTIONS.map(s => (
+                        <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+                      ))}
+                    </select>
                   </div>
-                  <select
-                    value={entry.status}
-                    disabled={savingId === entry.id}
-                    onChange={(e) => handleStatusChange(entry.id, e.target.value as FeedbackStatus)}
-                    className={`flex-shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-full border disabled:opacity-50 ${STATUS_STYLE[entry.status]}`}
-                  >
-                    {STATUS_OPTIONS.map(s => (
-                      <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-                    ))}
-                  </select>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-slate-600">
+            Page <span className="font-medium">{page}</span> of <span className="font-medium">{totalPages}</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setPage(p => Math.max(p - 1, 1))}
+              disabled={page === 1}
+              className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center border border-slate-300 rounded-md text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setPage(p => Math.min(p + 1, totalPages))}
+              disabled={page === totalPages}
+              className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center border border-slate-300 rounded-md text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
     </div>

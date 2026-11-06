@@ -1,45 +1,51 @@
 /*
-  # Support requests (the Guide's "Report a problem" form)
+  # Fold "Report a problem" into feature_feedback instead of a parallel table
 
-  The in-app Guide previously only offered a WhatsApp link when it couldn't help. This adds a
-  form-based alternative: a signed-in person describes their problem, it is saved here AND
-  emailed to the team (send-support-request-email), and they can see its status. WhatsApp stays
-  available alongside it — this does not replace that option, just adds a tracked one.
+  This migration originally created a standalone support_requests table, shipped in the same
+  session, never applied to production (confirmed live: a real submission against this project
+  failed with "relation does not exist" right after the earlier version of this file was handed
+  over). A same-session code review flagged that table as a near-duplicate of the existing
+  feature_feedback table and admin UI — same shape, same RLS, a second admin page to maintain,
+  no shared pagination. Since nothing was ever written to it, the cleanest fix is to never create
+  it: add a `problem` category to feature_feedback instead, and drop the table defensively in
+  case this file's earlier version was already run.
 
-  Same shape and RLS as feature_feedback: a person can add and read their own rows; an admin can
-  read and update every row.
+  Also closes a real gap the same review found: feature_feedback's insert policy had no
+  server-side rate limit at all — only the best-effort admin-notification email was throttled,
+  so a client that skipped the UI (or the email call) entirely could insert unlimited rows. The
+  insert policy now calls the existing check_rate_limit() helper (already used from Edge
+  Functions, never before from an RLS policy) directly in WITH CHECK, so the limit holds however
+  the row gets inserted.
 */
 
-CREATE TABLE IF NOT EXISTS public.support_requests (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
-  message text NOT NULL CHECK (char_length(message) BETWEEN 1 AND 1000),
-  page text CHECK (page IS NULL OR char_length(page) <= 60),
-  status text NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'in_progress', 'resolved')),
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+DROP TABLE IF EXISTS public.support_requests;
 
-CREATE INDEX IF NOT EXISTS support_requests_user_id_idx ON public.support_requests (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS support_requests_status_idx ON public.support_requests (status, created_at DESC);
+-- Add 'problem' to the category check, whatever its auto-generated name actually is.
+DO $$
+DECLARE
+  con record;
+BEGIN
+  FOR con IN
+    SELECT pgc.conname
+    FROM pg_constraint pgc
+    JOIN pg_class rel ON rel.oid = pgc.conrelid
+    WHERE rel.relname = 'feature_feedback'
+      AND pgc.contype = 'c'
+      AND pg_get_constraintdef(pgc.oid) LIKE '%category%'
+  LOOP
+    EXECUTE format('ALTER TABLE public.feature_feedback DROP CONSTRAINT %I', con.conname);
+  END LOOP;
+END $$;
 
-ALTER TABLE public.support_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.feature_feedback
+  ADD CONSTRAINT feature_feedback_category_check CHECK (category IN ('feature', 'bug', 'general', 'problem'));
 
-DROP POLICY IF EXISTS "support_requests_insert_own" ON public.support_requests;
-CREATE POLICY "support_requests_insert_own" ON public.support_requests
+-- Rate-limit inserts at the RLS layer: 20 submissions/hour/person, enforced however the row
+-- gets written (UI, a direct client call, anything), not just when the app's own code path runs.
+DROP POLICY IF EXISTS "feature_feedback_insert_own" ON public.feature_feedback;
+CREATE POLICY "feature_feedback_insert_own" ON public.feature_feedback
   FOR INSERT TO authenticated
-  WITH CHECK (user_id = auth.uid());
-
-DROP POLICY IF EXISTS "support_requests_select_own_or_admin" ON public.support_requests;
-CREATE POLICY "support_requests_select_own_or_admin" ON public.support_requests
-  FOR SELECT TO authenticated
-  USING (user_id = auth.uid() OR private.is_admin(auth.uid()));
-
-DROP POLICY IF EXISTS "support_requests_admin_update" ON public.support_requests;
-CREATE POLICY "support_requests_admin_update" ON public.support_requests
-  FOR UPDATE TO authenticated
-  USING (private.is_admin(auth.uid()))
-  WITH CHECK (private.is_admin(auth.uid()));
-
-REVOKE ALL ON public.support_requests FROM anon;
-GRANT INSERT, SELECT ON public.support_requests TO authenticated;
-GRANT UPDATE ON public.support_requests TO authenticated; -- limited to admins by the policy above
+  WITH CHECK (
+    user_id = auth.uid()
+    AND public.check_rate_limit('feature_feedback.insert', 20, 3600, NULL)
+  );

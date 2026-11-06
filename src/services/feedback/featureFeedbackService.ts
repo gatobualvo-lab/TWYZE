@@ -1,6 +1,6 @@
 import { supabase } from '../../utils/supabase';
 
-export type FeedbackCategory = 'feature' | 'bug' | 'general';
+export type FeedbackCategory = 'feature' | 'bug' | 'general' | 'problem';
 export type FeedbackStatus = 'new' | 'reviewing' | 'planned' | 'done' | 'declined';
 
 export interface FeedbackEntry {

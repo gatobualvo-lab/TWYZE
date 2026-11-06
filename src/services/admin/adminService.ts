@@ -161,7 +161,7 @@ async function fetchProfileLookup(userIds: string[]): Promise<Record<string, { f
   return map;
 }
 
-export type FeedbackCategory = 'feature' | 'bug' | 'general';
+export type FeedbackCategory = 'feature' | 'bug' | 'general' | 'problem';
 export type FeedbackStatus = 'new' | 'reviewing' | 'planned' | 'done' | 'declined';
 
 export interface AdminFeedbackEntry {
@@ -176,8 +176,7 @@ export interface AdminFeedbackEntry {
   createdAt: string;
 }
 
-/** Every "Suggest a Feature" submission across the platform, newest first. Admin-only (RLS). */
-/** How many "Suggest a Feature" submissions are still unreviewed (status 'new'). */
+/** How many feedback/report submissions (any category) are still unreviewed (status 'new'). */
 export async function countNewFeedback(): Promise<number> {
   const { count, error } = await supabase
     .from('feature_feedback' as never)
@@ -187,18 +186,36 @@ export async function countNewFeedback(): Promise<number> {
   return count ?? 0;
 }
 
-export async function listFeedback(): Promise<AdminFeedbackEntry[]> {
-  const { data, error } = await supabase
+export interface ListFeedbackFilters {
+  category?: 'all' | FeedbackCategory;
+  status?: 'all' | FeedbackStatus;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Server-side paginated/filtered feedback list — covers feature suggestions, bug reports, general
+ * feedback, and "Report a problem" submissions (category 'problem') in one place, same table.
+ */
+export async function listFeedback(filters: ListFeedbackFilters): Promise<{ entries: AdminFeedbackEntry[]; total: number }> {
+  let query = supabase
     .from('feature_feedback' as never)
-    .select('id, user_id, category, message, page, status, created_at')
-    .order('created_at', { ascending: false }) as unknown as { data: any[] | null; error: { message: string } | null };
+    .select('id, user_id, category, message, page, status, created_at', { count: 'exact' } as never)
+    .order('created_at', { ascending: false }) as any;
+
+  if (filters.category && filters.category !== 'all') query = query.eq('category', filters.category);
+  if (filters.status && filters.status !== 'all') query = query.eq('status', filters.status);
+
+  const from = (filters.page - 1) * filters.pageSize;
+  const to = from + filters.pageSize - 1;
+  const { data, error, count } = await query.range(from, to) as unknown as { data: any[] | null; error: { message: string } | null; count: number | null };
   if (error) throw new Error(error.message);
 
   const rows = data ?? [];
   const userIds = Array.from(new Set(rows.map(r => r.user_id)));
   const profileMap = await fetchProfileLookup(userIds);
 
-  return rows.map(r => ({
+  const entries = rows.map(r => ({
     id: r.id,
     userId: r.user_id,
     userName: profileMap[r.user_id]?.full_name ?? null,
@@ -209,62 +226,12 @@ export async function listFeedback(): Promise<AdminFeedbackEntry[]> {
     status: r.status,
     createdAt: r.created_at,
   }));
+
+  return { entries, total: count ?? 0 };
 }
 
 export async function updateFeedbackStatus(id: string, status: FeedbackStatus): Promise<void> {
   const { error } = await supabase.from('feature_feedback' as never).update({ status } as never).eq('id', id);
-  if (error) throw new Error(error.message);
-}
-
-export type SupportRequestStatus = 'new' | 'in_progress' | 'resolved';
-
-export interface AdminSupportRequestEntry {
-  id: string;
-  userId: string;
-  userName: string | null;
-  userEmail: string | null;
-  message: string;
-  page: string | null;
-  status: SupportRequestStatus;
-  createdAt: string;
-}
-
-/** How many "Report a problem" submissions are still unreviewed (status 'new'). */
-export async function countNewSupportRequests(): Promise<number> {
-  const { count, error } = await supabase
-    .from('support_requests' as never)
-    .select('id', { count: 'exact', head: true } as never)
-    .eq('status', 'new') as unknown as { count: number | null; error: { message: string } | null };
-  if (error) throw new Error(error.message);
-  return count ?? 0;
-}
-
-/** Every "Report a problem" submission across the platform, newest first. Admin-only (RLS). */
-export async function listSupportRequests(): Promise<AdminSupportRequestEntry[]> {
-  const { data, error } = await supabase
-    .from('support_requests' as never)
-    .select('id, user_id, message, page, status, created_at')
-    .order('created_at', { ascending: false }) as unknown as { data: any[] | null; error: { message: string } | null };
-  if (error) throw new Error(error.message);
-
-  const rows = data ?? [];
-  const userIds = Array.from(new Set(rows.map(r => r.user_id)));
-  const profileMap = await fetchProfileLookup(userIds);
-
-  return rows.map(r => ({
-    id: r.id,
-    userId: r.user_id,
-    userName: profileMap[r.user_id]?.full_name ?? null,
-    userEmail: profileMap[r.user_id]?.email ?? null,
-    message: r.message,
-    page: r.page,
-    status: r.status,
-    createdAt: r.created_at,
-  }));
-}
-
-export async function updateSupportRequestStatus(id: string, status: SupportRequestStatus): Promise<void> {
-  const { error } = await supabase.from('support_requests' as never).update({ status } as never).eq('id', id);
   if (error) throw new Error(error.message);
 }
 

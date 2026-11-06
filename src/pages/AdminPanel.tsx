@@ -15,7 +15,6 @@ import {
   AlertTriangle,
   Send,
   Lightbulb,
-  LifeBuoy,
   CheckCircle2
 } from 'lucide-react';
 import UserManagement from '../components/admin/UserManagement';
@@ -24,14 +23,13 @@ import PaymentApprovals from '../components/admin/PaymentApprovals';
 import AuditLogViewer from '../components/admin/AuditLogViewer';
 import BroadcastEmail from '../components/admin/BroadcastEmail';
 import FeedbackManagement from '../components/admin/FeedbackManagement';
-import SupportRequests from '../components/admin/SupportRequests';
 import Spinner from '../components/ui/Spinner';
-import { fetchPlatformStats, countNewFeedback, countNewSupportRequests } from '../services/admin/adminService';
+import { fetchPlatformStats, countNewFeedback } from '../services/admin/adminService';
 import type { PlatformStats } from '../services/admin/adminService';
 import { formatCurrency } from '../utils/format';
 import toast from 'react-hot-toast';
 
-type AdminTab = 'overview' | 'users' | 'payments' | 'audit' | 'settings' | 'broadcast' | 'feedback' | 'support';
+type AdminTab = 'overview' | 'users' | 'payments' | 'audit' | 'settings' | 'broadcast' | 'feedback';
 
 export default function AdminPanel() {
   const navigate = useNavigate();
@@ -47,12 +45,10 @@ export default function AdminPanel() {
   });
   const [loading, setLoading] = useState(true);
   const [newFeedbackCount, setNewFeedbackCount] = useState(0);
-  const [newSupportCount, setNewSupportCount] = useState(0);
 
   useEffect(() => {
     loadStats();
     countNewFeedback().then(setNewFeedbackCount).catch(() => {});
-    countNewSupportRequests().then(setNewSupportCount).catch(() => {});
   }, []);
 
   const loadStats = async () => {
@@ -204,19 +200,7 @@ export default function AdminPanel() {
                 }`}
               >
                 <Lightbulb className="w-5 h-5" />
-                <span>Feature Feedback</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('support')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                  activeTab === 'support'
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md'
-                    : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <LifeBuoy className="w-5 h-5" />
-                <span>Support Requests</span>
+                <span>Feedback</span>
               </button>
             </div>
           </div>
@@ -359,7 +343,7 @@ export default function AdminPanel() {
                 {/* Needs Attention — real counts, not a decorative status light */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                   <h3 className="text-lg font-semibold text-slate-900 mb-4">Needs Attention</h3>
-                  {stats.pendingPayments === 0 && newFeedbackCount === 0 && newSupportCount === 0 && stats.suspendedUsers === 0 ? (
+                  {stats.pendingPayments === 0 && newFeedbackCount === 0 && stats.suspendedUsers === 0 ? (
                     <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
                       <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
                       <span className="text-sm font-medium text-slate-900">All caught up — nothing waiting on you.</span>
@@ -386,17 +370,6 @@ export default function AdminPanel() {
                             {newFeedbackCount} new feedback submission{newFeedbackCount === 1 ? '' : 's'}
                           </span>
                           <span className="text-sm font-medium text-blue-700">Review →</span>
-                        </button>
-                      )}
-                      {newSupportCount > 0 && (
-                        <button
-                          onClick={() => setActiveTab('support')}
-                          className="w-full flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors text-left"
-                        >
-                          <span className="text-sm font-medium text-slate-900">
-                            {newSupportCount} new support request{newSupportCount === 1 ? '' : 's'}
-                          </span>
-                          <span className="text-sm font-medium text-red-700">Review →</span>
                         </button>
                       )}
                       {stats.suspendedUsers > 0 && (
@@ -449,12 +422,6 @@ export default function AdminPanel() {
             {activeTab === 'feedback' && (
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                 <FeedbackManagement />
-              </div>
-            )}
-
-            {activeTab === 'support' && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <SupportRequests />
               </div>
             )}
           </div>
