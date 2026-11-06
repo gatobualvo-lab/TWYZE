@@ -5,7 +5,7 @@ import LoadingScreen from '../LoadingScreen';
 import { listAuditLog } from '../../services/admin/adminService';
 import type { AuditLogEntry } from '../../services/admin/adminService';
 
-const TABLE_OPTIONS = ['all', 'sales', 'payment_submissions', 'profiles', 'feature_flags'];
+const TABLE_OPTIONS = ['all', 'sales', 'payment_submissions', 'profiles', 'feature_flags', 'email_templates', 'email_broadcasts'];
 const PAGE_SIZE = 20;
 
 const formatDateTime = (value: string | null) => {
