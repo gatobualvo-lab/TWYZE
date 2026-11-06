@@ -1,11 +1,14 @@
 // Sends a transactional email to the CALLING user's own address only —
 // welcome (after signup), subscription-expiry-warning (triggered
 // client-side the moment a lapse is detected, see
-// src/services/subscription/subscriptionLapseService.ts), and
+// src/services/subscription/subscriptionLapseService.ts),
 // opportunity_alert (triggered client-side when a high-priority opportunity
 // notification — low stock, an overdue invoice — is first published, see
 // src/services/notifications/notificationSync.ts; title/body are supplied
-// by the caller and HTML-escaped before being rendered). Follows the
+// by the caller and HTML-escaped before being rendered), and
+// password_changed (triggered client-side right after a successful
+// AccountSettings password change — a security notice, not a confirmation
+// gate, since the caller is already an authenticated session). Follows the
 // create-checkout auth pattern: JWT forwarded, anon-key client, so RLS
 // scopes every lookup to the caller's own profile automatically. For
 // emails to a DIFFERENT user (e.g. an admin approving someone else's
@@ -16,7 +19,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { sendEmail, emailLayout, EmailSendError, APP_URL, unsubscribeLinks } from '../_shared/sendgrid.ts';
 
-type EmailType = 'welcome' | 'subscription_expiry_warning' | 'opportunity_alert';
+type EmailType = 'welcome' | 'subscription_expiry_warning' | 'opportunity_alert' | 'password_changed';
 
 const MAX_ALERT_FIELD_LENGTH = 300;
 
@@ -36,8 +39,9 @@ function escapeHtml(input: string): string {
     .replace(/'/g, '&#39;');
 }
 
-// The expiry notice is about the account itself, so it is sent even to someone who has unsubscribed from the rest.
-const ESSENTIAL: EmailType[] = ['subscription_expiry_warning'];
+// The expiry notice and the password-changed notice are about the account itself (the second is
+// a security notice, not marketing), so both go out even to someone who has unsubscribed from the rest.
+const ESSENTIAL: EmailType[] = ['subscription_expiry_warning', 'password_changed'];
 
 function buildEmail(type: EmailType, name: string, alert: { title: string; body: string } | undefined, unsubscribeUrl: string): { subject: string; html: string; text: string } | null {
   const unsubscribe = { url: unsubscribeUrl, essential: ESSENTIAL.includes(type) };
@@ -80,6 +84,23 @@ function buildEmail(type: EmailType, name: string, alert: { title: string; body:
       text: `Hi ${name || 'there'},\n\nYour TrackWyze subscription has expired. Renew soon to keep adding new records. Your records stay safe either way.\n\nRenew: ${renewUrl}`,
     };
   }
+  if (type === 'password_changed') {
+    const subject = 'Your TrackWyze password was changed';
+    const changedAt = new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Nairobi' });
+    const bodyHtml = `
+      <p style="margin:0 0 14px;">Hi ${escapeHtml(name || 'there')},</p>
+      <p style="margin:0 0 14px;">Your TrackWyze account password was changed on ${escapeHtml(changedAt)} (Nairobi time).</p>
+      <p style="margin:0;">If this was you, no action is needed. If you didn't make this change, contact support right away — someone else may have access to your account.</p>
+    `;
+    return {
+      subject,
+      html: emailLayout(subject, bodyHtml, {
+        preheader: "If this wasn't you, contact support right away.",
+        unsubscribe,
+      }),
+      text: `Hi ${name || 'there'},\n\nYour TrackWyze account password was changed on ${changedAt} (Nairobi time).\n\nIf this was you, no action is needed. If you didn't make this change, contact support right away.`,
+    };
+  }
   if (type === 'opportunity_alert' && alert) {
     const subject = alert.title;
     const detailsUrl = `${APP_URL}/?tab=notifications`;
@@ -117,7 +138,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const { type, title, body: alertBody } = body as { type?: string; title?: string; body?: string };
-    if (type !== 'welcome' && type !== 'subscription_expiry_warning' && type !== 'opportunity_alert') {
+    if (type !== 'welcome' && type !== 'subscription_expiry_warning' && type !== 'opportunity_alert' && type !== 'password_changed') {
       return json({ error: 'Invalid email type' }, 400);
     }
 

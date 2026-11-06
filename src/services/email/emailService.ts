@@ -39,6 +39,14 @@ export async function sendOpportunityAlertEmail(params: { title: string; body: s
   }
 }
 
+export async function sendPasswordChangedEmail(): Promise<void> {
+  try {
+    await supabase.functions.invoke('send-transactional-email', { body: { type: 'password_changed' } });
+  } catch {
+    // best-effort — the password change itself already succeeded; losing this notice isn't fatal
+  }
+}
+
 export type BroadcastAudience = 'all' | 'active' | 'trial' | 'expired';
 
 export async function sendBroadcastEmail(params: { subject: string; body: string; audience: BroadcastAudience }): Promise<{ recipientCount: number }> {

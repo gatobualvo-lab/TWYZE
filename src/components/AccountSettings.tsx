@@ -10,6 +10,7 @@ import { getSubscriptionPlanLabel, getSubscriptionStatusLabel, getBillingCycleLa
 import { BUSINESS_CATEGORIES } from '../constants/businessCategory';
 import { ACCOUNT_CURRENCIES, setAccountCurrency } from '../utils/accountCurrency';
 import MfaEnroll from './admin/MfaEnroll';
+import { sendPasswordChangedEmail } from '../services/email/emailService';
 
 interface UserProfile {
   id: string;
@@ -38,7 +39,7 @@ const AccountSettings: React.FC = () => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
   const [changingPassword, setChangingPassword] = useState(false);
   const [showPasswords, setShowPasswords] = useState(false);
@@ -206,17 +207,39 @@ const AccountSettings: React.FC = () => {
     e.preventDefault();
 
     const newErrors: Record<string, string> = {};
-    if (passwordForm.newPassword.length < 6) newErrors.newPassword = 'Use at least 6 characters';
+    if (!passwordForm.currentPassword) newErrors.currentPassword = 'Enter your current password';
+    if (passwordForm.newPassword.length < 8) {
+      newErrors.newPassword = 'Use at least 8 characters';
+    } else if (!/[a-zA-Z]/.test(passwordForm.newPassword) || !/[0-9]/.test(passwordForm.newPassword)) {
+      newErrors.newPassword = 'Mix letters and numbers';
+    } else if (passwordForm.newPassword === passwordForm.currentPassword) {
+      newErrors.newPassword = 'Choose a password different from your current one';
+    }
     if (passwordForm.confirmPassword !== passwordForm.newPassword) newErrors.confirmPassword = 'Passwords do not match';
     setPasswordErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
     try {
       setChangingPassword(true);
+
+      // Re-authenticate with the current password first. updateUser() alone doesn't check it —
+      // anyone at an unlocked, already-logged-in session could otherwise set a new password
+      // without ever knowing the old one, locking the real owner out.
+      if (!user?.email) throw new Error('Could not verify your account email');
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: passwordForm.currentPassword,
+      });
+      if (reauthError) {
+        setPasswordErrors({ currentPassword: 'Current password is incorrect' });
+        return;
+      }
+
       const { error } = await supabase.auth.updateUser({ password: passwordForm.newPassword });
       if (error) throw error;
       toast.success('Password updated');
-      setPasswordForm({ newPassword: '', confirmPassword: '' });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      sendPasswordChangedEmail();
     } catch (error: any) {
       console.error('Error changing password:', error);
       toast.error(error.message || 'Failed to update password');
@@ -395,6 +418,28 @@ const AccountSettings: React.FC = () => {
 
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type={showPasswords ? 'text' : 'password'}
+                autoComplete="current-password"
+                aria-invalid={passwordErrors.currentPassword ? true : undefined}
+                aria-describedby={passwordErrors.currentPassword ? 'field-currentPassword-error' : undefined}
+                value={passwordForm.currentPassword}
+                onChange={(e) => { setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value })); setPasswordErrors({}); }}
+                className={`pl-10 w-full px-3 py-2 border ${
+                  passwordErrors.currentPassword ? 'border-red-500' : 'border-gray-300'
+                } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                placeholder="Your current password"
+              />
+            </div>
+            {passwordErrors.currentPassword && (
+              <p id="field-currentPassword-error" role="alert" className="mt-1 text-sm text-red-600">{passwordErrors.currentPassword}</p>
+            )}
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -408,7 +453,7 @@ const AccountSettings: React.FC = () => {
                 className={`pl-10 pr-11 w-full px-3 py-2 border ${
                   passwordErrors.newPassword ? 'border-red-500' : 'border-gray-300'
                 } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                placeholder="At least 6 characters"
+                placeholder="At least 8 characters, with a letter and a number"
               />
               <button
                 type="button"
@@ -449,7 +494,7 @@ const AccountSettings: React.FC = () => {
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={changingPassword || !passwordForm.newPassword}
+              disabled={changingPassword || !passwordForm.currentPassword || !passwordForm.newPassword}
               className="min-h-[44px] px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
             >
               {changingPassword ? (
