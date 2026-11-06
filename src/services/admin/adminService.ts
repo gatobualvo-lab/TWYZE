@@ -49,6 +49,59 @@ function startOfMonthIso(): string {
   return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 }
 
+export interface AdminUserRow {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone_number: string | null;
+  created_at: string | null;
+  subscription_status: string | null;
+  trial_start_date: string | null;
+  trial_end_date: string | null;
+  subscription_expiry: string | null;
+  current_billing_cycle: string | null;
+  role: string;
+  last_login: string | null;
+}
+
+export interface ListUsersFilters {
+  search?: string;
+  statusFilter?: string;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Server-side paginated/filtered user list. Filtering and paging happen in Postgres via
+ * `.range()` and `.or()` rather than fetching every profile row to the client — the previous
+ * UserManagement implementation fetched the whole `profiles` table on every load, which is fine
+ * at a dozen users but would not scale.
+ */
+export async function listUsers(filters: ListUsersFilters): Promise<{ users: AdminUserRow[]; total: number }> {
+  let query = supabase
+    .from('profiles')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false });
+
+  if (filters.search) {
+    const term = filters.search.replace(/[%,]/g, '').trim();
+    if (term) {
+      query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%,phone_number.ilike.%${term}%`);
+    }
+  }
+
+  if (filters.statusFilter && filters.statusFilter !== 'all') {
+    query = query.eq('subscription_status', filters.statusFilter);
+  }
+
+  const from = (filters.page - 1) * filters.pageSize;
+  const to = from + filters.pageSize - 1;
+  const { data, error, count } = await query.range(from, to);
+  if (error) throw new Error(error.message);
+
+  return { users: data ?? [], total: count ?? 0 };
+}
+
 export interface PaymentSubmission {
   id: string;
   userId: string;

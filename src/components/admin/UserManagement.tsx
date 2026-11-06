@@ -3,90 +3,59 @@ import { Search, Eye, ChevronLeft, ChevronRight, User, Calendar, Phone, Mail, Sh
 import { supabase } from '../../utils/supabase';
 import toast from 'react-hot-toast';
 import LoadingScreen from '../LoadingScreen';
-import { updateUserRole, updateUserSubscription } from '../../services/admin/adminService';
+import { updateUserRole, updateUserSubscription, listUsers, type AdminUserRow } from '../../services/admin/adminService';
 import { getBillingCycleLabel } from '../../utils/subscription';
 import Modal from '../ui/Modal';
 
-interface UserProfile {
-  id: string;
-  full_name: string | null;
-  email: string | null;
-  phone_number: string | null;
-  created_at: string | null;
-  subscription_status: string | null;
-  trial_start_date: string | null;
-  trial_end_date: string | null;
-  subscription_expiry: string | null;
-  current_billing_cycle: string | null;
-  role: string;
-  last_login: string | null;
-}
+type UserProfile = AdminUserRow;
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [showUserDetails, setShowUserDetails] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [subscriptionActionLoading, setSubscriptionActionLoading] = useState(false);
   const usersPerPage = 10;
+  const totalPages = Math.max(1, Math.ceil(total / usersPerPage));
+
+  // Debounce free-text search so each keystroke doesn't fire its own server query.
+  useEffect(() => {
+    const id = setTimeout(() => setSearchTerm(searchInput), 300);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
 
   useEffect(() => {
     fetchUsers();
-  }, []);
-
-  useEffect(() => {
-    filterUsers();
-  }, [users, searchTerm, statusFilter]);
-
-  useEffect(() => {
-    setTotalPages(Math.ceil(filteredUsers.length / usersPerPage));
-  }, [filteredUsers]);
+  }, [searchTerm, statusFilter, currentPage]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      
-      setUsers(data || []);
-      setFilteredUsers(data || []);
+      const { users: rows, total: rowCount } = await listUsers({
+        search: searchTerm,
+        statusFilter,
+        page: currentPage,
+        pageSize: usersPerPage,
+      });
+      setUsers(rows);
+      setTotal(rowCount);
     } catch (error: any) {
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
-  };
-
-  const filterUsers = () => {
-    let filtered = users;
-    
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(user => 
-        (user.full_name && user.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (user.phone_number && user.phone_number.includes(searchTerm))
-      );
-    }
-    
-    // Apply status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(user => user.subscription_status === statusFilter);
-    }
-    
-    setFilteredUsers(filtered);
-    setCurrentPage(1); // Reset to first page when filters change
   };
 
   const viewUserDetails = (user: UserProfile) => {
@@ -185,12 +154,6 @@ const UserManagement: React.FC = () => {
     });
   };
 
-  const getPaginatedUsers = () => {
-    const startIndex = (currentPage - 1) * usersPerPage;
-    const endIndex = startIndex + usersPerPage;
-    return filteredUsers.slice(startIndex, endIndex);
-  };
-
   const getStatusLabel = (status: string | null) => (status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown');
 
   const getStatusBadgeClass = (status: string | null) => {
@@ -208,12 +171,12 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (initialLoading) {
     return <LoadingScreen />;
   }
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${loading ? 'opacity-60' : ''} transition-opacity`}>
       {/* Filters */}
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
@@ -221,8 +184,8 @@ const UserManagement: React.FC = () => {
           <input
             type="text"
             placeholder="Search users by name, email, or phone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
@@ -255,14 +218,14 @@ const UserManagement: React.FC = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {getPaginatedUsers().length === 0 ? (
+            {users.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
                   No users found matching your criteria
                 </td>
               </tr>
             ) : (
-              getPaginatedUsers().map((user) => (
+              users.map((user) => (
                 <tr key={user.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -332,9 +295,9 @@ const UserManagement: React.FC = () => {
           <div className="text-sm text-gray-700">
             Showing <span className="font-medium">{(currentPage - 1) * usersPerPage + 1}</span> to{' '}
             <span className="font-medium">
-              {Math.min(currentPage * usersPerPage, filteredUsers.length)}
+              {Math.min(currentPage * usersPerPage, total)}
             </span>{' '}
-            of <span className="font-medium">{filteredUsers.length}</span> users
+            of <span className="font-medium">{total}</span> users
           </div>
           <div className="flex items-center space-x-2">
             <button
