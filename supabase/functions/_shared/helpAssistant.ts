@@ -43,7 +43,7 @@ export const HELP_PAGES: HelpPage[] = [
   { id: 'recurring-invoices', label: 'Recurring Invoices', what: 'Invoices created automatically on a schedule.', tier: 'business' },
   { id: 'documents-settings', label: 'Doc Settings', what: 'Business name, address, logo, tax numbers, numbering, footers and payment details. Colours, layout, headings, signature and stamp live here too.' },
   { id: 'projects', label: 'Projects', what: 'Group sales and expenses by project.', tier: 'business' },
-  { id: 'feedback', label: 'Suggest a Feature', what: 'Send the team a feature idea, a bug report or general feedback, and see the status of what you\'ve sent before.' },
+  { id: 'feedback', label: 'Feedback', what: 'Send the team a feature idea, a bug report or general feedback, and see the status of what you\'ve sent before.' },
   { id: 'opportunities', label: 'Opportunity Center', what: 'Spots things to act on, such as overdue customers and low stock.', tier: 'business' },
   { id: 'advisor', label: 'Business Advisor', what: 'The AI that analyses the business\'s own numbers and answers questions about sales, profit and stock.', tier: 'business' },
   { id: 'tasks', label: 'Business Tasks', what: 'Your to-do list: add tasks with a type, due date and time, and a reminder; tick them off when done. The same tasks appear on the Business Calendar and, in short, on the Dashboard.' },

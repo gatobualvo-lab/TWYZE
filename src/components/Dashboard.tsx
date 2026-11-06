@@ -186,7 +186,7 @@ const NAV_ITEMS: NavTopItem[] = [
     ],
   },
   { kind: 'leaf', id: 'projects', label: 'Projects', icon: Briefcase },
-  { kind: 'leaf', id: 'feedback', label: 'Suggest a Feature', icon: Lightbulb },
+  { kind: 'leaf', id: 'feedback', label: 'Feedback', icon: Lightbulb },
   {
     kind: 'group', id: 'planner', label: 'Planner', icon: CalendarCheck, iconClassName: 'text-violet-600',
     items: [

@@ -83,7 +83,7 @@ const FeatureFeedback: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader icon={Lightbulb} title="Suggest a Feature" />
+      <PageHeader icon={Lightbulb} title="Feedback" />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
