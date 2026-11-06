@@ -25,6 +25,11 @@ export async function sendEmail(params: {
   text: string;
   /** This person's unsubscribe links, for the mail app's own Unsubscribe button and the text version. */
   unsubscribe?: UnsubscribeLinks | null;
+  /**
+   * Overrides the default support@ reply-to — e.g. a support-request notice to the team should
+   * reply straight to the person who filed it, not loop back to the team's own inbox.
+   */
+  replyTo?: { email: string; name?: string };
 }): Promise<void> {
   const headers = unsubscribeHeaders(params.unsubscribe);
   const response = await fetch(SENDGRID_API_URL, {
@@ -36,7 +41,9 @@ export async function sendEmail(params: {
     body: JSON.stringify({
       personalizations: [{ to: [{ email: params.to }] }],
       from: { email: FROM_EMAIL, name: FROM_NAME },
-      reply_to: { email: REPLY_TO_EMAIL, name: FROM_NAME },
+      reply_to: params.replyTo
+        ? { email: params.replyTo.email, name: params.replyTo.name ?? params.replyTo.email }
+        : { email: REPLY_TO_EMAIL, name: FROM_NAME },
       subject: params.subject,
       ...(headers ? { headers } : {}),
       content: [

@@ -13,6 +13,8 @@ vi.mock('../../services/helpAssistant/helpAssistantService', async () => {
 vi.mock('../../lib/analytics', () => ({ trackEvent: vi.fn() }));
 const usage = vi.hoisted(() => ({ fetchAiQuota: vi.fn() }));
 vi.mock('../../services/subscription/aiUsageService', () => ({ fetchAiQuota: usage.fetchAiQuota }));
+const support = vi.hoisted(() => ({ submitSupportRequest: vi.fn() }));
+vi.mock('../../services/support/supportRequestService', () => ({ submitSupportRequest: support.submitSupportRequest }));
 
 import FloatingHelp, { SUPPORT_WHATSAPP_URL } from './FloatingHelp';
 import { GuideError } from '../../services/helpAssistant/helpAssistantService';
@@ -33,6 +35,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   guide.submitGuideFeedback.mockResolvedValue(undefined);
   usage.fetchAiQuota.mockResolvedValue(null);
+  support.submitSupportRequest.mockResolvedValue(undefined);
   sessionStorage.clear();
 });
 
@@ -91,7 +94,7 @@ describe('FloatingHelp', () => {
     setup({ userEmail: 'wanjiku@example.com', activeTab: 'inventory' });
     await openGuide();
     await userEvent.type(screen.getByLabelText('Ask the Guide a question'), 'I paid but my plan did not change{Enter}');
-    const link = await screen.findByRole('link', { name: /Talk to our team on WhatsApp/ });
+    const link = await screen.findByRole('link', { name: 'WhatsApp' });
     expect(link.getAttribute('href')).toContain(`${SUPPORT_WHATSAPP_URL}?text=`);
     expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
     expect(SUPPORT_WHATSAPP_URL).toBe('https://wa.me/254113476311');
@@ -101,6 +104,42 @@ describe('FloatingHelp', () => {
     expect(message).toContain('Plan: Business');
     expect(message).toContain('Page: Inventory');
     expect(message).toContain('My question: I paid but my plan did not change');
+  });
+
+  it('lets someone report a problem by email, keeping WhatsApp available too', async () => {
+    guide.askGuide.mockResolvedValue({ reply: 'That needs our team.', pages: [], needsHuman: true });
+    setup({ activeTab: 'inventory' });
+    await openGuide();
+    await userEvent.type(screen.getByLabelText('Ask the Guide a question'), 'I paid but my plan did not change{Enter}');
+    // The same action is offered twice once there's an answer to react to (inline, and in the
+    // footer); the inline one — right next to this answer — is first in document order.
+    const [reportButton] = await screen.findAllByRole('button', { name: 'Report a problem' });
+    await userEvent.click(reportButton);
+
+    const textarea = screen.getByLabelText('Report a problem');
+    expect(textarea).toHaveValue('I paid but my plan did not change');
+    await userEvent.click(screen.getByRole('button', { name: 'Send report' }));
+
+    await waitFor(() => expect(support.submitSupportRequest).toHaveBeenCalledWith({
+      message: 'I paid but my plan did not change',
+      page: 'Inventory',
+    }));
+    expect(await screen.findByText("Thanks — we've got it.")).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'WhatsApp us too' })).toBeInTheDocument();
+  });
+
+  it('keeps the report form open and offers WhatsApp if sending the report fails', async () => {
+    support.submitSupportRequest.mockRejectedValue(new Error('offline'));
+    setup();
+    await openGuide();
+    await userEvent.click(screen.getByRole('button', { name: 'Report a problem' }));
+    await userEvent.type(screen.getByLabelText('Report a problem'), 'The app is slow');
+    await userEvent.click(screen.getByRole('button', { name: 'Send report' }));
+
+    await waitFor(() => expect(support.submitSupportRequest).toHaveBeenCalled());
+    expect(screen.queryByText("Thanks — we've got it.")).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Report a problem')).toHaveValue('The app is slow');
+    expect(screen.getByRole('link', { name: 'Or WhatsApp us' })).toBeInTheDocument();
   });
 
   it('shows how many questions are left, and updates it after each answer', async () => {
@@ -119,7 +158,7 @@ describe('FloatingHelp', () => {
     await openGuide();
     await userEvent.type(screen.getByLabelText('Ask the Guide a question'), 'hello{Enter}');
     expect(await screen.findByText(/You have used today's questions for the Guide/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Talk to our team on WhatsApp/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'WhatsApp' })).toBeInTheDocument();
   });
 
   it('says it is an AI and can make mistakes', async () => {
@@ -142,7 +181,7 @@ describe('FloatingHelp', () => {
     expect(guide.submitGuideFeedback).toHaveBeenCalledWith({ rating: 'up', question: 'where is stock?', answer: 'Open Inventory.', page: 'inventory', tier: 'business' });
     expect(await screen.findByText('Thanks for the feedback.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'No, this was not helpful' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Talk to our team on WhatsApp/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'WhatsApp' })).not.toBeInTheDocument();
   });
 
   it('a thumbs down offers the team', async () => {
@@ -153,7 +192,7 @@ describe('FloatingHelp', () => {
     await screen.findByText('Try the menu.');
     await userEvent.click(screen.getByRole('button', { name: 'No, this was not helpful' }));
     expect(guide.submitGuideFeedback).toHaveBeenCalledWith(expect.objectContaining({ rating: 'down' }));
-    const link = await screen.findByRole('link', { name: /Talk to our team on WhatsApp/ });
+    const link = await screen.findByRole('link', { name: 'WhatsApp' });
     expect(decodeURIComponent(link.getAttribute('href')!)).toContain('My question: how do I export?');
   });
 
@@ -184,7 +223,7 @@ describe('FloatingHelp', () => {
     await openGuide();
     await userEvent.type(screen.getByLabelText('Ask the Guide a question'), 'hello{Enter}');
     await screen.findByText('You have asked a lot of questions in a short time.');
-    expect(screen.getByRole('link', { name: /Talk to our team on WhatsApp/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'WhatsApp' })).toBeInTheDocument();
   });
 
   it('does not send an error message back as part of the conversation', async () => {

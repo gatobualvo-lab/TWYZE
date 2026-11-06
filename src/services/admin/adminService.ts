@@ -216,6 +216,58 @@ export async function updateFeedbackStatus(id: string, status: FeedbackStatus): 
   if (error) throw new Error(error.message);
 }
 
+export type SupportRequestStatus = 'new' | 'in_progress' | 'resolved';
+
+export interface AdminSupportRequestEntry {
+  id: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  message: string;
+  page: string | null;
+  status: SupportRequestStatus;
+  createdAt: string;
+}
+
+/** How many "Report a problem" submissions are still unreviewed (status 'new'). */
+export async function countNewSupportRequests(): Promise<number> {
+  const { count, error } = await supabase
+    .from('support_requests' as never)
+    .select('id', { count: 'exact', head: true } as never)
+    .eq('status', 'new') as unknown as { count: number | null; error: { message: string } | null };
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+/** Every "Report a problem" submission across the platform, newest first. Admin-only (RLS). */
+export async function listSupportRequests(): Promise<AdminSupportRequestEntry[]> {
+  const { data, error } = await supabase
+    .from('support_requests' as never)
+    .select('id, user_id, message, page, status, created_at')
+    .order('created_at', { ascending: false }) as unknown as { data: any[] | null; error: { message: string } | null };
+  if (error) throw new Error(error.message);
+
+  const rows = data ?? [];
+  const userIds = Array.from(new Set(rows.map(r => r.user_id)));
+  const profileMap = await fetchProfileLookup(userIds);
+
+  return rows.map(r => ({
+    id: r.id,
+    userId: r.user_id,
+    userName: profileMap[r.user_id]?.full_name ?? null,
+    userEmail: profileMap[r.user_id]?.email ?? null,
+    message: r.message,
+    page: r.page,
+    status: r.status,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function updateSupportRequestStatus(id: string, status: SupportRequestStatus): Promise<void> {
+  const { error } = await supabase.from('support_requests' as never).update({ status } as never).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 export async function getPaymentScreenshotSignedUrl(path: string): Promise<string> {
   const { data, error } = await supabase.storage
     .from('payment-proofs')
