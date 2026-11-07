@@ -5,6 +5,12 @@
 //      emails every active user a summary of the period that just ended. A
 //      report is logged in period_report_log so it can never be sent twice, and
 //      if several are due on the same day (1 January) they go in ONE email.
+//   3. Subscription lifecycle: a paid plan gets an "ends soon" email up to 3 days
+//      before subscription_expiry, a "renew within N days" email once lapsed but
+//      still in the 3-day grace period, and a "you're on Free now" email once the
+//      grace period ends. Each is logged in subscription_lifecycle_emails keyed
+//      by (user, subscription_expiry, type), so a later renewal (which moves
+//      subscription_expiry forward) lets the same three fire again next time.
 //
 // Self-contained on purpose (no ../_shared imports) so it can be pasted into the
 // Supabase dashboard editor as a single file.
@@ -144,7 +150,8 @@ export function tierOf(profile: PlanProfile | null | undefined, now: Date = new 
   if (status === 'trial' && trialEnd && !Number.isNaN(trialEnd.getTime()) && trialEnd > now) return 'business';
   const paidUntil = profile?.subscription_expiry ? new Date(profile.subscription_expiry) : null;
   if (status === 'active' && paidUntil && !Number.isNaN(paidUntil.getTime()) && paidUntil > now) {
-    return profile?.current_billing_cycle === 'starter' ? 'starter' : 'business'; // 'business' and the two earlier plans
+    const cycle = profile?.current_billing_cycle;
+    return cycle === 'starter' || cycle === 'starter_yearly' ? 'starter' : 'business'; // 'business', its yearly plan, and the two earlier plans
   }
   return 'free';
 }
@@ -449,6 +456,69 @@ export function buildReminderEmail(name: string, tasks: ReminderTask[], unsubscr
 }
 
 // ---------------------------------------------------------------------------
+// Subscription lifecycle emails — expiry warning, grace period, demotion.
+// See 20261112090000_subscription_grace_period_emails.sql for the grace
+// period itself and the subscription_lifecycle_emails dedup table.
+// ---------------------------------------------------------------------------
+
+export type LifecycleEmailType = 'expiry_warning' | 'grace_reminder' | 'demoted';
+
+/** A copy of the plan labels in src/utils/subscription.ts (this file can't import from src/). */
+export function planLabelFor(cycle: string | null | undefined): string {
+  switch (cycle) {
+    case 'starter': return 'Starter Plan';
+    case 'business': return 'Business Plan';
+    case 'starter_yearly': return 'Starter Plan (Yearly)';
+    case 'business_yearly': return 'Business Plan (Yearly)';
+    default: return 'your plan';
+  }
+}
+
+function fmtDate(d: Date): string {
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+export function buildLifecycleEmail(
+  type: LifecycleEmailType,
+  name: string,
+  planLabel: string,
+  expiry: Date,
+  graceDaysLeft: number,
+  unsubscribeUrl?: string
+): { subject: string; html: string; text: string } {
+  const greeting = `Hi ${escapeHtml(name || 'there')},`;
+  const cta = { label: 'Renew your plan', url: `${APP_URL}/?tab=payment-management` };
+
+  if (type === 'expiry_warning') {
+    const subject = `Your ${planLabel} ends soon — TrackWyze`;
+    const body = `<p style="margin:0 0 6px;">${escapeHtml(planLabel)} is due to end on ${escapeHtml(fmtDate(expiry))}. Renew before then to keep everything running without interruption.</p>`;
+    return {
+      subject,
+      html: emailLayout(escapeHtml(subject), `<p style="margin:0 0 14px;">${greeting}</p>${body}`, { preheader: `${planLabel} ends ${fmtDate(expiry)}.`, cta, ...(unsubscribeUrl ? { unsubscribe: { url: unsubscribeUrl, essential: true } } : {}) }),
+      text: `${greeting}\n\n${planLabel} is due to end on ${fmtDate(expiry)}. Renew before then to keep everything running without interruption.\n\nRenew: ${cta.url}`,
+    };
+  }
+
+  if (type === 'grace_reminder') {
+    const subject = `Action needed: renew your ${planLabel} — TrackWyze`;
+    const body = `<p style="margin:0 0 6px;">${escapeHtml(planLabel)} ended on ${escapeHtml(fmtDate(expiry))}. You have ${graceDaysLeft} day${graceDaysLeft === 1 ? '' : 's'} left with full access before your account moves to the Free plan. Renew now to keep everything you have.</p>`;
+    return {
+      subject,
+      html: emailLayout(escapeHtml(subject), `<p style="margin:0 0 14px;">${greeting}</p>${body}`, { preheader: `${graceDaysLeft} day${graceDaysLeft === 1 ? '' : 's'} left before you move to Free.`, cta, ...(unsubscribeUrl ? { unsubscribe: { url: unsubscribeUrl, essential: true } } : {}) }),
+      text: `${greeting}\n\n${planLabel} ended on ${fmtDate(expiry)}. You have ${graceDaysLeft} day${graceDaysLeft === 1 ? '' : 's'} left with full access before your account moves to the Free plan. Renew now to keep everything you have.\n\nRenew: ${cta.url}`,
+    };
+  }
+
+  const subject = `Your account is now on the Free plan — TrackWyze`;
+  const body = `<p style="margin:0 0 6px;">${escapeHtml(planLabel)} wasn't renewed, so your account has moved to the Free plan. Nothing has been deleted — all your data is exactly as you left it, and you can renew any time to get everything back.</p>`;
+  return {
+    subject,
+    html: emailLayout(escapeHtml(subject), `<p style="margin:0 0 14px;">${greeting}</p>${body}`, { preheader: 'Your account moved to the Free plan. Nothing was deleted.', cta, ...(unsubscribeUrl ? { unsubscribe: { url: unsubscribeUrl, essential: true } } : {}) }),
+    text: `${greeting}\n\n${planLabel} wasn't renewed, so your account has moved to the Free plan. Nothing has been deleted — all your data is exactly as you left it, and you can renew any time to get everything back.\n\nRenew: ${cta.url}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Runtime (Deno / Supabase Edge Functions)
 // ---------------------------------------------------------------------------
 
@@ -487,7 +557,7 @@ async function sendEmail(apiKey: string, to: string, mail: { subject: string; ht
 }
 
 interface RunOptions {
-  task: 'all' | 'reports' | 'reminders';
+  task: 'all' | 'reports' | 'reminders' | 'lifecycle';
   today: Date;
   dryRun: boolean;
   force: boolean;
@@ -560,6 +630,91 @@ async function runReminders(db: Db, apiKey: string, opts: RunOptions) {
     await markDone([...fresh.map(t => t.id), ...staleIds]);
   }
   return { sent, skipped };
+}
+
+/** Keep in step with GRACE_PERIOD_DAYS in src/services/subscription/entitlements.ts. */
+const GRACE_PERIOD_DAYS = 3;
+const EXPIRY_WARNING_LEAD_DAYS = 3;
+const MAX_LIFECYCLE_USERS_PER_RUN = 300;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+async function runLifecycle(db: Db, apiKey: string, opts: RunOptions) {
+  const now = opts.today;
+  const windowStart = new Date(now.getTime() - 30 * DAY_MS).toISOString();
+  const windowEnd = new Date(now.getTime() + EXPIRY_WARNING_LEAD_DAYS * DAY_MS).toISOString();
+
+  let query = db
+    .from('profiles')
+    .select('id, email, full_name, subscription_status, subscription_expiry, current_billing_cycle')
+    .in('subscription_status', ['active', 'expired', 'restricted'])
+    .not('email', 'is', null)
+    .not('subscription_expiry', 'is', null)
+    .gte('subscription_expiry', windowStart)
+    .lte('subscription_expiry', windowEnd)
+    .order('id')
+    .limit(MAX_LIFECYCLE_USERS_PER_RUN);
+  if (opts.onlyUser) query = query.eq('id', opts.onlyUser);
+  const { data: profiles, error } = await query;
+  if (error) throw new Error(`lifecycle query: ${error.message}`);
+
+  let sent = 0;
+  let skipped = 0;
+  const wouldSend: string[] = [];
+
+  for (const profile of profiles ?? []) {
+    const expiry = profile.subscription_expiry ? new Date(profile.subscription_expiry) : null;
+    if (!expiry || Number.isNaN(expiry.getTime()) || !profile.current_billing_cycle) {
+      skipped++;
+      continue;
+    }
+
+    const daysSinceExpiry = (now.getTime() - expiry.getTime()) / DAY_MS;
+    let emailType: LifecycleEmailType | null = null;
+    if (daysSinceExpiry < 0 && daysSinceExpiry >= -EXPIRY_WARNING_LEAD_DAYS) emailType = 'expiry_warning';
+    else if (daysSinceExpiry >= 0 && daysSinceExpiry < GRACE_PERIOD_DAYS) emailType = 'grace_reminder';
+    else if (daysSinceExpiry >= GRACE_PERIOD_DAYS) emailType = 'demoted';
+
+    if (!emailType) {
+      skipped++;
+      continue;
+    }
+
+    if (!opts.force) {
+      const { data: already } = await db
+        .from('subscription_lifecycle_emails')
+        .select('email_type')
+        .eq('user_id', profile.id)
+        .eq('subscription_expiry', profile.subscription_expiry)
+        .eq('email_type', emailType)
+        .maybeSingle();
+      if (already) {
+        skipped++;
+        continue;
+      }
+    }
+
+    // No emails_unsubscribed check: like the payment-confirmation emails these
+    // mirror, a lapsed/grace/demoted notice is an essential account notice,
+    // not a promotional one — the unsubscribe link it carries says as much.
+    if (opts.dryRun) {
+      wouldSend.push(`${profile.email}: ${emailType}`);
+      sent++;
+      continue;
+    }
+
+    try {
+      const links = await unsubscribeLinks({ secret: Deno.env.get('UNSUBSCRIBE_SECRET'), userId: profile.id, supabaseUrl: Deno.env.get('SUPABASE_URL') });
+      const graceDaysLeft = Math.max(1, Math.ceil(GRACE_PERIOD_DAYS - daysSinceExpiry));
+      const mail = buildLifecycleEmail(emailType, profile.full_name ?? '', planLabelFor(profile.current_billing_cycle), expiry, graceDaysLeft, links.pageUrl);
+      await sendEmail(apiKey, profile.email, mail, links);
+      await db.from('subscription_lifecycle_emails').insert({ user_id: profile.id, subscription_expiry: profile.subscription_expiry, email_type: emailType });
+      sent++;
+    } catch (err) {
+      console.error('lifecycle email failed for', profile.id, err instanceof Error ? err.message : err);
+    }
+  }
+
+  return { sent, skipped, wouldSend: opts.dryRun ? wouldSend : undefined };
 }
 
 async function fetchReport(db: Db, userId: string, start: string, end: string): Promise<ReportData | null> {
@@ -683,7 +838,7 @@ async function handler(req: Request): Promise<Response> {
     if (!apiKey) return json({ error: 'Email is not configured yet' }, 503);
 
     const body = await req.json().catch(() => ({}));
-    const task = body.task === 'reports' || body.task === 'reminders' ? body.task : 'all';
+    const task = body.task === 'reports' || body.task === 'reminders' || body.task === 'lifecycle' ? body.task : 'all';
     const parsedDate = typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? new Date(`${body.date}T12:00:00Z`) : new Date();
     const opts: RunOptions = {
       task,
@@ -695,6 +850,7 @@ async function handler(req: Request): Promise<Response> {
 
     const result: Record<string, unknown> = { dryRun: opts.dryRun };
     if (task === 'all' || task === 'reminders') result.reminders = await runReminders(db, apiKey, opts);
+    if (task === 'all' || task === 'lifecycle') result.lifecycle = await runLifecycle(db, apiKey, opts);
     // Reports are only worth checking once a day (the log makes extra checks harmless, just wasteful).
     const dailyWindow = opts.today.getUTCHours() === 3 && opts.today.getUTCMinutes() < 15;
     if (task === 'reports' || (task === 'all' && (dailyWindow || body.date || opts.onlyUser))) {

@@ -58,6 +58,8 @@ const PaymentManagement: React.FC = () => {
   const { errors, fail, field, formRef } = useFormErrors<'amount' | 'transactionReference'>();
 
   const [selectedPlan, setSelectedPlan] = useState<BillingPlanKey>('starter');
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const checkoutPlanKey: BillingPlanKey = billingCycle === 'yearly' ? (`${selectedPlan}_yearly` as BillingPlanKey) : selectedPlan;
   const [checkoutMethod, setCheckoutMethod] = useState<CheckoutMethod | null>(null);
   const [verifying, setVerifying] = useState(false);
 
@@ -101,7 +103,7 @@ const PaymentManagement: React.FC = () => {
   const handlePayNow = async (method: CheckoutMethod) => {
     setCheckoutMethod(method);
     try {
-      const session = await createCheckoutSession(selectedPlan, method);
+      const session = await createCheckoutSession(checkoutPlanKey, method);
       await openFlutterwaveCheckout({
         publicKey: session.publicKey,
         txRef: session.txRef,
@@ -110,7 +112,7 @@ const PaymentManagement: React.FC = () => {
         paymentOptions: session.paymentOptions,
         customer: session.customer,
         title: 'TrackWyze Subscription',
-        description: `${BILLING_PLANS[selectedPlan].label} — ${formatCurrency(session.amount)}`,
+        description: `${BILLING_PLANS[checkoutPlanKey].label} — ${formatCurrency(session.amount)}`,
         onComplete: async (response) => {
           setCheckoutMethod(null);
           if (response.status !== 'successful' && response.status !== 'completed') {
@@ -156,7 +158,7 @@ const PaymentManagement: React.FC = () => {
     setMpesaResult(null);
     setMpesaStage('sending');
     try {
-      const session = await startMpesaPayment(selectedPlan, normalized);
+      const session = await startMpesaPayment(checkoutPlanKey, normalized);
       setMpesaPhone(formatKenyanPhone(normalized));
       setMpesaStage('waiting');
       const resolved = await waitForMpesaPayment(session.txRef);
@@ -352,8 +354,29 @@ const PaymentManagement: React.FC = () => {
           })}
         </div>
 
+        <div className="mb-3">
+          <div className="inline-flex rounded-lg border border-gray-200 p-1 bg-gray-50">
+            <button
+              type="button"
+              onClick={() => setBillingCycle('monthly')}
+              aria-pressed={billingCycle === 'monthly'}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${billingCycle === 'monthly' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycle('yearly')}
+              aria-pressed={billingCycle === 'yearly'}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${billingCycle === 'yearly' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Yearly <span className="text-green-600 font-semibold">· 2 months free</span>
+            </button>
+          </div>
+        </div>
+
         <p className="text-sm font-medium text-gray-700 mb-2">
-          Pay for {BILLING_PLANS[selectedPlan].label}: {formatCurrency(BILLING_PLANS[selectedPlan].amount)} for 30 days
+          Pay for {BILLING_PLANS[checkoutPlanKey].label}: {formatCurrency(BILLING_PLANS[checkoutPlanKey].amount)} for {billingCycle === 'yearly' ? '12 months' : '30 days'}
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3">
@@ -389,7 +412,7 @@ const PaymentManagement: React.FC = () => {
           <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4" aria-live="polite">
             <p className="font-semibold text-green-900 flex items-center gap-2">
               <Smartphone className="w-4 h-4" aria-hidden="true" />
-              Pay {formatCurrency(BILLING_PLANS[selectedPlan].amount)} with M-Pesa
+              Pay {formatCurrency(BILLING_PLANS[checkoutPlanKey].amount)} with M-Pesa
             </p>
 
             {mpesaStage === 'waiting' ? (

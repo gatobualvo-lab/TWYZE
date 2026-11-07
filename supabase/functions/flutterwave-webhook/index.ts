@@ -156,6 +156,9 @@ Deno.serve(async (req) => {
   const sendGridKey = Deno.env.get('SENDGRID_API_KEY');
   if (sendGridKey && profile?.email) {
     const amountLabel = `${submission.currency ?? 'KES'} ${Number(submission.amount).toLocaleString()}`;
+    const dateLabel = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const startLabel = dateLabel(new Date());
+    const endLabel = dateLabel(newExpiry);
     const subject = 'Payment confirmed — TrackWyze';
     try {
       const links = await unsubscribeLinks({ secret: Deno.env.get('UNSUBSCRIBE_SECRET'), userId: submission.user_id, supabaseUrl });
@@ -166,10 +169,10 @@ Deno.serve(async (req) => {
         unsubscribe: links,
         html: emailLayout(
           subject,
-          `<p style="margin:0 0 14px;">Hi ${escapeHtml(profile.full_name || 'there')},</p><p style="margin:0 0 6px;">We've confirmed ${escapeHtml(amountLabel)} for the ${escapeHtml(BILLING_PLANS[planKey].label)}. Your TrackWyze subscription is active. Thank you for staying with us.</p>`,
+          `<p style="margin:0 0 14px;">Hi ${escapeHtml(profile.full_name || 'there')},</p><p style="margin:0 0 6px;">We've confirmed ${escapeHtml(amountLabel)} for the ${escapeHtml(BILLING_PLANS[planKey].label)}. Your TrackWyze subscription is active from ${escapeHtml(startLabel)} until ${escapeHtml(endLabel)}. Thank you for staying with us.</p>`,
           { preheader: 'Your subscription is active. Thank you.', cta: { label: 'Open TrackWyze', url: APP_URL }, unsubscribe: { url: links.pageUrl, essential: true } }
         ),
-        text: `Hi ${profile.full_name || 'there'},\n\nWe've confirmed ${amountLabel} for the ${BILLING_PLANS[planKey].label}. Your TrackWyze subscription is active.`,
+        text: `Hi ${profile.full_name || 'there'},\n\nWe've confirmed ${amountLabel} for the ${BILLING_PLANS[planKey].label}. Your TrackWyze subscription is active from ${startLabel} until ${endLabel}.`,
       });
     } catch (err) {
       console.error('flutterwave-webhook: confirmation email failed', err);

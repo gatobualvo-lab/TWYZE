@@ -53,7 +53,6 @@ import { applyCategoryToNav } from '../services/personalization/categoryNav';
 import RecurringExpenses from './expenses/RecurringExpenses';
 import { runDueRecurringExpenses } from '../services/expenses/recurringExpenseService';
 import { applyMySubscriptionLapse, computeAccessLevel } from '../services/subscription/subscriptionLapseService';
-import { sendSubscriptionExpiryWarningEmail } from '../services/email/emailService';
 import { RestrictedFeatureGate } from './SubscriptionGate';
 import toast from 'react-hot-toast';
 import { useTheme } from '../contexts/ThemeContext';
@@ -64,7 +63,7 @@ import { LogoMark, Wordmark } from './brand/Logo';
 import { detectPhone } from '../utils/platform';
 import { EntitlementsProvider } from '../contexts/EntitlementsContext';
 import { withPreviewPlan } from '../services/subscription/previewPlan';
-import { FEATURE_MIN_TIER, TIER_LABELS, describeEntitlements, resolveEntitlements, tierIncludes, type Feature } from '../services/subscription/entitlements';
+import { FEATURE_MIN_TIER, TIER_LABELS, daysLeft, describeEntitlements, resolveEntitlements, tierIncludes, type Feature } from '../services/subscription/entitlements';
 import { LimitGate, PlanBanner, TabGate } from './subscription/Gates';
 import { TeamInvitesBanner } from './team/TeamInvitesBanner';
 import FloatingHelp from './help/FloatingHelp';
@@ -330,16 +329,16 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   const { pendingCount: pendingOfflineWrites } = useOfflineWriteSync();
   const pendingOfflineTotal = pendingOfflineSales + pendingOfflineWrites;
   useEffect(() => {
+    // The "you've lapsed" email used to be sent from here, once, right as the transition
+    // happened. That is now handled by the scheduled-emails lifecycle task (see
+    // 20261112090000_subscription_grace_period_emails.sql) instead — it also covers the
+    // "about to expire" and "moved to Free" emails this effect never could, and does not
+    // depend on the user happening to open the app at the right moment. Sending it from
+    // both places would double-email the person, so this effect only updates local state now.
     applyMySubscriptionLapse().then(newStatus => {
       if (!newStatus) return;
       setUser(prev => {
         if (!prev?.profile) return prev;
-        // Send the "you've lapsed" email exactly once, right as the
-        // transition happens — not on every subsequent lapse check while
-        // still expired/restricted.
-        if (prev.profile.subscription_status !== newStatus && newStatus === 'expired') {
-          sendSubscriptionExpiryWarningEmail();
-        }
         return { ...prev, profile: { ...prev.profile, subscription_status: newStatus } };
       });
     });
@@ -839,18 +838,38 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
             </p>
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-right hidden md:block">
-              <p className="text-sm font-medium text-gray-900">
-                {describeEntitlements(entitlements)}
-              </p>
-              <p className="text-xs text-gray-500">
-                {entitlements.source === 'free-month'
-                  ? `Free month ends ${new Date(planProfile?.trial_end_date ?? Date.now()).toLocaleDateString()}`
-                  : entitlements.paidUntil
-                    ? `Paid until ${new Date(entitlements.paidUntil).toLocaleDateString()}`
-                    : 'Upgrade for more features'}
-              </p>
-            </div>
+            {(() => {
+              const left = daysLeft(entitlements);
+              const isGrace = entitlements.source === 'grace';
+              const daysLabel = left !== null ? `${isGrace ? 'Renew within ' : ''}${left} day${left === 1 ? '' : 's'}${isGrace ? '' : ' left'}` : null;
+              return (
+                <>
+                  {daysLabel && (
+                    <span
+                      className={`md:hidden flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        isGrace || (left !== null && left <= 3) ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      {daysLabel}
+                    </span>
+                  )}
+                  <div className="text-right hidden md:block">
+                    <p className={`text-sm font-medium ${isGrace ? 'text-amber-700' : 'text-gray-900'}`}>
+                      {describeEntitlements(entitlements)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {entitlements.source === 'free-month'
+                        ? `Free month ends ${new Date(planProfile?.trial_end_date ?? Date.now()).toLocaleDateString()}`
+                        : isGrace
+                          ? `Payment overdue since ${new Date(entitlements.paidUntil ?? Date.now()).toLocaleDateString()} · ${daysLabel} to renew`
+                          : entitlements.paidUntil
+                            ? `Paid until ${new Date(entitlements.paidUntil).toLocaleDateString()}${daysLabel ? ` · ${daysLabel}` : ''}`
+                            : 'Upgrade for more features'}
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
             {pendingOfflineTotal > 0 && (
               <span
                 className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200"

@@ -351,7 +351,7 @@ export async function settleStkResult(supabase: any, submission: PaymentSubmissi
       new_data: { gateway: 'mpesa', amount: submission.amount, planKey, durationDays: plan.durationDays, receipt: outcome.receipt ?? null },
     });
 
-    await sendConfirmationEmail(profile, submission, plan.label);
+    await sendConfirmationEmail(profile, submission, plan.label, now, expiry);
     return 'approved';
   } catch (error) {
     // Paid but not activated: put the row back to pending so the next status check retries.
@@ -366,13 +366,18 @@ export async function settleStkResult(supabase: any, submission: PaymentSubmissi
 async function sendConfirmationEmail(
   profile: { email?: string | null; full_name?: string | null } | null,
   submission: PaymentSubmission,
-  planLabel: string
+  planLabel: string,
+  startDate: Date,
+  endDate: Date
 ): Promise<void> {
   // Best effort: a failed email must never undo a confirmed payment.
   // deno-lint-ignore no-explicit-any
   const apiKey = (globalThis as any).Deno?.env?.get?.('SENDGRID_API_KEY');
   if (!apiKey || !profile?.email) return;
   const amountLabel = `${submission.currency ?? 'KES'} ${Number(submission.amount).toLocaleString()}`;
+  const dateLabel = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const startLabel = dateLabel(startDate);
+  const endLabel = dateLabel(endDate);
   const subject = 'Payment confirmed — TrackWyze';
   try {
     // deno-lint-ignore no-explicit-any
@@ -385,10 +390,10 @@ async function sendConfirmationEmail(
       unsubscribe: links,
       html: emailLayout(
         subject,
-        `<p style="margin:0 0 14px;">Hi ${escapeHtml(profile.full_name || 'there')},</p><p style="margin:0 0 6px;">We've confirmed your M-Pesa payment of ${escapeHtml(amountLabel)} for the ${escapeHtml(planLabel)}. Your TrackWyze subscription is active. Thank you for staying with us.</p>`,
+        `<p style="margin:0 0 14px;">Hi ${escapeHtml(profile.full_name || 'there')},</p><p style="margin:0 0 6px;">We've confirmed your M-Pesa payment of ${escapeHtml(amountLabel)} for the ${escapeHtml(planLabel)}. Your TrackWyze subscription is active from ${escapeHtml(startLabel)} until ${escapeHtml(endLabel)}. Thank you for staying with us.</p>`,
         { preheader: 'Your subscription is active. Thank you.', cta: { label: 'Open TrackWyze', url: APP_URL }, unsubscribe: { url: links.pageUrl, essential: true } }
       ),
-      text: `Hi ${profile.full_name || 'there'},\n\nWe've confirmed your M-Pesa payment of ${amountLabel} for the ${planLabel}. Your TrackWyze subscription is active.\n\nOpen TrackWyze: ${APP_URL}`,
+      text: `Hi ${profile.full_name || 'there'},\n\nWe've confirmed your M-Pesa payment of ${amountLabel} for the ${planLabel}. Your TrackWyze subscription is active from ${startLabel} until ${endLabel}.\n\nOpen TrackWyze: ${APP_URL}`,
     });
   } catch (error) {
     console.error('stk: confirmation email failed', error);

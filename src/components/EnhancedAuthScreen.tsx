@@ -21,6 +21,7 @@ interface FormData {
   name: string;
   email: string;
   password: string;
+  confirmPassword: string;
   businessCategory: string;
   referralSource: string;
   currency: string;
@@ -51,6 +52,7 @@ const EnhancedAuthScreen: React.FC = () => {
     name: '',
     email: '',
     password: '',
+    confirmPassword: '',
     businessCategory: '',
     referralSource: '',
     currency: DEFAULT_CURRENCY,
@@ -90,6 +92,7 @@ const EnhancedAuthScreen: React.FC = () => {
     if (!formData.name.trim()) return 'Full name is required';
     if (!EMAIL_REGEX.test(formData.email.trim())) return 'Please enter a valid email address';
     if (formData.password.length < MIN_PASSWORD_LENGTH) return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+    if (formData.password !== formData.confirmPassword) return 'Passwords do not match';
     return null;
   };
 
@@ -176,7 +179,7 @@ const EnhancedAuthScreen: React.FC = () => {
       if (!data.session) {
         trackEvent('user_signed_up', { needs_confirmation: true });
         trackEvent('signup_check_email_shown');
-        setFormData(prev => ({ ...prev, password: '' }));
+        setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }));
         setPendingEmail(email);
         return;
       }
@@ -193,6 +196,20 @@ const EnhancedAuthScreen: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleGoogleAuth = async () => {
+    setError('');
+    trackEvent(isLogin ? 'login_google_clicked' : 'signup_google_clicked');
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/app` },
+    });
+    if (oauthError) {
+      setError(oauthError.message || 'Could not start Google sign-in. Please try again.');
+      toast.error(oauthError.message || 'Could not start Google sign-in. Please try again.');
+    }
+    // On success the browser is redirected to Google, so there is nothing more to do here.
   };
 
   const handleLogin = async () => {
@@ -404,6 +421,30 @@ const EnhancedAuthScreen: React.FC = () => {
           </div>
         </div>
 
+        {(isLogin || step === 1) && (
+          <>
+            <button
+              type="button"
+              onClick={handleGoogleAuth}
+              disabled={isSubmitting}
+              className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 border border-gray-300 rounded-xl font-semibold text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 transition-colors min-h-[44px]"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 48 48" aria-hidden="true">
+                <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
+                <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" />
+                <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
+                <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
+              </svg>
+              Continue with Google
+            </button>
+            <div className="flex items-center gap-3 my-4" role="separator" aria-label="or">
+              <span className="flex-1 h-px bg-gray-200" />
+              <span className="text-xs font-medium text-gray-400">OR</span>
+              <span className="flex-1 h-px bg-gray-200" />
+            </div>
+          </>
+        )}
+
         <form className="space-y-4" onSubmit={handleSubmit} noValidate>
           {!isLogin && (
             <div className="mb-1">
@@ -495,6 +536,28 @@ const EnhancedAuthScreen: React.FC = () => {
                   </p>
                 )}
               </div>
+
+              {!isLogin && (
+                <div>
+                  <label htmlFor="auth-confirm-password" className="block text-sm font-medium text-gray-700 mb-1.5">Confirm password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
+                    <input
+                      id="auth-confirm-password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      value={formData.confirmPassword}
+                      onChange={e => handleInputChange('confirmPassword', e.target.value)}
+                      className="pl-10 w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Re-enter your password"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  {formData.confirmPassword.length > 0 && formData.confirmPassword !== formData.password && (
+                    <p role="alert" className="mt-1.5 text-xs text-red-600">Passwords do not match</p>
+                  )}
+                </div>
+              )}
             </>
           )}
 

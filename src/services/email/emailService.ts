@@ -15,14 +15,6 @@ export async function sendWelcomeEmail(): Promise<void> {
   }
 }
 
-export async function sendSubscriptionExpiryWarningEmail(): Promise<void> {
-  try {
-    await supabase.functions.invoke('send-transactional-email', { body: { type: 'subscription_expiry_warning' } });
-  } catch {
-    // best-effort
-  }
-}
-
 export async function sendPaymentApprovedEmail(params: { userId: string; amount: number; currency: string; planLabel: string }): Promise<void> {
   try {
     await supabase.functions.invoke('send-payment-approved-email', { body: params });

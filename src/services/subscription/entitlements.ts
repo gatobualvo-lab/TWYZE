@@ -156,7 +156,10 @@ export interface SubscriptionProfile {
   current_billing_cycle?: string | null;
 }
 
-export type TierSource = 'free-month' | 'paid' | 'earlier-plan' | 'free';
+export type TierSource = 'free-month' | 'paid' | 'earlier-plan' | 'grace' | 'free';
+
+/** A lapsed payment still works for this many days before the account drops to Free. */
+export const GRACE_PERIOD_DAYS = 3;
 
 export interface Entitlements {
   tier: Tier;
@@ -166,6 +169,8 @@ export interface Entitlements {
   freeMonthDaysLeft: number | null;
   /** When a paid plan or an earlier plan's paid month ends, if there is one running. */
   paidUntil: string | null;
+  /** Whole days left of the grace period, when `source` is 'grace'. */
+  graceDaysLeft: number | null;
   /** An admin suspended the account: everything can be seen, nothing can be added. */
   suspended: boolean;
 }
@@ -180,16 +185,21 @@ const parse = (value?: string | null): Date | null => {
 
 /** The tier a plan key stands for. The two earlier plans (500 and 1,000) both keep every feature. */
 export function tierForPlanKey(key?: string | null): Tier | null {
-  if (key === 'starter') return 'starter';
-  if (key === 'business') return 'business';
+  if (key === 'starter' || key === 'starter_yearly') return 'starter';
+  if (key === 'business' || key === 'business_yearly') return 'business';
   if (key === 'month2-3' || key === 'month4+') return 'business';
   return null;
+}
+
+/** Plan keys billed directly (as opposed to the two retired plans, which read as "earlier-plan"). */
+function isCurrentPlanKey(key: string | null): boolean {
+  return key === 'starter' || key === 'business' || key === 'starter_yearly' || key === 'business_yearly';
 }
 
 export function resolveEntitlements(profile: SubscriptionProfile | null | undefined, now: Date = new Date()): Entitlements {
   const status = profile?.subscription_status ?? null;
   const suspended = status === 'suspended';
-  const free: Entitlements = { tier: 'free', source: 'free', freeMonthDaysLeft: null, paidUntil: null, suspended };
+  const free: Entitlements = { tier: 'free', source: 'free', freeMonthDaysLeft: null, paidUntil: null, graceDaysLeft: null, suspended };
 
   // The free month: everything, for as long as the trial runs.
   const trialEnd = parse(profile?.trial_end_date);
@@ -199,22 +209,42 @@ export function resolveEntitlements(profile: SubscriptionProfile | null | undefi
       source: 'free-month',
       freeMonthDaysLeft: Math.max(1, Math.ceil((trialEnd.getTime() - now.getTime()) / DAY_MS)),
       paidUntil: null,
+      graceDaysLeft: null,
       suspended,
     };
   }
 
-  // A paid month that has not ended yet.
+  // A plan that was paid for at some point (status may already read 'expired'/'restricted' —
+  // apply_my_subscription_lapse() can flip it before this ever runs — so this reads the dates
+  // directly rather than requiring status === 'active').
   const paidUntil = parse(profile?.subscription_expiry);
-  if (status === 'active' && paidUntil && paidUntil > now) {
+  if (paidUntil && status !== 'suspended') {
     const cycle = profile?.current_billing_cycle ?? null;
     const tier = tierForPlanKey(cycle) ?? 'business';
-    return {
-      tier,
-      source: cycle === 'starter' || cycle === 'business' ? 'paid' : 'earlier-plan',
-      freeMonthDaysLeft: null,
-      paidUntil: paidUntil.toISOString(),
-      suspended,
-    };
+
+    if (paidUntil > now) {
+      return {
+        tier,
+        source: isCurrentPlanKey(cycle) ? 'paid' : 'earlier-plan',
+        freeMonthDaysLeft: null,
+        paidUntil: paidUntil.toISOString(),
+        graceDaysLeft: null,
+        suspended,
+      };
+    }
+
+    // Lapsed, but still inside the grace period: same tier, with a visible countdown.
+    const graceEnd = new Date(paidUntil.getTime() + GRACE_PERIOD_DAYS * DAY_MS);
+    if (graceEnd > now) {
+      return {
+        tier,
+        source: 'grace',
+        freeMonthDaysLeft: null,
+        paidUntil: paidUntil.toISOString(),
+        graceDaysLeft: Math.max(1, Math.ceil((graceEnd.getTime() - now.getTime()) / DAY_MS)),
+        suspended,
+      };
+    }
   }
 
   return free;
@@ -263,6 +293,18 @@ export function tierToLiftLimit(tier: Tier, resource: LimitedResource): Tier {
 /** What an account sees under its name: "Free month · 12 days left", "Starter", and so on. */
 export function describeEntitlements(e: Entitlements): string {
   if (e.source === 'free-month') return `Free month · ${e.freeMonthDaysLeft} day${e.freeMonthDaysLeft === 1 ? '' : 's'} left`;
+  if (e.source === 'grace') return `${TIER_LABELS[e.tier]} · Payment overdue`;
   if (e.source === 'earlier-plan') return 'Business features (your paid month)';
   return TIER_LABELS[e.tier];
+}
+
+/** Whole days left on a running free month, grace period or paid plan; null on the Free tier, where nothing is "left". */
+export function daysLeft(e: Entitlements, now: Date = new Date()): number | null {
+  if (e.source === 'free-month') return e.freeMonthDaysLeft;
+  if (e.source === 'grace') return e.graceDaysLeft;
+  if (e.paidUntil) {
+    const until = parse(e.paidUntil);
+    if (until) return Math.max(0, Math.ceil((until.getTime() - now.getTime()) / DAY_MS));
+  }
+  return null;
 }

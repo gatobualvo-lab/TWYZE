@@ -8,7 +8,7 @@
 // payments but may still be stored on a payment that was started before the
 // change, so they are read as Starter and Business.
 
-export type BillingPlanKey = 'starter' | 'business';
+export type BillingPlanKey = 'starter' | 'business' | 'starter_yearly' | 'business_yearly';
 
 export interface BillingPlan {
   key: BillingPlanKey;
@@ -18,14 +18,17 @@ export interface BillingPlan {
   durationDays: number;
 }
 
+// Yearly prices are 10x the monthly price (2 months free, ~17% off) rather than 12x.
 export const BILLING_PLANS: Record<BillingPlanKey, BillingPlan> = {
   starter: { key: 'starter', label: 'Starter Plan', amount: 500, currency: 'KES', durationDays: 30 },
   business: { key: 'business', label: 'Business Plan', amount: 1000, currency: 'KES', durationDays: 30 },
+  starter_yearly: { key: 'starter_yearly', label: 'Starter Plan (Yearly)', amount: 5000, currency: 'KES', durationDays: 365 },
+  business_yearly: { key: 'business_yearly', label: 'Business Plan (Yearly)', amount: 10000, currency: 'KES', durationDays: 365 },
 };
 
 /** For a NEW payment: only the current plans are accepted. */
 export function isBillingPlanKey(value: unknown): value is BillingPlanKey {
-  return value === 'starter' || value === 'business';
+  return value === 'starter' || value === 'business' || value === 'starter_yearly' || value === 'business_yearly';
 }
 
 /** For a payment already on record: also understands the earlier plan keys. Unknown means Starter. */

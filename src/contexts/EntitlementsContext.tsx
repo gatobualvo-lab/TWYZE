@@ -31,7 +31,7 @@ interface EntitlementsValue {
 
 // Outside the provider (an isolated component, a test) nothing is locked.
 const OPEN: EntitlementsValue = {
-  entitlements: { tier: 'business', source: 'paid', freeMonthDaysLeft: null, paidUntil: null, suspended: false },
+  entitlements: { tier: 'business', source: 'paid', freeMonthDaysLeft: null, paidUntil: null, graceDaysLeft: null, suspended: false },
   tier: 'business',
   has: () => true,
   limit: (resource) => checkLimit('business', resource, 0),

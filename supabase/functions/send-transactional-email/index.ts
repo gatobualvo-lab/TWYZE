@@ -19,7 +19,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { sendEmail, emailLayout, EmailSendError, APP_URL, unsubscribeLinks } from '../_shared/sendgrid.ts';
 
-type EmailType = 'welcome' | 'subscription_expiry_warning' | 'opportunity_alert' | 'password_changed';
+type EmailType = 'welcome' | 'opportunity_alert' | 'password_changed';
 
 const MAX_ALERT_FIELD_LENGTH = 300;
 
@@ -39,9 +39,9 @@ function escapeHtml(input: string): string {
     .replace(/'/g, '&#39;');
 }
 
-// The expiry notice and the password-changed notice are about the account itself (the second is
-// a security notice, not marketing), so both go out even to someone who has unsubscribed from the rest.
-const ESSENTIAL: EmailType[] = ['subscription_expiry_warning', 'password_changed'];
+// The password-changed notice is about the account itself (a security notice, not marketing),
+// so it goes out even to someone who has unsubscribed from the rest.
+const ESSENTIAL: EmailType[] = ['password_changed'];
 
 function buildEmail(type: EmailType, name: string, alert: { title: string; body: string } | undefined, unsubscribeUrl: string): { subject: string; html: string; text: string } | null {
   const unsubscribe = { url: unsubscribeUrl, essential: ESSENTIAL.includes(type) };
@@ -64,24 +64,6 @@ function buildEmail(type: EmailType, name: string, alert: { title: string; body:
         unsubscribe,
       }),
       text: `Hi ${name || 'there'},\n\nYour TrackWyze account is ready. Add your products, record your first sale, and watch your daily profit build up.\n\nOpen TrackWyze: ${APP_URL}`,
-    };
-  }
-  if (type === 'subscription_expiry_warning') {
-    const subject = 'Your TrackWyze subscription has expired';
-    const renewUrl = `${APP_URL}/?tab=payment-management`;
-    const bodyHtml = `
-      <p style="margin:0 0 14px;">Hi ${escapeHtml(name || 'there')},</p>
-      <p style="margin:0 0 14px;">Your TrackWyze subscription has expired. You have a few days of grace before your account moves to view-only mode, so renew now to keep adding sales, expenses and stock.</p>
-      <p style="margin:0;">Your records stay safe either way.</p>
-    `;
-    return {
-      subject,
-      html: emailLayout(subject, bodyHtml, {
-        preheader: 'Renew to keep recording sales, expenses and stock.',
-        cta: { label: 'Renew subscription', url: renewUrl },
-        unsubscribe,
-      }),
-      text: `Hi ${name || 'there'},\n\nYour TrackWyze subscription has expired. Renew soon to keep adding new records. Your records stay safe either way.\n\nRenew: ${renewUrl}`,
     };
   }
   if (type === 'password_changed') {
@@ -138,7 +120,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const { type, title, body: alertBody } = body as { type?: string; title?: string; body?: string };
-    if (type !== 'welcome' && type !== 'subscription_expiry_warning' && type !== 'opportunity_alert' && type !== 'password_changed') {
+    if (type !== 'welcome' && type !== 'opportunity_alert' && type !== 'password_changed') {
       return json({ error: 'Invalid email type' }, 400);
     }
 
