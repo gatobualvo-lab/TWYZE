@@ -1,6 +1,6 @@
 import { supabase } from '../../utils/supabase';
 import { toNum } from '../../utils/number';
-import { listProjects, type Project } from './projectService';
+import { listProjects, listEvents, type Project } from './projectService';
 
 // get_project_summary only returns projects that actually have at least one
 // invoice or expense attached (it's built from two CTEs joined on
@@ -27,14 +27,11 @@ interface ProjectSummaryRow {
   spent_total: number;
 }
 
-export async function fetchProjectSummaries(): Promise<ProjectSummary[]> {
-  const [projects, summaryRes] = await Promise.all([
-    listProjects(),
-    supabase.rpc('get_project_summary'),
-  ]);
+async function summarize(projects: Project[]): Promise<ProjectSummary[]> {
+  const { data } = await supabase.rpc('get_project_summary');
 
   const summaryByProjectId = new Map<string, { invoicedTotal: number; salesTotal: number; spentTotal: number }>();
-  for (const row of (summaryRes.data ?? []) as ProjectSummaryRow[]) {
+  for (const row of (data ?? []) as ProjectSummaryRow[]) {
     summaryByProjectId.set(row.project_id, {
       invoicedTotal: toNum(row.invoiced_total),
       salesTotal: toNum(row.sales_total),
@@ -52,4 +49,13 @@ export async function fetchProjectSummaries(): Promise<ProjectSummary[]> {
       remainingBudget: project.budget == null ? null : project.budget - summary.spentTotal,
     };
   });
+}
+
+export async function fetchProjectSummaries(): Promise<ProjectSummary[]> {
+  return summarize(await listProjects());
+}
+
+/** Events (project_kind='event') only, with the same budget/sales/spend rollup — the standalone Events page. */
+export async function fetchEventSummaries(): Promise<ProjectSummary[]> {
+  return summarize(await listEvents());
 }

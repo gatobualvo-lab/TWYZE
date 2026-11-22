@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BarChart3, Plus, Menu, X, Target, TrendingUp, Download, Zap, LogOut, Users, History, Settings, User, User as UserIcon, Package, BookOpen, Layers, Calendar, TrendingDown, Wallet, Truck, ChevronLeft, ChevronRight, Receipt, ChevronDown, ShoppingCart, FileText, Percent, Lightbulb, Sparkles, Trophy, Bell, UserCog, Repeat, HelpCircle, Briefcase, RefreshCw, Lock, ListChecks, CalendarCheck, Landmark } from 'lucide-react';
+import { BarChart3, Plus, Menu, X, Target, TrendingUp, Download, Zap, LogOut, Users, History, Settings, User, User as UserIcon, Package, BookOpen, Layers, Calendar, TrendingDown, Wallet, Truck, ChevronLeft, ChevronRight, Receipt, ChevronDown, ShoppingCart, FileText, Percent, Lightbulb, Sparkles, Trophy, Bell, UserCog, Repeat, HelpCircle, Briefcase, RefreshCw, Lock, ListChecks, CalendarCheck, Landmark, PartyPopper } from 'lucide-react';
 import { CSSTransition } from 'react-transition-group';
 import { supabase, refreshSession } from '../utils/supabase';
 import { DownloadModal } from './DownloadModal';
@@ -22,6 +22,7 @@ import CashPosition from './payments/CashPosition';
 import MobileBottomNav from './MobileBottomNav';
 import RecurringInvoices from './documents/RecurringInvoices';
 import ProjectsPage from './projects/ProjectsPage';
+import EventsPage from './events/EventsPage';
 import { runDueRecurringInvoices } from '../services/documents/recurringInvoiceService';
 import DropdownManagement from './DropdownManagement';
 import AccountSettings from './AccountSettings';
@@ -185,6 +186,7 @@ const NAV_ITEMS: NavTopItem[] = [
     ],
   },
   { kind: 'leaf', id: 'projects', label: 'Projects', icon: Briefcase },
+  { kind: 'leaf', id: 'events', label: 'Events', icon: PartyPopper },
   { kind: 'leaf', id: 'feedback', label: 'Feedback', icon: Lightbulb },
   {
     kind: 'group', id: 'planner', label: 'Planner', icon: CalendarCheck, iconClassName: 'text-violet-600',
@@ -958,6 +960,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
           <TabSlot id="documents-receipts" activeTab={activeTab} visitedTabs={visitedTabs}><DocumentsPage initialTab="receipt" /></TabSlot>
           <TabSlot id="recurring-invoices" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="recurring-invoices"><RecurringInvoices /></TabGate></TabSlot>
           <TabSlot id="projects" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="projects"><ProjectsPage /></TabGate></TabSlot>
+          <TabSlot id="events" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="events"><EventsPage /></TabGate></TabSlot>
           <TabSlot id="feedback" activeTab={activeTab} visitedTabs={visitedTabs}><FeatureFeedback /></TabSlot>
           <TabSlot id="documents-settings" activeTab={activeTab} visitedTabs={visitedTabs}><DocumentsPage initialTab="settings" /></TabSlot>
           <TabSlot id="monthly-dashboard" activeTab={activeTab} visitedTabs={visitedTabs}><TabGate id="monthly-dashboard"><MonthlyDashboard /></TabGate></TabSlot>

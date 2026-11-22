@@ -1,35 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useFormErrors } from '../../hooks/useFormErrors';
 import FieldError from '../ui/FieldError';
-import { Briefcase, Plus, X, Trash2, Check, CheckCircle2, Archive, FolderOpen, ChevronUp, FileText, Receipt, PartyPopper, Users, ListChecks, Ticket } from 'lucide-react';
+import { Briefcase, Plus, X, Trash2, Check, CheckCircle2, Archive, FolderOpen, ChevronUp, FileText, Receipt, ListChecks, Ticket } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { fetchProjectSummaries, type ProjectSummary } from '../../services/projects/projectRollupService';
-import { createProject, updateProjectStatus, deleteProject, EVENT_TYPE_LABELS, type ProjectKind, type EventType } from '../../services/projects/projectService';
+import { createProject, updateProjectStatus, deleteProject } from '../../services/projects/projectService';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { fetchProjectContents, type ProjectContents } from '../../services/projects/projectContentsService';
 import { createTask, toggleTaskCompleted } from '../../services/tasks/taskService';
 import { toNum } from '../../utils/number';
 import { PageHeader, EmptyState, SkeletonList } from '../ui';
 
-/** Whole days from today to `dateStr` (negative if in the past), or null if unparseable. */
-function daysUntil(dateStr: string | null): number | null {
-  if (!dateStr) return null;
-  const target = new Date(`${dateStr}T00:00:00`);
-  if (Number.isNaN(target.getTime())) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
-}
-
-function eventCountdownLabel(dateStr: string | null): string | null {
-  const days = daysUntil(dateStr);
-  if (days === null) return null;
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Tomorrow';
-  if (days > 1) return `In ${days} days`;
-  if (days === -1) return 'Yesterday';
-  return `${Math.abs(days)} days ago`;
-}
+// Events (festivals, weddings, conferences) moved to their own standalone page
+// (src/components/events/EventsPage.tsx) — this page is general-purpose projects only.
 
 const ProjectRow: React.FC<{ project: ProjectSummary; onChanged: () => void }> = ({ project, onChanged }) => {
   const [pendingDelete, setPendingDelete] = useState(false);
@@ -65,7 +48,7 @@ const ProjectRow: React.FC<{ project: ProjectSummary; onChanged: () => void }> =
     try {
       await createTask({
         title: newTaskTitle.trim(),
-        taskType: project.kind === 'event' ? 'event' : 'general',
+        taskType: 'general',
         dueDate: newTaskDueDate || null,
         projectId: project.id,
       });
@@ -119,24 +102,8 @@ const ProjectRow: React.FC<{ project: ProjectSummary; onChanged: () => void }> =
     <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 transition-all duration-200 hover:shadow-md animate-slide-up ${project.status !== 'active' ? 'opacity-60' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-medium text-gray-900 truncate">{project.name}</p>
-            {project.kind === 'event' && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-xs font-medium flex-shrink-0">
-                <PartyPopper className="w-3 h-3" />
-                {project.eventType ? EVENT_TYPE_LABELS[project.eventType] : 'Event'}
-              </span>
-            )}
-          </div>
+          <p className="font-medium text-gray-900 truncate">{project.name}</p>
           {project.clientName && <p className="text-xs text-gray-400 mt-0.5">{project.clientName}</p>}
-          {project.kind === 'event' && (project.eventDate || project.guestCount != null) && (
-            <p className="text-xs text-violet-600 mt-0.5 flex items-center gap-2 flex-wrap">
-              {project.eventDate && <span>{eventCountdownLabel(project.eventDate)} · {formatDate(project.eventDate)}</span>}
-              {project.guestCount != null && (
-                <span className="inline-flex items-center gap-1"><Users className="w-3 h-3" /> {project.guestCount} guests</span>
-              )}
-            </p>
-          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
@@ -206,7 +173,7 @@ const ProjectRow: React.FC<{ project: ProjectSummary; onChanged: () => void }> =
                   <Ticket className="w-3.5 h-3.5" /> Sales ({contents.sales.length})
                 </p>
                 {contents.sales.length === 0 ? (
-                  <p className="text-sm text-gray-400">No sales yet. Pick this project when you record one (e.g. a ticket sale).</p>
+                  <p className="text-sm text-gray-400">No sales yet. Pick this project when you record one.</p>
                 ) : (
                   <ul className="divide-y divide-gray-100">
                     {contents.sales.map(s => (
@@ -294,7 +261,7 @@ const ProjectRow: React.FC<{ project: ProjectSummary; onChanged: () => void }> =
                 <form onSubmit={handleAddTask} className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
-                    placeholder="Add a checklist item (e.g. Book venue)"
+                    placeholder="Add a checklist item"
                     value={newTaskTitle}
                     onChange={e => setNewTaskTitle(e.target.value)}
                     className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
@@ -309,7 +276,7 @@ const ProjectRow: React.FC<{ project: ProjectSummary; onChanged: () => void }> =
                   <button
                     type="submit"
                     disabled={addingTask || !newTaskTitle.trim()}
-                    className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-300 text-white text-sm font-medium rounded-lg flex-shrink-0"
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-medium rounded-lg flex-shrink-0"
                   >
                     {addingTask ? 'Adding…' : 'Add'}
                   </button>
@@ -323,10 +290,7 @@ const ProjectRow: React.FC<{ project: ProjectSummary; onChanged: () => void }> =
   );
 };
 
-const EMPTY_FORM = {
-  name: '', clientName: '', budget: '', notes: '',
-  kind: 'general' as ProjectKind, eventType: '' as EventType | '', eventDate: '', guestCount: '',
-};
+const EMPTY_FORM = { name: '', clientName: '', budget: '', notes: '' };
 
 const ProjectsPage: React.FC = () => {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
@@ -334,7 +298,6 @@ const ProjectsPage: React.FC = () => {
   const [form, setForm] = useState(EMPTY_FORM);
   const { errors, fail, field, formRef } = useFormErrors<'name'>();
   const [submitting, setSubmitting] = useState(false);
-  const [filterKind, setFilterKind] = useState<'all' | ProjectKind>('all');
 
   const refresh = () => { fetchProjectSummaries().then(setProjects).catch(() => setProjects([])); };
   useEffect(refresh, []);
@@ -352,12 +315,8 @@ const ProjectsPage: React.FC = () => {
         clientName: form.clientName.trim() || undefined,
         budget: form.budget ? toNum(form.budget) : undefined,
         notes: form.notes.trim() || undefined,
-        kind: form.kind,
-        eventType: form.eventType || undefined,
-        eventDate: form.eventDate || undefined,
-        guestCount: form.guestCount ? Math.round(toNum(form.guestCount)) : undefined,
       });
-      toast.success(form.kind === 'event' ? 'Event added' : 'Project added');
+      toast.success('Project added');
       setShowForm(false);
       setForm(EMPTY_FORM);
       refresh();
@@ -367,8 +326,6 @@ const ProjectsPage: React.FC = () => {
       setSubmitting(false);
     }
   };
-
-  const visibleProjects = filterKind === 'all' ? projects : (projects ?? []).filter(p => p.kind === filterKind);
 
   if (projects === null) {
     return (
@@ -399,26 +356,8 @@ const ProjectsPage: React.FC = () => {
       >
         {showForm && (
           <form ref={formRef} noValidate onSubmit={handleCreate} className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-slide-up">
-            <div className="sm:col-span-2 grid grid-cols-2 bg-gray-100 rounded-lg p-1">
-              <button
-                type="button"
-                onClick={() => setForm(f => ({ ...f, kind: 'general' }))}
-                aria-pressed={form.kind === 'general'}
-                className={`py-1.5 rounded-md text-sm font-medium transition-colors ${form.kind === 'general' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
-              >
-                Project
-              </button>
-              <button
-                type="button"
-                onClick={() => setForm(f => ({ ...f, kind: 'event' }))}
-                aria-pressed={form.kind === 'event'}
-                className={`py-1.5 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${form.kind === 'event' ? 'bg-white shadow-sm text-violet-700' : 'text-gray-500'}`}
-              >
-                <PartyPopper className="w-3.5 h-3.5" /> Event
-              </button>
-            </div>
             <input {...field('name')}
-              type="text" placeholder={form.kind === 'event' ? 'Event name (e.g. Amina & Peter\'s Wedding)' : 'Project name'} value={form.name}
+              type="text" placeholder="Project name" value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               className="sm:col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
@@ -433,31 +372,6 @@ const ProjectsPage: React.FC = () => {
               onChange={e => setForm(f => ({ ...f, budget: e.target.value }))}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
-            {form.kind === 'event' && (
-              <>
-                <select
-                  value={form.eventType}
-                  onChange={e => setForm(f => ({ ...f, eventType: e.target.value as EventType }))}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-                >
-                  <option value="">Event type (optional)</option>
-                  {(Object.keys(EVENT_TYPE_LABELS) as EventType[]).map(key => (
-                    <option key={key} value={key}>{EVENT_TYPE_LABELS[key]}</option>
-                  ))}
-                </select>
-                <input
-                  type="number" min="0" placeholder="Guest count (optional)" value={form.guestCount}
-                  onChange={e => setForm(f => ({ ...f, guestCount: e.target.value }))}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-                <label className="sm:col-span-2 block text-xs font-medium text-gray-500 -mb-2">Event date</label>
-                <input
-                  type="date" value={form.eventDate}
-                  onChange={e => setForm(f => ({ ...f, eventDate: e.target.value }))}
-                  className="sm:col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-              </>
-            )}
             <textarea
               placeholder="Notes (optional)" value={form.notes} rows={2}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
@@ -467,37 +381,21 @@ const ProjectsPage: React.FC = () => {
               type="submit" disabled={submitting}
               className="sm:col-span-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-medium rounded-lg"
             >
-              {submitting ? 'Saving…' : form.kind === 'event' ? 'Save Event' : 'Save Project'}
+              {submitting ? 'Saving…' : 'Save Project'}
             </button>
           </form>
         )}
       </PageHeader>
 
-      {(projects?.length ?? 0) > 0 && (
-        <div className="inline-flex rounded-lg border border-gray-200 p-1 bg-gray-50">
-          {(['all', 'event', 'general'] as const).map(k => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setFilterKind(k)}
-              aria-pressed={filterKind === k}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${filterKind === k ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              {k === 'all' ? 'All' : k === 'event' ? 'Events' : 'Other projects'}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {!visibleProjects || visibleProjects.length === 0 ? (
+      {projects.length === 0 ? (
         <EmptyState
-          icon={filterKind === 'event' ? PartyPopper : Briefcase}
-          title={filterKind === 'event' ? 'No events yet.' : 'No projects yet.'}
-          description="Add a job you're billing a client across multiple invoices — or an event you're planning — to track its budget, invoices, expenses and checklist in one place."
+          icon={Briefcase}
+          title="No projects yet."
+          description="Add a job you're billing a client across multiple invoices to track its budget against what's been invoiced and spent. Planning an event? See Events in the sidebar."
         />
       ) : (
         <div className="space-y-2">
-          {visibleProjects.map(p => <ProjectRow key={p.id} project={p} onChanged={refresh} />)}
+          {projects.map(p => <ProjectRow key={p.id} project={p} onChanged={refresh} />)}
         </div>
       )}
     </div>

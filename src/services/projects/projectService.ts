@@ -53,6 +53,17 @@ export async function listProjects(): Promise<Project[]> {
   return (data ?? []).map(mapRow);
 }
 
+/** Projects of kind 'event' only — the standalone Events page's list. */
+export async function listEvents(): Promise<Project[]> {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('project_kind', 'event')
+    .order('event_date', { ascending: true, nullsFirst: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapRow);
+}
+
 export interface CreateProjectInput {
   name: string;
   clientName?: string;
