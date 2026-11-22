@@ -26,15 +26,24 @@ export interface ProjectTaskEntry {
   dueDate: string | null;
 }
 
+export interface ProjectSaleEntry {
+  id: string;
+  productName: string;
+  date: string | null;
+  amount: number;
+}
+
 export interface ProjectContents {
   documents: ProjectDocumentEntry[];
   expenses: ProjectExpenseEntry[];
   tasks: ProjectTaskEntry[];
+  /** e.g. ticket sales for an event, recorded through the Sales module rather than as invoices. */
+  sales: ProjectSaleEntry[];
 }
 
-/** Everything filed under a project: its invoices/quotations/receipts, its expenses, and its timeline tasks. */
+/** Everything filed under a project: its invoices/quotations/receipts, its sales, its expenses, and its timeline tasks. */
 export async function fetchProjectContents(projectId: string): Promise<ProjectContents> {
-  const [docs, general, ads, vendors, tasks] = await Promise.all([
+  const [docs, general, ads, vendors, tasks, sales] = await Promise.all([
     supabase
       .from('documents')
       .select('id, document_type, document_number, customer_name, date, total, status')
@@ -60,6 +69,12 @@ export async function fetchProjectContents(projectId: string): Promise<ProjectCo
       .select('id, title, completed, due_date')
       .eq('project_id', projectId)
       .order('due_date', { ascending: true, nullsFirst: false }),
+    supabase
+      .from('sales')
+      .select('id, product_name, date, selling_price')
+      .eq('project_id', projectId)
+      .eq('is_deleted', false)
+      .order('date', { ascending: false }),
   ]);
 
   const documents: ProjectDocumentEntry[] = (docs.data ?? []).map(d => ({
@@ -91,5 +106,12 @@ export async function fetchProjectContents(projectId: string): Promise<ProjectCo
     dueDate: t.due_date,
   }));
 
-  return { documents, expenses, tasks: taskEntries };
+  const saleEntries: ProjectSaleEntry[] = (sales.data ?? []).map(s => ({
+    id: s.id,
+    productName: s.product_name ?? '',
+    date: s.date,
+    amount: toNum(s.selling_price),
+  }));
+
+  return { documents, expenses, tasks: taskEntries, sales: saleEntries };
 }

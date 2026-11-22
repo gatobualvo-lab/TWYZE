@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useFormErrors } from '../../hooks/useFormErrors';
 import FieldError from '../ui/FieldError';
-import { Briefcase, Plus, X, Trash2, Check, CheckCircle2, Archive, FolderOpen, ChevronUp, FileText, Receipt, PartyPopper, Users, ListChecks } from 'lucide-react';
+import { Briefcase, Plus, X, Trash2, Check, CheckCircle2, Archive, FolderOpen, ChevronUp, FileText, Receipt, PartyPopper, Users, ListChecks, Ticket } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { fetchProjectSummaries, type ProjectSummary } from '../../services/projects/projectRollupService';
 import { createProject, updateProjectStatus, deleteProject, EVENT_TYPE_LABELS, type ProjectKind, type EventType } from '../../services/projects/projectService';
@@ -163,10 +163,14 @@ const ProjectRow: React.FC<{ project: ProjectSummary; onChanged: () => void }> =
           )}
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-3 border-t border-gray-100 text-sm">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-3 pt-3 border-t border-gray-100 text-sm">
         <div>
           <p className="text-xs text-gray-400">Budget</p>
           <p className="font-medium tabular-nums">{project.budget != null ? formatCurrency(project.budget) : '—'}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-400">Sales</p>
+          <p className="font-medium tabular-nums text-green-600">{formatCurrency(project.salesTotal)}</p>
         </div>
         <div>
           <p className="text-xs text-gray-400">Invoiced</p>
@@ -197,6 +201,29 @@ const ProjectRow: React.FC<{ project: ProjectSummary; onChanged: () => void }> =
           {loadingContents && <p className="text-sm text-gray-400">Loading...</p>}
           {contents && (
             <>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2 flex items-center gap-1.5">
+                  <Ticket className="w-3.5 h-3.5" /> Sales ({contents.sales.length})
+                </p>
+                {contents.sales.length === 0 ? (
+                  <p className="text-sm text-gray-400">No sales yet. Pick this project when you record one (e.g. a ticket sale).</p>
+                ) : (
+                  <ul className="divide-y divide-gray-100">
+                    {contents.sales.map(s => (
+                      <li key={s.id} className="py-2 flex items-center justify-between gap-3 text-sm">
+                        <span className="flex items-center gap-2 min-w-0">
+                          <Ticket className="w-4 h-4 text-green-500 flex-shrink-0" />
+                          <span className="truncate">{s.productName}</span>
+                        </span>
+                        <span className="text-right flex-shrink-0">
+                          <span className="block font-medium tabular-nums text-green-600">{formatCurrency(s.amount)}</span>
+                          <span className="block text-xs text-gray-400">{formatDate(s.date)}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Documents ({contents.documents.length})</p>
                 {contents.documents.length === 0 ? (

@@ -5,6 +5,7 @@ export type BusinessCategory =
   | 'fashion_beauty'
   | 'construction_hardware'
   | 'agriculture'
+  | 'event_planning'
   | 'other';
 
 export const DEFAULT_CATEGORY: BusinessCategory = 'other';
@@ -16,6 +17,7 @@ export const BUSINESS_CATEGORIES: { value: BusinessCategory; label: string }[] =
   { value: 'fashion_beauty', label: 'Fashion & Beauty' },
   { value: 'construction_hardware', label: 'Construction & Hardware' },
   { value: 'agriculture', label: 'Agriculture' },
+  { value: 'event_planning', label: 'Event Planning / Organizing' },
   { value: 'other', label: 'Other' },
 ];
 
@@ -90,6 +92,12 @@ export const CATEGORY_CONFIG: Record<BusinessCategory, CategoryTerminology> = {
     salesLabel: 'Sales', addSaleLabel: 'Add Sale', viewSalesLabel: 'View Sales',
     saleNounSingular: 'sale', customersLabel: 'Buyers', inventoryLabel: 'Produce & Stock',
     navOrder: BASE_ORDER,
+  },
+  event_planning: {
+    salesLabel: 'Ticket Sales', addSaleLabel: 'Add Ticket Sale', viewSalesLabel: 'View Ticket Sales',
+    saleNounSingular: 'ticket sale', customersLabel: 'Attendees', inventoryLabel: 'Event Supplies',
+    // Events (tracked as Projects) are the core workflow for an organizer, so they lead the sidebar.
+    navOrder: ['dashboard', 'projects', 'sales', 'customers-group', 'money', 'documents', 'planner', 'insights-group', 'inventory-group', 'settings-group'],
   },
   other: {
     salesLabel: 'Sales', addSaleLabel: 'Add Sale', viewSalesLabel: 'View Sales',

@@ -27,7 +27,7 @@ describe('fetchProjectSummaries', () => {
       error: null,
     });
     rpcMock.mockResolvedValue({
-      data: [{ project_id: 'p1', invoiced_total: 60000, spent_total: 40000 }],
+      data: [{ project_id: 'p1', invoiced_total: 60000, sales_total: 0, spent_total: 40000 }],
       error: null,
     });
 
@@ -36,7 +36,8 @@ describe('fetchProjectSummaries', () => {
 
     expect(result).toEqual([{
       id: 'p1', name: 'Kitchen Remodel', clientName: 'Acme', budget: 100000, status: 'active', notes: null, createdAt: '2026-01-01',
-      invoicedTotal: 60000, spentTotal: 40000, remainingBudget: 60000,
+      kind: 'general', eventType: null, eventDate: null, guestCount: null,
+      invoicedTotal: 60000, salesTotal: 0, spentTotal: 40000, remainingBudget: 60000,
     }]);
   });
 
@@ -51,6 +52,7 @@ describe('fetchProjectSummaries', () => {
     const result = await fetchProjectSummaries();
 
     expect(result[0].invoicedTotal).toBe(0);
+    expect(result[0].salesTotal).toBe(0);
     expect(result[0].spentTotal).toBe(0);
     // No budget set — "remaining" is meaningless, not just zero.
     expect(result[0].remainingBudget).toBeNull();
@@ -62,7 +64,7 @@ describe('fetchProjectSummaries', () => {
       error: null,
     });
     rpcMock.mockResolvedValue({
-      data: [{ project_id: 'p3', invoiced_total: 5000, spent_total: 15000 }],
+      data: [{ project_id: 'p3', invoiced_total: 5000, sales_total: 0, spent_total: 15000 }],
       error: null,
     });
 
@@ -70,5 +72,23 @@ describe('fetchProjectSummaries', () => {
     const result = await fetchProjectSummaries();
 
     expect(result[0].remainingBudget).toBe(-5000);
+  });
+
+  it('counts sales revenue (e.g. event ticket sales) separately from invoiced total', async () => {
+    projectsSelectMock.mockResolvedValue({
+      data: [{ id: 'p4', name: 'Solfest 2026', client_name: null, budget: 500000, status: 'active', notes: null, created_at: '2026-04-01' }],
+      error: null,
+    });
+    rpcMock.mockResolvedValue({
+      data: [{ project_id: 'p4', invoiced_total: 20000, sales_total: 300000, spent_total: 100000 }],
+      error: null,
+    });
+
+    const { fetchProjectSummaries } = await import('./projectRollupService');
+    const result = await fetchProjectSummaries();
+
+    expect(result[0].invoicedTotal).toBe(20000);
+    expect(result[0].salesTotal).toBe(300000);
+    expect(result[0].remainingBudget).toBe(400000);
   });
 });

@@ -20,6 +20,7 @@ import { haptic } from '../utils/haptics';
 import CameraBarcodeScanner, { isCameraScanSupported } from './CameraBarcodeScanner';
 import { createCustomer } from '../services/customers/customerService';
 import { addScannedProduct, findProductByCode } from '../services/inventory/barcodeLookup';
+import { listProjects, type Project } from '../services/projects/projectService';
 
 interface ProductData {
   id: string;
@@ -68,6 +69,8 @@ interface SaleFormData {
   paymentMethod: 'Cash' | 'M-Pesa' | 'Bank' | 'Other';
   deliveryStatus: 'Pending' | 'Delivered';
   deliveryDate: string;
+  /** The project (e.g. an event) this sale belongs to, if any — e.g. ticket sales for a festival. */
+  projectId: string;
 }
 
 const SummaryRow: React.FC<{
@@ -104,13 +107,19 @@ const MultiProductSalesForm: React.FC = () => {
     customerId: null,
     paymentMethod: 'Bank',
     deliveryStatus: 'Delivered',
-    deliveryDate: ''
+    deliveryDate: '',
+    projectId: ''
   });
 
   const formRef = useRef<HTMLFormElement>(null);
   const [scanCode, setScanCode] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [showCameraScan, setShowCameraScan] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  useEffect(() => {
+    listProjects().then(setProjects).catch(() => setProjects([]));
+  }, []);
 
   const [products, setProducts] = useState<ProductData[]>([blankProduct()]);
 
@@ -356,7 +365,8 @@ const MultiProductSalesForm: React.FC = () => {
         customer_phone: formData.customerPhone || null,
         payment_method: formData.paymentMethod,
         delivery_status: formData.deliveryStatus,
-        delivery_date: formData.deliveryDate || null
+        delivery_date: formData.deliveryDate || null,
+        project_id: formData.projectId || null
       };
       
       // Insert all sale items. Each item's id is the same client-generated
@@ -483,8 +493,9 @@ const MultiProductSalesForm: React.FC = () => {
         ), { duration: 8000 });
       }
 
-      // Reset form
-      setFormData({
+      // Reset form — keeps the selected project/event, so recording several
+      // ticket sales in a row for the same festival doesn't need re-picking it each time.
+      setFormData(prev => ({
         deliveryGuy: '',
         deliveryFee: 0,
         deliveryFeePaid: false,
@@ -496,8 +507,9 @@ const MultiProductSalesForm: React.FC = () => {
         customerId: null,
         paymentMethod: 'Bank',
         deliveryStatus: 'Delivered',
-        deliveryDate: ''
-      });
+        deliveryDate: '',
+        projectId: prev.projectId
+      }));
       
       setProducts([blankProduct()]);
       
@@ -645,6 +657,23 @@ const MultiProductSalesForm: React.FC = () => {
                 <option value="Other">Other</option>
               </select>
             </div>
+
+            {/* Project / Event — e.g. attributing ticket sales to a specific festival or function */}
+            {projects.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Project / Event (optional)
+                </label>
+                <select
+                  value={formData.projectId}
+                  onChange={(e) => handleInputChange('projectId', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">No project</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            )}
 
           </div>
 
