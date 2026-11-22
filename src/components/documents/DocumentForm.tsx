@@ -383,11 +383,14 @@ export default function DocumentForm({
         documentData.exchange_rate = currency === base ? 1 : Number(exchangeRate);
       }
 
+      // Neither field is required, but the column is a real `date` — an empty string is not a
+      // valid date and Postgres rejects the whole insert with it (error 22007), which is why a
+      // document saved without picking one never actually saved at all.
       if (documentType === 'invoice' || documentType === 'quotation') {
-        documentData.due_date = dueDate;
+        documentData.due_date = dueDate || null;
       }
       if (documentType === 'quotation') {
-        documentData.expiry_date = expiryDate;
+        documentData.expiry_date = expiryDate || null;
       }
 
       let documentId = existingDocument?.id;
