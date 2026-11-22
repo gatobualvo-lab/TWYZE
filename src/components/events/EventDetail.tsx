@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, PartyPopper, Users, FileText, Receipt, Check, X, Trash2, Archive, CheckCircle2, Ticket,
+  ListChecks, Clock, Landmark, Megaphone,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { EVENT_TYPE_LABELS, updateProjectStatus, deleteProject } from '../../services/projects/projectService';
@@ -10,17 +11,20 @@ import { fetchProjectContents, type ProjectContents } from '../../services/proje
 import { eventCountdownLabel } from './EventsPage';
 import EventTickets from './EventTickets';
 import EventGuests from './EventGuests';
+import EventChecklist from './EventChecklist';
+import EventVendors from './EventVendors';
+import EventSponsors from './EventSponsors';
 
-// TODO (not yet built this session — see the plan file): Checklist / Run of Show
-// (business_tasks, already has project_id + due_time — just needs this UI),
-// Vendors (vendor_expenses, already has project_id + is_cleared — just needs this UI),
-// Sponsors (new event_sponsors table — service layer not written yet).
-type Tab = 'overview' | 'tickets' | 'guests' | 'documents';
+type Tab = 'overview' | 'tickets' | 'guests' | 'checklist' | 'runofshow' | 'vendors' | 'sponsors' | 'documents';
 
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'overview', label: 'Overview', icon: PartyPopper },
   { id: 'tickets', label: 'Tickets', icon: Ticket },
   { id: 'guests', label: 'Guests', icon: Users },
+  { id: 'checklist', label: 'Checklist', icon: ListChecks },
+  { id: 'runofshow', label: 'Run of Show', icon: Clock },
+  { id: 'vendors', label: 'Vendors', icon: Landmark },
+  { id: 'sponsors', label: 'Sponsors', icon: Megaphone },
   { id: 'documents', label: 'Documents', icon: FileText },
 ];
 
@@ -172,6 +176,11 @@ const EventDetail: React.FC<EventDetailProps> = ({ event, onBack, onChanged }) =
 
       {tab === 'tickets' && <EventTickets projectId={event.id} />}
       {tab === 'guests' && <EventGuests projectId={event.id} />}
+      {(tab === 'checklist' || tab === 'runofshow') && (
+        <EventChecklist projectId={event.id} eventDate={event.eventDate} mode={tab === 'checklist' ? 'checklist' : 'runOfShow'} />
+      )}
+      {tab === 'vendors' && <EventVendors projectId={event.id} />}
+      {tab === 'sponsors' && <EventSponsors projectId={event.id} />}
 
       {tab === 'documents' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
