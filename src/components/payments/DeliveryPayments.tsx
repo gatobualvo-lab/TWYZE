@@ -37,7 +37,7 @@ const DeliveryPayments: React.FC = () => {
       // the period is instant.
       const { data: salesData, error } = await supabase
         .from('sales')
-        .select('id, delivery_guy, delivery_fee, delivery_fee_paid, date, product_name, location')
+        .select('id, delivery_guy, delivery_fee, delivery_fee_paid, date, product_name, location, selling_price')
         .eq('user_id', user.id)
         .eq('is_deleted', false)
         .eq('is_archived', false)
@@ -100,6 +100,7 @@ const DeliveryPayments: React.FC = () => {
   const periodText = describePeriod(period);
   const summary: Array<{ label: string; value: string; tone: string }> = [
     { label: 'Deliveries', value: String(totals.count), tone: 'text-gray-800' },
+    { label: 'Sales delivered', value: formatCurrency(totals.sales), tone: 'text-gray-800' },
     { label: 'Total fees', value: formatCurrency(totals.fees), tone: 'text-gray-800' },
     { label: 'Paid', value: formatCurrency(totals.paid), tone: 'text-green-600' },
     { label: 'Still owed', value: formatCurrency(totals.owed), tone: totals.owed > 0 ? 'text-red-600' : 'text-green-600' },
@@ -125,7 +126,7 @@ const DeliveryPayments: React.FC = () => {
       {/* Period and its totals */}
       <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
         <PeriodPicker value={period} onChange={setPeriod} />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5" aria-label={`Delivery totals for ${periodText}`}>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-5" aria-label={`Delivery totals for ${periodText}`}>
           {summary.map(item => (
             <div key={item.label} className="rounded-lg bg-gray-50 border border-gray-100 p-3 min-w-0">
               <p className="text-xs text-gray-500">{item.label}</p>
@@ -163,6 +164,10 @@ const DeliveryPayments: React.FC = () => {
                 </div>
 
                 <div className="space-y-2 text-sm mb-4">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Sales delivered:</span>
+                    <span className="font-medium">{formatCurrency(delivery.totalSales)}</span>
+                  </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total fees:</span>
                     <span className="font-medium">{formatCurrency(delivery.totalOwed + delivery.totalPaid)}</span>
@@ -238,6 +243,7 @@ const DeliveryPayments: React.FC = () => {
                           <div className="flex items-center gap-1 mb-1">
                             <Package className="w-3 h-3 text-gray-500" />
                             <span className="text-gray-700">{transaction.product_name}</span>
+                            <span className="text-gray-400">· {formatCurrency(transaction.selling_price)} sale</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <MapPin className="w-3 h-3 text-gray-500" />

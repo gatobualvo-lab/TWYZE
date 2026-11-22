@@ -9,6 +9,7 @@ const row = (over: Partial<DeliverySaleRow>): DeliverySaleRow => ({
   date: '2026-10-10',
   product_name: 'Desk',
   location: 'Westlands',
+  selling_price: 1000,
   ...over,
 });
 
@@ -25,8 +26,8 @@ describe('summarizeDeliveries', () => {
       ALL
     );
     const peter = guys.find(g => g.name === 'Peter')!;
-    expect(peter).toMatchObject({ totalOwed: 300, totalPaid: 500, balanceDue: 300, transactionCount: 2 });
-    expect(totals).toEqual({ count: 3, fees: 950, paid: 500, owed: 450 });
+    expect(peter).toMatchObject({ totalOwed: 300, totalPaid: 500, balanceDue: 300, totalSales: 2000, transactionCount: 2 });
+    expect(totals).toEqual({ count: 3, fees: 950, paid: 500, owed: 450, sales: 3000 });
   });
 
   it('balance due is what is still unpaid, even when more has been paid than is owed', () => {
@@ -65,7 +66,7 @@ describe('summarizeDeliveries', () => {
       ALL
     );
     expect(guys).toHaveLength(1);
-    expect(totals).toEqual({ count: 1, fees: 0, paid: 0, owed: 0 });
+    expect(totals).toEqual({ count: 1, fees: 0, paid: 0, owed: 0, sales: 1000 });
   });
 
   it('lists the newest transaction first', () => {

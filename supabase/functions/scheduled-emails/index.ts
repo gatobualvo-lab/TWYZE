@@ -6,11 +6,10 @@
 //      report is logged in period_report_log so it can never be sent twice, and
 //      if several are due on the same day (1 January) they go in ONE email.
 //   3. Subscription lifecycle: a paid plan gets an "ends soon" email up to 3 days
-//      before subscription_expiry, a "renew within N days" email once lapsed but
-//      still in the 3-day grace period, and a "you're on Free now" email once the
-//      grace period ends. Each is logged in subscription_lifecycle_emails keyed
-//      by (user, subscription_expiry, type), so a later renewal (which moves
-//      subscription_expiry forward) lets the same three fire again next time.
+//      before subscription_expiry, then a "you're on Free now" email the moment it
+//      passes (there is no grace period). Each is logged in subscription_lifecycle_emails
+//      keyed by (user, subscription_expiry, type), so a later renewal (which moves
+//      subscription_expiry forward) lets both fire again next time.
 //
 // Self-contained on purpose (no ../_shared imports) so it can be pasted into the
 // Supabase dashboard editor as a single file.
@@ -457,11 +456,15 @@ export function buildReminderEmail(name: string, tasks: ReminderTask[], unsubscr
 
 // ---------------------------------------------------------------------------
 // Subscription lifecycle emails — expiry warning, grace period, demotion.
-// See 20261112090000_subscription_grace_period_emails.sql for the grace
-// period itself and the subscription_lifecycle_emails dedup table.
+// There is no grace period — an account reads as Free the instant
+// subscription_expiry passes (src/services/subscription/entitlements.ts).
+// See 20261112090000_subscription_grace_period_emails.sql for the
+// subscription_lifecycle_emails dedup table (its 'grace_reminder' email_type
+// is no longer emitted, but stays a valid historical value — old rows and
+// the CHECK constraint are left alone).
 // ---------------------------------------------------------------------------
 
-export type LifecycleEmailType = 'expiry_warning' | 'grace_reminder' | 'demoted';
+export type LifecycleEmailType = 'expiry_warning' | 'demoted';
 
 /** A copy of the plan labels in src/utils/subscription.ts (this file can't import from src/). */
 export function planLabelFor(cycle: string | null | undefined): string {
@@ -483,7 +486,6 @@ export function buildLifecycleEmail(
   name: string,
   planLabel: string,
   expiry: Date,
-  graceDaysLeft: number,
   unsubscribeUrl?: string
 ): { subject: string; html: string; text: string } {
   const greeting = `Hi ${escapeHtml(name || 'there')},`;
@@ -496,16 +498,6 @@ export function buildLifecycleEmail(
       subject,
       html: emailLayout(escapeHtml(subject), `<p style="margin:0 0 14px;">${greeting}</p>${body}`, { preheader: `${planLabel} ends ${fmtDate(expiry)}.`, cta, ...(unsubscribeUrl ? { unsubscribe: { url: unsubscribeUrl, essential: true } } : {}) }),
       text: `${greeting}\n\n${planLabel} is due to end on ${fmtDate(expiry)}. Renew before then to keep everything running without interruption.\n\nRenew: ${cta.url}`,
-    };
-  }
-
-  if (type === 'grace_reminder') {
-    const subject = `Action needed: renew your ${planLabel} — TrackWyze`;
-    const body = `<p style="margin:0 0 6px;">${escapeHtml(planLabel)} ended on ${escapeHtml(fmtDate(expiry))}. You have ${graceDaysLeft} day${graceDaysLeft === 1 ? '' : 's'} left with full access before your account moves to the Free plan. Renew now to keep everything you have.</p>`;
-    return {
-      subject,
-      html: emailLayout(escapeHtml(subject), `<p style="margin:0 0 14px;">${greeting}</p>${body}`, { preheader: `${graceDaysLeft} day${graceDaysLeft === 1 ? '' : 's'} left before you move to Free.`, cta, ...(unsubscribeUrl ? { unsubscribe: { url: unsubscribeUrl, essential: true } } : {}) }),
-      text: `${greeting}\n\n${planLabel} ended on ${fmtDate(expiry)}. You have ${graceDaysLeft} day${graceDaysLeft === 1 ? '' : 's'} left with full access before your account moves to the Free plan. Renew now to keep everything you have.\n\nRenew: ${cta.url}`,
     };
   }
 
@@ -632,8 +624,6 @@ async function runReminders(db: Db, apiKey: string, opts: RunOptions) {
   return { sent, skipped };
 }
 
-/** Keep in step with GRACE_PERIOD_DAYS in src/services/subscription/entitlements.ts. */
-const GRACE_PERIOD_DAYS = 3;
 const EXPIRY_WARNING_LEAD_DAYS = 3;
 const MAX_LIFECYCLE_USERS_PER_RUN = 300;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -671,8 +661,7 @@ async function runLifecycle(db: Db, apiKey: string, opts: RunOptions) {
     const daysSinceExpiry = (now.getTime() - expiry.getTime()) / DAY_MS;
     let emailType: LifecycleEmailType | null = null;
     if (daysSinceExpiry < 0 && daysSinceExpiry >= -EXPIRY_WARNING_LEAD_DAYS) emailType = 'expiry_warning';
-    else if (daysSinceExpiry >= 0 && daysSinceExpiry < GRACE_PERIOD_DAYS) emailType = 'grace_reminder';
-    else if (daysSinceExpiry >= GRACE_PERIOD_DAYS) emailType = 'demoted';
+    else if (daysSinceExpiry >= 0) emailType = 'demoted';
 
     if (!emailType) {
       skipped++;
@@ -694,8 +683,8 @@ async function runLifecycle(db: Db, apiKey: string, opts: RunOptions) {
     }
 
     // No emails_unsubscribed check: like the payment-confirmation emails these
-    // mirror, a lapsed/grace/demoted notice is an essential account notice,
-    // not a promotional one — the unsubscribe link it carries says as much.
+    // mirror, an expiry/demotion notice is an essential account notice, not a
+    // promotional one — the unsubscribe link it carries says as much.
     if (opts.dryRun) {
       wouldSend.push(`${profile.email}: ${emailType}`);
       sent++;
@@ -704,8 +693,7 @@ async function runLifecycle(db: Db, apiKey: string, opts: RunOptions) {
 
     try {
       const links = await unsubscribeLinks({ secret: Deno.env.get('UNSUBSCRIBE_SECRET'), userId: profile.id, supabaseUrl: Deno.env.get('SUPABASE_URL') });
-      const graceDaysLeft = Math.max(1, Math.ceil(GRACE_PERIOD_DAYS - daysSinceExpiry));
-      const mail = buildLifecycleEmail(emailType, profile.full_name ?? '', planLabelFor(profile.current_billing_cycle), expiry, graceDaysLeft, links.pageUrl);
+      const mail = buildLifecycleEmail(emailType, profile.full_name ?? '', planLabelFor(profile.current_billing_cycle), expiry, links.pageUrl);
       await sendEmail(apiKey, profile.email, mail, links);
       await db.from('subscription_lifecycle_emails').insert({ user_id: profile.id, subscription_expiry: profile.subscription_expiry, email_type: emailType });
       sent++;

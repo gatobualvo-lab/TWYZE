@@ -329,6 +329,12 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
   const { pendingCount: pendingOfflineWrites } = useOfflineWriteSync();
   const pendingOfflineTotal = pendingOfflineSales + pendingOfflineWrites;
   useEffect(() => {
+    // Best-effort: records that this account opened the app, for the admin
+    // User Management screen's "Last login" column. Never blocks anything.
+    supabase.rpc('touch_my_last_login' as never).then(() => {}, () => {});
+  }, []);
+
+  useEffect(() => {
     // The "you've lapsed" email used to be sent from here, once, right as the transition
     // happened. That is now handled by the scheduled-emails lifecycle task (see
     // 20261112090000_subscription_grace_period_emails.sql) instead — it also covers the
@@ -840,31 +846,28 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTab: initialActiveTab }) =>
           <div className="flex items-center gap-4">
             {(() => {
               const left = daysLeft(entitlements);
-              const isGrace = entitlements.source === 'grace';
-              const daysLabel = left !== null ? `${isGrace ? 'Renew within ' : ''}${left} day${left === 1 ? '' : 's'}${isGrace ? '' : ' left'}` : null;
+              const daysLabel = left !== null ? `${left} day${left === 1 ? '' : 's'} left` : null;
               return (
                 <>
                   {daysLabel && (
                     <span
                       className={`md:hidden flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        isGrace || (left !== null && left <= 3) ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'
+                        left !== null && left <= 3 ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'
                       }`}
                     >
                       {daysLabel}
                     </span>
                   )}
                   <div className="text-right hidden md:block">
-                    <p className={`text-sm font-medium ${isGrace ? 'text-amber-700' : 'text-gray-900'}`}>
+                    <p className="text-sm font-medium text-gray-900">
                       {describeEntitlements(entitlements)}
                     </p>
                     <p className="text-xs text-gray-500">
                       {entitlements.source === 'free-month'
                         ? `Free month ends ${new Date(planProfile?.trial_end_date ?? Date.now()).toLocaleDateString()}`
-                        : isGrace
-                          ? `Payment overdue since ${new Date(entitlements.paidUntil ?? Date.now()).toLocaleDateString()} · ${daysLabel} to renew`
-                          : entitlements.paidUntil
-                            ? `Paid until ${new Date(entitlements.paidUntil).toLocaleDateString()}${daysLabel ? ` · ${daysLabel}` : ''}`
-                            : 'Upgrade for more features'}
+                        : entitlements.paidUntil
+                          ? `Paid until ${new Date(entitlements.paidUntil).toLocaleDateString()}${daysLabel ? ` · ${daysLabel}` : ''}`
+                          : 'Upgrade for more features'}
                     </p>
                   </div>
                 </>

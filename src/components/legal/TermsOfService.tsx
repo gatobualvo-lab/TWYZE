@@ -29,9 +29,10 @@ const TermsOfService: React.FC = () => (
       <li>Paid plans are billed as described at checkout. Prices are shown in Kenyan Shillings (KES).</li>
       <li>Payments are processed by Flutterwave; TrackWyze does not store your card or M-Pesa credentials.</li>
       <li>
-        If a subscription is not renewed, your account enters a grace period (currently 5 days) with full access,
-        after which it moves to a restricted, view-only state — your data is retained and never deleted for
-        non-payment. See our <a href="/refund">Refund Policy</a> for details on cancellations and refunds.
+        We email you a reminder 3 days before your subscription ends. If it is not renewed by then, your account
+        moves to the Free plan as soon as it expires — your data is retained and never deleted for non-payment,
+        and you can renew at any time to get your paid features back. See our <a href="/refund">Refund Policy</a>
+        for details on cancellations and refunds.
       </li>
     </ul>
 

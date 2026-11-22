@@ -8,6 +8,7 @@ export interface DeliverySaleRow {
   date: string;
   product_name: string;
   location: string;
+  selling_price: number | null;
 }
 
 export interface DeliveryTransaction {
@@ -17,6 +18,7 @@ export interface DeliveryTransaction {
   location: string;
   delivery_fee: number;
   delivery_fee_paid: boolean;
+  selling_price: number;
 }
 
 export interface DeliveryGuyPayment {
@@ -24,6 +26,7 @@ export interface DeliveryGuyPayment {
   totalOwed: number;
   totalPaid: number;
   balanceDue: number;
+  totalSales: number;
   transactionCount: number;
   transactions: DeliveryTransaction[];
 }
@@ -33,6 +36,7 @@ export interface DeliveryTotals {
   fees: number;
   paid: number;
   owed: number;
+  sales: number;
 }
 
 const money = (v: unknown): number => {
@@ -46,17 +50,18 @@ const money = (v: unknown): number => {
  */
 export function summarizeDeliveries(rows: DeliverySaleRow[], period: Pick<Period, 'start' | 'end'>) {
   const byGuy = new Map<string, DeliveryGuyPayment>();
-  const totals: DeliveryTotals = { count: 0, fees: 0, paid: 0, owed: 0 };
+  const totals: DeliveryTotals = { count: 0, fees: 0, paid: 0, owed: 0, sales: 0 };
 
   for (const row of rows) {
     const name = row.delivery_guy?.trim();
     if (!name || !isWithin(row.date, period)) continue;
 
     const fee = money(row.delivery_fee);
+    const sellingPrice = money(row.selling_price);
     const paid = !!row.delivery_fee_paid;
     let guy = byGuy.get(name);
     if (!guy) {
-      guy = { name, totalOwed: 0, totalPaid: 0, balanceDue: 0, transactionCount: 0, transactions: [] };
+      guy = { name, totalOwed: 0, totalPaid: 0, balanceDue: 0, totalSales: 0, transactionCount: 0, transactions: [] };
       byGuy.set(name, guy);
     }
 
@@ -68,14 +73,17 @@ export function summarizeDeliveries(rows: DeliverySaleRow[], period: Pick<Period
       location: row.location,
       delivery_fee: fee,
       delivery_fee_paid: paid,
+      selling_price: sellingPrice,
     });
     if (paid) guy.totalPaid += fee;
     else guy.totalOwed += fee;
+    guy.totalSales += sellingPrice;
 
     totals.count++;
     totals.fees += fee;
     if (paid) totals.paid += fee;
     else totals.owed += fee;
+    totals.sales += sellingPrice;
   }
 
   const guys = [...byGuy.values()];

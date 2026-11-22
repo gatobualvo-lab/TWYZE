@@ -23,9 +23,8 @@ const RefundPolicy: React.FC = () => (
     <h2>3. Cancellations</h2>
     <p>
       You can cancel anytime from Account Settings or by contacting [support email]. Cancelling stops future billing
-      — you keep full access until the end of the period you already paid for, then your account moves into the
-      grace period described in our Terms of Service (view-only after 5 days without renewal). We never delete your
-      data for non-payment.
+      — you keep full access until the end of the period you already paid for (we'll email you a reminder 3 days
+      before it ends), then your account moves to the Free plan. We never delete your data for non-payment.
     </p>
 
     <h2>4. Refunds</h2>
