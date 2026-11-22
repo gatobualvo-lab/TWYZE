@@ -1,6 +1,12 @@
 import { supabase } from '../../utils/supabase';
 import { sniffImageKind } from '../storage/imageValidation';
 
+export interface ScannedReceiptItem {
+  name: string;
+  /** 0 when the receipt doesn't break this item's price out on its own line. */
+  amount: number;
+}
+
 export interface ScannedReceipt {
   isReceipt: boolean;
   vendor: string;
@@ -9,7 +15,7 @@ export interface ScannedReceipt {
   total: number;
   currency: string;
   expenseType: string;
-  items: string[];
+  items: ScannedReceiptItem[];
 }
 
 export class ReceiptScanError extends Error {}

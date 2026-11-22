@@ -109,7 +109,9 @@ Deno.serve(async (req) => {
             'You read photos of business receipts for a small-business bookkeeping app used mainly in Kenya ' +
             '(amounts are usually KES; VAT is 16%; M-Pesa and eTIMS receipts are common). Extract only what is ' +
             'clearly visible. "total" is the final amount actually paid, including tax. Never guess a number you ' +
-            'cannot read: if the image is not a receipt or the total is unreadable, set is_receipt to false and total to 0.',
+            'cannot read: if the image is not a receipt or the total is unreadable, set is_receipt to false and ' +
+            'total to 0. List every distinct line item with its own price when the receipt shows one per item; ' +
+            'set an item\'s amount to 0 only when the receipt genuinely does not break the price out per line.',
           messages: [
             {
               role: 'user',
@@ -134,9 +136,16 @@ Deno.serve(async (req) => {
                   expense_type: { type: 'string', enum: EXPENSE_TYPES, description: 'Best-fitting expense category.' },
                   items: {
                     type: 'array',
-                    items: { type: 'string' },
-                    maxItems: 8,
-                    description: 'Short descriptions of the main items bought.',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        name: { type: 'string', description: 'Short description of the item.' },
+                        amount: { type: 'number', description: 'This item\'s line price, including its own tax/discount; 0 if not clearly readable.' },
+                      },
+                      required: ['name', 'amount'],
+                    },
+                    maxItems: 20,
+                    description: 'Each distinct item bought, with its own price when the receipt shows one.',
                   },
                 },
                 required: ['is_receipt', 'total', 'expense_type'],
@@ -175,7 +184,16 @@ Deno.serve(async (req) => {
       total: Number.isFinite(total) && total > 0 ? Math.round(total * 100) / 100 : 0,
       currency: typeof input.currency === 'string' ? input.currency.slice(0, 3).toUpperCase() : '',
       expenseType,
-      items: Array.isArray(input.items) ? input.items.slice(0, 8).map((i) => String(i).slice(0, 80)) : [],
+      items: Array.isArray(input.items)
+        ? input.items.slice(0, 20).map((i) => {
+            const item = i as Record<string, unknown>;
+            const amount = Number(item?.amount);
+            return {
+              name: typeof item?.name === 'string' ? item.name.slice(0, 80) : '',
+              amount: Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) / 100 : 0,
+            };
+          }).filter((i) => i.name)
+        : [],
     });
   } catch (err) {
     console.error('scan-receipt error:', err instanceof Error ? err.message : err);

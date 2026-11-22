@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { toNum, parseInput, NumericInput } from '../utils/numberInput';
 import { listProjects, type Project } from '../services/projects/projectService';
 import { enqueueWrite, isNetworkError } from '../services/offline/offlineQueue';
-import { scanReceiptImage, ReceiptScanError } from '../services/receipts/scanReceipt';
+import { scanReceiptImage, ReceiptScanError, type ScannedReceiptItem } from '../services/receipts/scanReceipt';
 import { useFormErrors } from '../hooks/useFormErrors';
 import FieldError from './ui/FieldError';
 
@@ -48,6 +48,9 @@ const GeneralExpenseForm: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  // Only set when a scan finds more than one item with its own price — lets the user record
+  // them as separate expenses instead of the one combined row the main form always saves.
+  const [scannedItems, setScannedItems] = useState<Array<ScannedReceiptItem & { include: boolean }>>([]);
   const { errors, fail, field, formRef } = useFormErrors<'expense_type' | 'amount' | 'date'>();
   const [userExpenseTypes, setUserExpenseTypes] = useState<string[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -107,7 +110,8 @@ const GeneralExpenseForm: React.FC = () => {
         toast.error("Couldn't read a receipt in that photo. Try again closer, flat, and in good light.");
         return;
       }
-      const details = [result.vendor, result.items.length ? result.items.join(', ') : ''].filter(Boolean).join(' — ');
+      const itemNames = result.items.map(i => i.name);
+      const details = [result.vendor, itemNames.length ? itemNames.join(', ') : ''].filter(Boolean).join(' — ');
       setFormData(prev => ({
         ...prev,
         expense_type: result.expenseType || prev.expense_type,
@@ -115,6 +119,9 @@ const GeneralExpenseForm: React.FC = () => {
         date: result.date || prev.date,
         notes: details || prev.notes,
       }));
+      // Only worth offering the per-item breakdown when the receipt actually priced more than one line.
+      const itemized = result.items.length > 1 && result.items.some(i => i.amount > 0);
+      setScannedItems(itemized ? result.items.map(i => ({ ...i, include: i.amount > 0 })) : []);
       if (result.currency && result.currency !== getAccountCurrency()) {
         toast(`The receipt is in ${result.currency}. The amount was not converted, so please check it.`, { icon: '⚠️', duration: 6000 });
       } else {
@@ -202,10 +209,94 @@ const GeneralExpenseForm: React.FC = () => {
         notes: '',
         project_id: ''
       });
+      setScannedItems([]);
 
     } catch (error: any) {
       console.error('Error adding general expense:', error);
       toast.error(error.message || 'Failed to record general expense');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const updateScannedItem = (index: number, patch: Partial<ScannedReceiptItem & { include: boolean }>) => {
+    setScannedItems(prev => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  };
+
+  const handleSaveSeparateExpenses = async () => {
+    const toSave = scannedItems.filter(item => item.include && item.amount > 0);
+    if (toSave.length === 0) {
+      toast.error('Pick at least one item with an amount greater than 0');
+      return;
+    }
+    if (!formData.expense_type.trim()) {
+      toast.error('Choose what these expenses were for first');
+      return;
+    }
+    if (!formData.date) {
+      toast.error('Pick the date of the expense first');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      let userId: string | null = null;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        userId = user?.id ?? null;
+      } catch {
+        // fall through to session fallback below
+      }
+      if (!userId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        userId = session?.user?.id ?? null;
+      }
+      if (!userId) {
+        toast.error('You must be logged in to add expenses');
+        return;
+      }
+
+      if (!userExpenseTypes.includes(formData.expense_type) && !EXPENSE_TYPES.includes(formData.expense_type)) {
+        await addNewExpenseType(formData.expense_type).catch(() => {});
+      }
+
+      const rows = toSave.map(item => ({
+        id: crypto.randomUUID(),
+        user_id: userId,
+        expense_type: formData.expense_type,
+        amount: item.amount,
+        date: formData.date,
+        notes: item.name,
+        project_id: formData.project_id || null,
+      }));
+
+      const { error } = await supabase.from('general_expenses').insert(rows);
+
+      if (error) {
+        if (!isNetworkError(error)) throw error;
+        rows.forEach(row => enqueueWrite({
+          id: row.id,
+          kind: 'general_expense',
+          table: 'general_expenses',
+          payload: row,
+          label: `${row.expense_type} — ${getAccountCurrency()} ${row.amount}`,
+        }));
+        toast.success(`Saved ${rows.length} expenses offline — will sync when you're back online`, { duration: 5000 });
+      } else {
+        toast.success(`${rows.length} expenses recorded successfully!`);
+      }
+
+      setFormData({
+        expense_type: '',
+        amount: 0,
+        date: new Date().toISOString().split('T')[0],
+        notes: '',
+        project_id: ''
+      });
+      setScannedItems([]);
+    } catch (error: any) {
+      console.error('Error adding itemized expenses:', error);
+      toast.error(error.message || 'Failed to record expenses');
     } finally {
       setIsSubmitting(false);
     }
@@ -237,6 +328,54 @@ const GeneralExpenseForm: React.FC = () => {
             </span>
             <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleScanReceipt} disabled={isScanning} />
           </label>
+
+          {/* Itemized receipt: offer to split into separate expenses instead of one combined row */}
+          {scannedItems.length > 0 && (
+            <div className="rounded-lg border border-orange-200 bg-orange-50/60 p-4 space-y-3">
+              <p className="text-sm font-semibold text-gray-800">
+                This receipt has {scannedItems.length} items — record them as separate expenses instead of one combined one?
+              </p>
+              <div className="space-y-2">
+                {scannedItems.map((item, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={item.include}
+                      onChange={(e) => updateScannedItem(index, { include: e.target.checked })}
+                      className="h-4 w-4 flex-shrink-0 rounded border-gray-300"
+                      aria-label={`Include ${item.name || 'this item'}`}
+                    />
+                    <input
+                      type="text"
+                      value={item.name}
+                      onChange={(e) => updateScannedItem(index, { name: e.target.value })}
+                      placeholder="Item name"
+                      className="flex-1 min-w-0 px-2 py-1.5 text-sm border border-gray-300 rounded-lg"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.amount || ''}
+                      onChange={(e) => updateScannedItem(index, { amount: toNum(parseInput(e.target.value)) })}
+                      placeholder="0.00"
+                      className="w-28 px-2 py-1.5 text-sm border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveSeparateExpenses}
+                disabled={isSubmitting}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                Save {scannedItems.filter(item => item.include).length} separate expenses
+              </button>
+              <p className="text-xs text-gray-500">Or ignore this and use "Record Expense" below to save it as one combined expense instead.</p>
+            </div>
+          )}
 
           {/* Expense Type */}
           <div>
