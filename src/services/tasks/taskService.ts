@@ -12,6 +12,8 @@ export interface BusinessTask {
   /** When the owner wants to be reminded (ISO), or null. */
   remindAt: string | null;
   createdAt: string | null;
+  /** The project (e.g. an event) this task is part of, or null for a standalone task. */
+  projectId: string | null;
 }
 
 interface TaskRow {
@@ -23,6 +25,7 @@ interface TaskRow {
   due_time?: string | null;
   remind_at?: string | null;
   created_at: string | null;
+  project_id?: string | null;
 }
 
 function mapRow(row: TaskRow): BusinessTask {
@@ -35,7 +38,19 @@ function mapRow(row: TaskRow): BusinessTask {
     dueTime: row.due_time ?? null,
     remindAt: row.remind_at ?? null,
     createdAt: row.created_at,
+    projectId: row.project_id ?? null,
   };
+}
+
+/** The open checklist/timeline for one project (e.g. an event), oldest due date first. */
+export async function listTasksForProject(projectId: string): Promise<BusinessTask[]> {
+  const { data, error } = await supabase
+    .from('business_tasks')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('due_date', { ascending: true, nullsFirst: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapRow);
 }
 
 export async function listTasks(): Promise<BusinessTask[]> {
@@ -57,6 +72,8 @@ export interface CreateTaskInput {
   dueTime?: string | null;
   /** Minutes before the due moment to remind; null/undefined for no reminder. */
   remindMinutesBefore?: number | null;
+  /** The project (e.g. an event) this task belongs to, if any. */
+  projectId?: string | null;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<BusinessTask> {
@@ -75,6 +92,7 @@ export async function createTask(input: CreateTaskInput): Promise<BusinessTask> 
       due_time: dueDate && input.dueTime ? input.dueTime : null,
       remind_at: remindAt,
       user_id: user.id,
+      project_id: input.projectId || null,
     })
     .select()
     .single();

@@ -19,14 +19,22 @@ export interface ProjectExpenseEntry {
   amount: number;
 }
 
+export interface ProjectTaskEntry {
+  id: string;
+  title: string;
+  completed: boolean;
+  dueDate: string | null;
+}
+
 export interface ProjectContents {
   documents: ProjectDocumentEntry[];
   expenses: ProjectExpenseEntry[];
+  tasks: ProjectTaskEntry[];
 }
 
-/** Everything filed under a project: its invoices/quotations/receipts and its expenses. */
+/** Everything filed under a project: its invoices/quotations/receipts, its expenses, and its timeline tasks. */
 export async function fetchProjectContents(projectId: string): Promise<ProjectContents> {
-  const [docs, general, ads, vendors] = await Promise.all([
+  const [docs, general, ads, vendors, tasks] = await Promise.all([
     supabase
       .from('documents')
       .select('id, document_type, document_number, customer_name, date, total, status')
@@ -47,6 +55,11 @@ export async function fetchProjectContents(projectId: string): Promise<ProjectCo
       .select('id, vendor_name, expense_type, amount_kes, date')
       .eq('project_id', projectId)
       .eq('is_deleted', false),
+    supabase
+      .from('business_tasks')
+      .select('id, title, completed, due_date')
+      .eq('project_id', projectId)
+      .order('due_date', { ascending: true, nullsFirst: false }),
   ]);
 
   const documents: ProjectDocumentEntry[] = (docs.data ?? []).map(d => ({
@@ -71,5 +84,12 @@ export async function fetchProjectContents(projectId: string): Promise<ProjectCo
     })),
   ].sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')));
 
-  return { documents, expenses };
+  const taskEntries: ProjectTaskEntry[] = (tasks.data ?? []).map(t => ({
+    id: t.id,
+    title: t.title,
+    completed: t.completed ?? false,
+    dueDate: t.due_date,
+  }));
+
+  return { documents, expenses, tasks: taskEntries };
 }
