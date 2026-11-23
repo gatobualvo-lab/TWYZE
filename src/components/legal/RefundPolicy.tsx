@@ -4,8 +4,15 @@ import LegalPageLayout from './LegalPageLayout';
 const RefundPolicy: React.FC = () => (
   <LegalPageLayout title="Refund Policy" lastUpdated="August 20, 2026">
     <p>
-      This policy covers subscription payments made to TrackWyze via M-Pesa or card (processed by Flutterwave) or by
-      manual payment submission.
+      <strong>Not currently in effect.</strong> TrackWyze is currently free to use — we are not collecting
+      subscription payments or any other charges during this testing/early-access phase, so there is nothing to
+      cancel or refund because nothing is being charged. This policy describes how refunds will work once we
+      introduce paid subscriptions; we'll notify existing users in advance before any billing starts, and this
+      notice will be removed once it does.
+    </p>
+    <p>
+      Once billing begins, this policy will cover subscription payments made to TrackWyze via M-Pesa or card
+      (processed by Flutterwave) or by manual payment submission.
     </p>
 
     <h2>1. Free trial</h2>

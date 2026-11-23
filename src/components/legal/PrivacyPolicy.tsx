@@ -13,14 +13,14 @@ const PrivacyPolicy: React.FC = () => (
     <ul>
       <li><strong>Account data:</strong> your name, email, phone number, and password (stored securely, never in plain text).</li>
       <li><strong>Business data you enter:</strong> sales, expenses, inventory, customer records, supplier records, documents (quotations/invoices/receipts), and business goals.</li>
-      <li><strong>Payment data:</strong> subscription payments are processed by Flutterwave — we store the amount, method, and a reference number, never your full card or M-Pesa details.</li>
+      <li><strong>Payment data:</strong> we are not currently collecting any payments — TrackWyze is free to use during this testing/early-access phase. Once paid subscriptions launch, payments will be processed by Flutterwave and we will only ever store the amount, method, and a reference number, never your full card or M-Pesa details.</li>
       <li><strong>Usage data:</strong> basic technical information (device/browser type, error logs) to keep the service running reliably.</li>
     </ul>
 
     <h2>2. How we use your data</h2>
     <ul>
       <li>To provide the service — record your transactions, generate reports, and calculate the analytics you see (Health Score, Opportunity Center, etc).</li>
-      <li>To communicate with you — welcome emails, payment confirmations, subscription renewal reminders, and support responses.</li>
+      <li>To communicate with you — welcome emails and support responses (payment confirmations and renewal reminders will apply once paid plans launch).</li>
       <li>To improve TrackWyze — aggregated, non-identifying usage patterns help us understand which features are useful.</li>
       <li>To keep the platform secure — detecting abuse, enforcing rate limits, and investigating suspicious activity.</li>
     </ul>
@@ -37,7 +37,7 @@ const PrivacyPolicy: React.FC = () => (
     <h2>4. Who we share data with (sub-processors)</h2>
     <ul>
       <li><strong>Supabase</strong> — our database and hosting provider. All your business data is stored here.</li>
-      <li><strong>Flutterwave</strong> — processes subscription payments.</li>
+      <li><strong>Flutterwave</strong> — will process subscription payments once paid plans launch; not currently used, since we aren't collecting payments yet.</li>
       <li><strong>Anthropic</strong> — processes AI Business Assistant questions, only when you use that feature.</li>
       <li><strong>SendGrid</strong> — sends transactional emails (welcome, payment confirmation, renewal reminders) on our behalf.</li>
       <li><strong>[Error monitoring provider, e.g. Sentry]</strong> — receives error reports to help us fix bugs; these reports may include technical details but are not used to build a profile of you.</li>
@@ -57,6 +57,11 @@ const PrivacyPolicy: React.FC = () => (
       We keep your data for as long as your account is active. If your account is closed, we retain your data for
       [retention period] in case you wish to reactivate, then delete it. Backups may persist for a limited additional
       period as part of our standard backup rotation.
+    </p>
+    <p>
+      While TrackWyze is in its testing/early-access phase, we may need to reset or clear test data with reasonable
+      notice where practical. We recommend using the in-app Data Export feature regularly as a precaution during
+      this phase.
     </p>
 
     <h2>7. Security</h2>
