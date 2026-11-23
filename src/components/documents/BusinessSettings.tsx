@@ -10,10 +10,6 @@ import { LockedSection } from '../subscription/Gates';
 import { resolveDocumentStyle, styleToStored, type DocumentKind, type DocumentStyle } from '../../utils/documentTheme';
 import {
   Building2,
-  Phone,
-  Mail,
-  Globe,
-  MapPin,
   CreditCard,
   FileText,
   Image as ImageIcon,
@@ -129,7 +125,7 @@ export default function BusinessSettings() {
         toast.error('Failed to load settings');
         console.error(error);
       } else if (data) {
-        setSettings(data);
+        setSettings(data as Partial<BusinessSettings>);
         setHasStyleColumn('document_style' in data);
       } else {
         // Auto-create default settings for new users
@@ -142,7 +138,7 @@ export default function BusinessSettings() {
         if (insertError) {
           console.error('Error creating default settings:', insertError);
         } else if (newSettings) {
-          setSettings(newSettings);
+          setSettings(newSettings as Partial<BusinessSettings>);
           setHasStyleColumn('document_style' in newSettings);
         }
       }

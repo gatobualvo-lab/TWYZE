@@ -180,3 +180,28 @@ export async function fetchProfitByCustomer(range: DateRange, limit = 50): Promi
     lastOrderDate: row.last_order_date ?? null,
   }));
 }
+
+export interface LocationProfit {
+  location: string;
+  revenue: number;
+  profit: number;
+  transactionCount: number;
+  lastOrderDate: string | null;
+}
+
+export async function fetchProfitByLocation(range: DateRange, limit = 50): Promise<LocationProfit[]> {
+  const { data, error } = await supabase.rpc('get_profit_by_location', {
+    p_start: range.start,
+    p_end: range.end,
+    p_limit: limit,
+  });
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map(row => ({
+    location: row.location ?? 'Unknown location',
+    revenue: toNum(row.revenue),
+    profit: toNum(row.profit),
+    transactionCount: toNum(row.transaction_count),
+    lastOrderDate: row.last_order_date ?? null,
+  }));
+}

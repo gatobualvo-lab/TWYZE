@@ -32,7 +32,7 @@ const ClientDropdown: React.FC<ClientDropdownProps> = ({
   const [newClientName, setNewClientName] = useState('');
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [editValue, setEditValue] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   

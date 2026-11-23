@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, FilePlus, Receipt, ClipboardList, Settings, ArrowLeft } from 'lucide-react';
+import { FileText, Receipt, ClipboardList, Settings, ArrowLeft } from 'lucide-react';
 import DocumentList from './DocumentList';
 import DocumentForm from './DocumentForm';
 import DocumentPreview from './DocumentPreview';

@@ -1,7 +1,8 @@
 import Spinner from './ui/Spinner';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, CreditCard, LogOut, Save, AlertCircle, CheckCircle, Briefcase, Lock, Eye, EyeOff, ShieldCheck, ShieldOff } from 'lucide-react';
+import { User as UserIcon, Mail, Phone, CreditCard, LogOut, Save, AlertCircle, CheckCircle, Briefcase, Lock, Eye, EyeOff, ShieldCheck, ShieldOff } from 'lucide-react';
+import type { User } from '@supabase/supabase-js';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import LoadingScreen from './LoadingScreen';
@@ -112,7 +113,7 @@ const AccountSettings: React.FC = () => {
         throw profileError;
       }
       
-      setProfile(profileData);
+      setProfile(profileData as UserProfile);
       setFormData({
         fullName: profileData.full_name || '',
         phoneNumber: profileData.phone_number || '',
@@ -170,10 +171,15 @@ const AccountSettings: React.FC = () => {
       }, 60);
       return;
     }
-    
+
+    if (!user) {
+      toast.error('You must be logged in to update your profile');
+      return;
+    }
+
     try {
       setSaving(true);
-      
+
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -183,7 +189,7 @@ const AccountSettings: React.FC = () => {
           currency: formData.currency,
           updated_at: new Date().toISOString()
         })
-        .eq('id', user?.id);
+        .eq('id', user.id);
       
       if (error) {
         throw error;
@@ -273,12 +279,12 @@ const AccountSettings: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader icon={User} title="Account Settings" />
+      <PageHeader icon={UserIcon} title="Account Settings" />
 
       {/* Profile Information */}
       <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
         <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <User className="w-5 h-5 text-blue-600" />
+          <UserIcon className="w-5 h-5 text-blue-600" />
           Profile Information
         </h3>
         
@@ -289,7 +295,7 @@ const AccountSettings: React.FC = () => {
               Full Name *
             </label>
             <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
                 id="field-fullName"

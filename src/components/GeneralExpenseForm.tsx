@@ -1,7 +1,7 @@
 import Spinner from './ui/Spinner';
 import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect } from 'react';
-import { Plus, DollarSign, Calendar, Save, Receipt, ScanLine } from 'lucide-react';
+import { DollarSign, Calendar, Save, Receipt, ScanLine } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import toast from 'react-hot-toast';
 import { toNum, parseInput, NumericInput } from '../utils/numberInput';

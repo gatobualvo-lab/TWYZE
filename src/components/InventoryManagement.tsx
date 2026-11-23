@@ -1,6 +1,6 @@
 import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, CreditCard as Edit, Trash2, AlertTriangle, TrendingDown, Search, Filter, Receipt, X, Palette, Image as ImageIcon, Briefcase, Tag } from 'lucide-react';
+import { Package, Plus, CreditCard as Edit, Trash2, AlertTriangle, TrendingDown, Search, Receipt, X, Palette, Image as ImageIcon, Briefcase, Tag } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
@@ -157,7 +157,7 @@ const InventoryManagement: React.FC = () => {
 
       // Services live on their own page (Inventory > Services); ticket tiers
       // live on their event's own Tickets tab (Events > the event).
-      setItems((data || []).filter(row => row.item_type !== 'service'));
+      setItems((data || []).filter(row => row.item_type !== 'service') as InventoryItem[]);
     } catch (error: any) {
       console.error('Error fetching inventory:', error);
       toast.error(error.message || 'Failed to load inventory data');

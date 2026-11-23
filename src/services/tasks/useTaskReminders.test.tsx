@@ -20,7 +20,7 @@ import { useTaskReminders, REMINDER_TOAST_ID } from './useTaskReminders';
 
 const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
 const task = (over: Partial<BusinessTask>): BusinessTask => ({
-  id: 't1', title: 'Call the supplier', taskType: 'general', completed: false, dueDate: '2026-11-05', dueTime: '10:00', remindAt: hoursAgo(0.1), createdAt: null, ...over,
+  id: 't1', title: 'Call the supplier', taskType: 'general', completed: false, dueDate: '2026-11-05', dueTime: '10:00', remindAt: hoursAgo(0.1), createdAt: null, projectId: null, ...over,
 });
 
 beforeEach(() => {

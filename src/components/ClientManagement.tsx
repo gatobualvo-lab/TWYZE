@@ -2,7 +2,7 @@ import Spinner from './ui/Spinner';
 import Modal from './ui/Modal';
 import { formatCurrency } from '../utils/format';
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Phone, MapPin, ShoppingCart, DollarSign, ChevronDown, ChevronUp, Calendar, ArrowLeft, UserPlus, X } from 'lucide-react';
+import { Users, Search, Phone, MapPin, Calendar, ArrowLeft, UserPlus, X } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
@@ -177,7 +177,16 @@ const ClientManagement: React.FC = () => {
         .limit(50);
 
       if (error) throw error;
-      setClientSales(data || []);
+      setClientSales((data || []).map(sale => ({
+        id: sale.id,
+        date: sale.date || '',
+        product_name: sale.product_name || '',
+        selling_price: sale.selling_price || 0,
+        payment_status: sale.payment_status || '',
+        delivery_status: sale.delivery_status || '',
+        location: sale.location || '',
+        amount_owed_to_vendor: sale.amount_owed_to_vendor || 0,
+      })));
     } catch (err: any) {
       toast.error('Failed to load client history');
     } finally {

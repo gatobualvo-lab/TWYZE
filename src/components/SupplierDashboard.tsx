@@ -1,6 +1,6 @@
 import { formatCurrency as formatAccountCurrency } from '../utils/format';
 import React, { useState, useEffect } from 'react';
-import { Users, DollarSign, AlertTriangle, TrendingUp, Calendar, Receipt, Eye, Trash2, Search, Filter, ChevronRight, ChevronDown, User, ChevronUp, Check } from 'lucide-react';
+import { Users, DollarSign, AlertTriangle, TrendingUp, Trash2, Search, Filter, ChevronRight, ChevronDown, User, ChevronUp, Check } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
@@ -98,7 +98,7 @@ const SupplierDashboard: React.FC = () => {
         throw error;
       }
 
-      setSuppliers(data || []);
+      setSuppliers((data || []) as Supplier[]);
     } catch (error: any) {
       console.error('Error fetching suppliers:', error);
       toast.error(error.message || 'Failed to load supplier data');

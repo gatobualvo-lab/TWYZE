@@ -7,13 +7,13 @@ import toast from 'react-hot-toast';
 interface ColorOption {
   id: string;
   color_name: string;
-  created_at: string;
+  created_at: string | null;
 }
 
 interface DropdownItem {
   id: string;
   name: string;
-  created_at: string;
+  created_at: string | null;
   colors?: ColorOption[];
 }
 
@@ -561,7 +561,7 @@ const DropdownManagement: React.FC = () => {
                           </td>
                         )}
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(item.created_at).toLocaleDateString()}
+                          {item.created_at ? new Date(item.created_at).toLocaleDateString() : '—'}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                           {editingItem !== item.id && (

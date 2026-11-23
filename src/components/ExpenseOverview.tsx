@@ -5,7 +5,7 @@ import Modal from './ui/Modal';
 import { PageHeader } from './ui';
 import { getAccountCurrency } from '../utils/accountCurrency';
 import React, { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, Calendar, PieChart, BarChart3, ChevronDown, ChevronRight, Users, Plus, CreditCard as Edit, Trash2, Save, X, Check, RefreshCw, CheckCircle2, AlertTriangle, Archive } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, PieChart, BarChart3, ChevronDown, ChevronRight, Users, Plus, CreditCard as Edit, Trash2, Save, X, RefreshCw, CheckCircle2, AlertTriangle, Archive } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import EnhancedDropdown from './EnhancedDropdown';
 import LoadingScreen from './LoadingScreen';
@@ -28,7 +28,7 @@ interface AdExpense {
   amount_kes: number;
   occurred_on: string;
   notes: string | null;
-  created_at: string;
+  created_at: string | null;
 }
 
 interface GeneralExpense {
@@ -38,6 +38,17 @@ interface GeneralExpense {
   date: string;
   notes: string | null;
   created_at: string;
+}
+
+// general_expenses.amount/date/created_at are nullable at the DB level (never actually
+// null for a saved expense), so raw rows get normalized to this component's non-null shape.
+function toGeneralExpense(row: { amount: number | null; date: string | null; created_at: string | null; [key: string]: unknown }): GeneralExpense {
+  return {
+    ...row,
+    amount: row.amount ?? 0,
+    date: row.date ?? '',
+    created_at: row.created_at ?? '',
+  } as GeneralExpense;
 }
 
 interface SupplierExpense {
@@ -61,8 +72,7 @@ const ExpenseOverview: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [isSupplierExpensesExpanded, setIsSupplierExpensesExpanded] = useState(false);
-  const [userVendors, setUserVendors] = useState<string[]>([]);
-  
+
   // New vendor expenses state
   const [vendorExpenses, setVendorExpenses] = useState<{[key: string]: SupplierExpense[]}>({});
   const [vendorExpensesPage, setVendorExpensesPage] = useState<{[key: string]: number}>({});
@@ -241,8 +251,8 @@ const ExpenseOverview: React.FC = () => {
         toast.error('Expense not found or not owned by you');
         return;
       }
-      setGeneralExpenses(prev => prev.map(e => (e.id === editingGeneralExpense.id ? { ...e, ...data } : e)));
-      setFilteredGeneralExpenses(prev => prev.map(e => (e.id === editingGeneralExpense.id ? { ...e, ...data } : e)));
+      setGeneralExpenses(prev => prev.map(e => (e.id === editingGeneralExpense.id ? toGeneralExpense({ ...e, ...data }) : e)));
+      setFilteredGeneralExpenses(prev => prev.map(e => (e.id === editingGeneralExpense.id ? toGeneralExpense({ ...e, ...data }) : e)));
       toast.success('General expense updated');
       setEditingGeneralExpense(null);
     } catch (err: any) {
@@ -483,97 +493,6 @@ const ExpenseOverview: React.FC = () => {
     setSelectedExpenses(new Set());
   }, [showArchivedExpenses]);
 
-  // Centralized vendor management functions
-  const addNewVendor = async (name: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('You must be logged in to add vendors');
-      }
-
-      const { error } = await supabase
-        .from('user_sellers')
-        .insert({ 
-          id: crypto.randomUUID(),
-          user_id: user.id, 
-          name 
-        });
-
-      if (error) {
-        if (error.code === '23505') {
-          toast.error('This vendor already exists');
-          return;
-        }
-        throw error;
-      }
-
-      setUserVendors(prev => [...prev, name].sort());
-      toast.success('Vendor added successfully');
-    } catch (error: any) {
-      console.error('Error adding vendor:', error);
-      toast.error(error.message || 'Failed to add vendor');
-      throw error;
-    }
-  };
-
-  const editVendor = async (oldName: string, newName: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('You must be logged in to edit vendors');
-      }
-
-      const { error: updateError } = await supabase
-        .from('user_sellers')
-        .update({ name: newName })
-        .eq('user_id', user.id)
-        .eq('name', oldName);
-
-      if (updateError) {
-        if (updateError.code === '23505') {
-          toast.error('This vendor already exists');
-          return;
-        }
-        throw updateError;
-      }
-
-      setUserVendors(prev =>
-        prev.map(s => (s === oldName ? newName : s)).sort()
-      );
-      toast.success('Vendor updated successfully');
-    } catch (error: any) {
-      console.error('Error editing vendor:', error);
-      toast.error(error.message || 'Failed to edit vendor');
-      throw error;
-    }
-  };
-
-  const deleteVendor = async (name: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('You must be logged in to delete vendors');
-      }
-
-      const { error } = await supabase
-        .from('user_sellers')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('name', name);
-
-      if (error) {
-        throw error;
-      }
-
-      setUserVendors(prev => prev.filter(s => s !== name));
-      toast.success('Vendor deleted successfully');
-    } catch (error: any) {
-      console.error('Error deleting vendor:', error);
-      toast.error(error.message || 'Failed to delete vendor');
-      throw error;
-    }
-  };
-
   const fetchVendorBalances = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -688,8 +607,8 @@ const ExpenseOverview: React.FC = () => {
       if (generalError) {
         console.error('Error fetching general expenses:', generalError);
       } else {
-        setGeneralExpenses(generalData || []);
-        setFilteredGeneralExpenses(generalData || []);
+        setGeneralExpenses((generalData || []).map(toGeneralExpense));
+        setFilteredGeneralExpenses((generalData || []).map(toGeneralExpense));
       }
 
       // Fetch vendor expenses
@@ -742,19 +661,6 @@ const ExpenseOverview: React.FC = () => {
         setVendorExpensesPage(pageState);
         setVendorExpensesHasMore(hasMoreState);
         setVendorExpensesLoading(loadingState);
-      }
-
-      // Fetch vendors for dropdown
-      const { data: vendorsData, error: vendorsError } = await supabase
-        .from('user_sellers')
-        .select('name')
-        .eq('user_id', user.id)
-        .order('name');
-
-      if (vendorsError) {
-        console.error('Error fetching vendors:', vendorsError);
-      } else {
-        setUserVendors(vendorsData?.map(v => v.name) || []);
       }
 
     } catch (error: any) {
@@ -1811,7 +1717,7 @@ const ExpenseOverview: React.FC = () => {
               ]
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                 .slice(0, 10)
-                .map((expense, index) => (
+                .map((expense) => (
                   <tr key={`${expense.type}-${expense.id}`} className="hover:bg-gray-50 even:bg-gray-25">
                     <td className="px-3 py-4">
                       <input

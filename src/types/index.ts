@@ -37,15 +37,6 @@ export const DELIVERY_GUYS = [
   'Isaac'
 ] as const;
 
-type DeliveryGuy = typeof DELIVERY_GUYS[number];
-
-interface FilterOptions {
-  startDate: string;
-  endDate: string;
-  deliveryGuy: string;
-  paymentStatus: string;
-}
-
 export interface PeriodStats {
   totalProfit: number;
   totalSales: number;
@@ -88,13 +79,6 @@ export const AD_TYPES = [
 
 type AdType = typeof AD_TYPES[number];
 
-interface AdExpenseFilters {
-  startDate: string;
-  endDate: string;
-  adType: string;
-  searchTerm: string;
-}
-
 export interface MonthlyAdStats {
   totalSpent: number;
   totalPayments: number;
@@ -120,30 +104,6 @@ export interface GeneralExpense {
   lastModified?: string;
   modifiedBy?: string;
   isDeleted?: boolean;
-}
-
-const EXPENSE_TYPES = [
-  'Rent',
-  'Utilities',
-  'Salaries',
-  'Internet',
-  'Transport',
-  'Packaging',
-  'Office Supplies',
-  'Maintenance',
-  'Insurance',
-  'Licenses',
-  'Subscriptions',
-  'Other'
-] as const;
-
-type ExpenseType = typeof EXPENSE_TYPES[number];
-
-interface GeneralExpenseFilters {
-  startDate: string;
-  endDate: string;
-  expenseType: string;
-  searchTerm: string;
 }
 
 // Supplier Types

@@ -135,7 +135,7 @@ export async function getVendorExpenses(
     throw new Error(error.message);
   }
 
-  return data || [];
+  return (data || []) as VendorExpense[];
 }
 
 /**

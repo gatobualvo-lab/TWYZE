@@ -95,7 +95,7 @@ export async function assertOwnership(
   if (!user) return false;
 
   const { count, error } = await supabase
-    .from(table)
+    .from(table as any)
     .select('id', { count: 'exact', head: true })
     .eq('id', id)
     .eq(ownerColumn, user.id);

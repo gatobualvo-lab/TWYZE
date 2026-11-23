@@ -5,7 +5,7 @@ import { LayoutGrid, Table2, List } from 'lucide-react';
 import ReceiptActions from './ReceiptActions';
 import CountUp from './ui/CountUp';
 import { supabase } from '../utils/supabase';
-import { Search, Filter, ChevronDown, ChevronUp, Calendar, User, Truck, Package, Trash2, MapPin, ChevronRight, CreditCard as Edit, Check, DollarSign, Info, CreditCard, TrendingUp, AlertCircle, BarChart3, Undo, AlertTriangle, Archive } from 'lucide-react';
+import { Search, Filter, ChevronDown, ChevronUp, Calendar, User, Truck, Package, Trash2, MapPin, ChevronRight, CreditCard as Edit, Check, DollarSign, Info, TrendingUp, BarChart3, Undo, AlertTriangle, Archive } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingScreen from './LoadingScreen';
 import { formatCurrency } from '../utils/format';
@@ -199,8 +199,7 @@ const SalesList: React.FC = () => {
     const monthSales = filteredSales.filter(sale => sale.date.startsWith(currentMonth));
     const monthSalesCount = monthSales.length;
     const monthSalesRevenue = monthSales.reduce((sum, sale) => sum + sale.selling_price, 0);
-    const monthNetProfit = monthSales.reduce((sum, sale) => sum + sale.profit, 0);
-    
+
     // Calculate unpaid sales amount
     const unpaidSales = filteredSales.filter(sale => sale.payment_status === 'Unpaid');
     const unpaidSalesAmount = unpaidSales.reduce((sum, sale) => sum + sale.selling_price, 0);
@@ -254,7 +253,7 @@ const SalesList: React.FC = () => {
         throw error;
       }
 
-      setSales(data || []);
+      setSales((data || []) as Sale[]);
     } catch (error: any) {
       console.error('Error fetching sales:', error);
       toast.error(error.message || 'Failed to load sales data');
@@ -336,7 +335,7 @@ const SalesList: React.FC = () => {
       if (!sale) return;
       
       // Toggle the amount_owed_to_vendor value
-      const newAmountOwed = sale.amount_owed_to_vendor > 0 ? 0 : sale.buying_price;
+      const newAmountOwed = (sale.amount_owed_to_vendor || 0) > 0 ? 0 : sale.buying_price;
       
       // Update the sale in the database
       const { error } = await supabase
@@ -580,7 +579,7 @@ const SalesList: React.FC = () => {
       // Restore the main sale record
       const { error: restoreSaleError } = await supabase
         .from('sales')
-        .insert(deletedSale.sale);
+        .insert(deletedSale.sale as any);
 
       if (restoreSaleError) {
         throw restoreSaleError;
@@ -921,7 +920,7 @@ const SalesList: React.FC = () => {
         return;
       }
 
-      setSales(prev => prev.map(s => (s.id === editingSale.id ? { ...s, ...updatedSale } : s)));
+      setSales(prev => prev.map(s => (s.id === editingSale.id ? ({ ...s, ...updatedSale } as Sale) : s)));
 
       await supabase.from('audit_log').insert({
         user_id: user.id,
@@ -1609,7 +1608,7 @@ const SalesList: React.FC = () => {
             <div key={sale.id} className="animate-slide-up" style={{ animationDelay: index < 12 ? `${index * 30}ms` : '0ms' }} ref={index === filteredSales.length - 1 ? lastSaleElementRef : undefined}>
               <div 
                 className={`bg-white rounded-lg shadow-sm border overflow-hidden transition-all duration-300 ${
-                  (sale.amount_owed_to_vendor > 0 || !sale.delivery_fee_paid) 
+                  ((sale.amount_owed_to_vendor || 0) > 0 || !sale.delivery_fee_paid)
                     ? 'border-l-4 border-l-red-500' 
                     : 'border-l-4 border-l-green-500'
                 }`}

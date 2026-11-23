@@ -1,6 +1,6 @@
 import Spinner from './ui/Spinner';
-import React, { useState, useEffect } from 'react';
-import { Calendar, Download, FileText, Filter, Eye, BarChart3, TrendingUp, DollarSign } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar, Download, Filter, Eye, BarChart3, TrendingUp } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
@@ -396,25 +396,25 @@ const ReportsAnalytics: React.FC = () => {
         if (adExpensesResult.error) throw adExpensesResult.error;
         if (vendorExpensesResult.error) throw vendorExpensesResult.error;
 
-        const combinedExpenses = [
+        const combinedExpenses: ExpensesData[] = [
           ...(generalExpensesResult.data || []).map(expense => ({
-            date: expense.date,
+            date: expense.date || '',
             expense_type: expense.expense_type,
-            amount: expense.amount,
+            amount: expense.amount || 0,
             notes: expense.notes || '',
             reimbursed: false
           })),
           ...(adExpensesResult.data || []).map(expense => ({
-            date: expense.occurred_on,
+            date: expense.occurred_on || '',
             expense_type: `Ad: ${expense.ad_type}`,
-            amount: expense.amount_kes,
+            amount: expense.amount_kes || 0,
             notes: expense.notes || '',
             reimbursed: false
           })),
           ...(vendorExpensesResult.data || []).map(expense => ({
-            date: expense.occurred_on,
+            date: expense.occurred_on || '',
             expense_type: `Vendor: ${expense.vendor_name}`,
-            amount: expense.amount_kes,
+            amount: expense.amount_kes || 0,
             notes: expense.notes || '',
             reimbursed: expense.is_cleared || false
           }))
@@ -487,11 +487,11 @@ const ReportsAnalytics: React.FC = () => {
         if (deliveryPaymentsError) throw deliveryPaymentsError;
 
         newReportData.deliveryPayments = (deliveryPaymentsData || []).map(sale => ({
-          delivery_person: sale.delivery_guy,
-          sale_date: sale.date,
-          product_name: sale.product_name,
-          delivery_fee: sale.delivery_fee,
-          delivery_paid: sale.delivery_fee_paid
+          delivery_person: sale.delivery_guy || '',
+          sale_date: sale.date || '',
+          product_name: sale.product_name || '',
+          delivery_fee: sale.delivery_fee || 0,
+          delivery_paid: sale.delivery_fee_paid || false
         }));
       }
 
@@ -577,8 +577,7 @@ const ReportsAnalytics: React.FC = () => {
 
   const exportToCSV = (entityType: keyof EntitySelection) => {
     const data = reportData[entityType];
-    const totals = reportTotals[entityType];
-    
+
     if (!data || data.length === 0) {
       toast.error(`No ${entityType} data to export`);
       return;
@@ -623,17 +622,17 @@ const ReportsAnalytics: React.FC = () => {
         totalsRow = [
           'TOTAL', '', '',
           '',
-          String(totals.quantity),
+          String(reportTotals.sales.quantity),
           '',
-          formatCurrency(totals.item_total),
+          formatCurrency(reportTotals.sales.item_total),
           '', '', '', '', '',
-          formatCurrency(totals.total_selling),
-          formatCurrency(totals.total_buying),
-          formatCurrency(totals.total_delivery_fee),
-          formatCurrency(totals.gross_profit),
-          formatCurrency(totals.vat_amount),
-          formatCurrency(totals.turnover_tax_amount),
-          formatCurrency(totals.net_profit)
+          formatCurrency(reportTotals.sales.total_selling),
+          formatCurrency(reportTotals.sales.total_buying),
+          formatCurrency(reportTotals.sales.total_delivery_fee),
+          formatCurrency(reportTotals.sales.gross_profit),
+          formatCurrency(reportTotals.sales.vat_amount),
+          formatCurrency(reportTotals.sales.turnover_tax_amount),
+          formatCurrency(reportTotals.sales.net_profit)
         ];
         break;
 
@@ -655,12 +654,12 @@ const ReportsAnalytics: React.FC = () => {
         totalsRow = [
           'TOTAL',
           '',
-          totals.quantity.toString(),
-          formatCurrency(totals.buying_price),
-          formatCurrency(totals.selling_price),
-          formatCurrency(totals.vat_amount),
-          formatCurrency(totals.turnover_tax_amount),
-          formatCurrency(totals.profit),
+          reportTotals.saleItems.quantity.toString(),
+          formatCurrency(reportTotals.saleItems.buying_price),
+          formatCurrency(reportTotals.saleItems.selling_price),
+          formatCurrency(reportTotals.saleItems.vat_amount),
+          formatCurrency(reportTotals.saleItems.turnover_tax_amount),
+          formatCurrency(reportTotals.saleItems.profit),
           '',
           '',
           ''
@@ -679,7 +678,7 @@ const ReportsAnalytics: React.FC = () => {
         totalsRow = [
           'TOTAL',
           '',
-          formatCurrency(totals.amount),
+          formatCurrency(reportTotals.expenses.amount),
           '',
           ''
         ];
@@ -699,7 +698,7 @@ const ReportsAnalytics: React.FC = () => {
           'TOTAL',
           '',
           '',
-          formatCurrency(totals.buying_price),
+          formatCurrency(reportTotals.vendorTransactions.buying_price),
           '',
           ''
         ];
@@ -718,7 +717,7 @@ const ReportsAnalytics: React.FC = () => {
           'TOTAL',
           '',
           '',
-          formatCurrency(totals.delivery_fee),
+          formatCurrency(reportTotals.deliveryPayments.delivery_fee),
           ''
         ];
         break;
@@ -1026,7 +1025,7 @@ const ReportsAnalytics: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {data.slice(0, 10).map((row: any, index) => (
+                      {data.slice(0, 10).map((row: any, index: number) => (
                         <tr key={index} className="hover:bg-gray-50">
                           {entityType === 'sales' && (
                             <>

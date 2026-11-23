@@ -3,7 +3,7 @@ import { dueState, sortTasks } from './taskUrgency';
 import type { BusinessTask } from './taskService';
 
 const task = (over: Partial<BusinessTask>): BusinessTask => ({
-  id: 'x', title: 'Task', taskType: 'general', completed: false, dueDate: null, dueTime: null, remindAt: null, createdAt: null, ...over,
+  id: 'x', title: 'Task', taskType: 'general', completed: false, dueDate: null, dueTime: null, remindAt: null, createdAt: null, projectId: null, ...over,
 });
 
 describe('sortTasks', () => {

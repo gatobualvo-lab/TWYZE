@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../utils/supabase';
 import { useTheme } from '../../contexts/ThemeContext';
 import toast from 'react-hot-toast';
@@ -337,7 +337,7 @@ export default function DocumentForm({
 
       let documentNumber = existingDocument?.document_number;
       if (!documentNumber) {
-        documentNumber = await generateDocumentNumber(user.id);
+        documentNumber = (await generateDocumentNumber(user.id)) ?? undefined;
         if (!documentNumber) {
           const typeLabel = documentType === 'quotation' ? 'quotation' : documentType === 'invoice' ? 'invoice' : 'receipt';
           toast.error(`Could not assign a ${typeLabel} number. The document was not saved.`);
@@ -435,7 +435,7 @@ export default function DocumentForm({
           const discountPercent = discountMode === 'amount' ? convertDiscount(item, 'percent') : safeNum(item.discount_percent);
 
           return {
-            document_id: documentId,
+            document_id: documentId as string,
             user_id: user.id,
             product_name: item.product_name,
             description: item.description,
@@ -483,7 +483,6 @@ export default function DocumentForm({
     ? 'bg-gray-700 border-gray-600 text-white'
     : 'bg-white border-gray-300 text-gray-900';
   const labelClass = isDark ? 'text-gray-200' : 'text-gray-700';
-  const textClass = isDark ? 'text-gray-400' : 'text-gray-600';
 
   return (
     <div className={`min-h-screen ${bgClass} p-6`}>

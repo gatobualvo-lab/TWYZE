@@ -6,7 +6,7 @@ import { toISODate } from '../../utils/dateRange';
 import { buildAttentionRows } from './NeedsAttention';
 
 const task = (over: Partial<BusinessTask>): BusinessTask => ({
-  id: 't1', title: 'Task', taskType: 'general', completed: false, dueDate: null, dueTime: null, remindAt: null, createdAt: null, ...over,
+  id: 't1', title: 'Task', taskType: 'general', completed: false, dueDate: null, dueTime: null, remindAt: null, createdAt: null, projectId: null, ...over,
 });
 
 const NO_CONDITIONS = { pendingDeliveries: 0, lowStockItems: 0, outstandingCustomers: 0 };

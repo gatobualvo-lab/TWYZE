@@ -74,7 +74,7 @@ supabase.auth.onAuthStateChange((event) => {
 // Test Supabase connection
 export const testSupabaseConnection = async () => {
   try {
-    const { data, error } = await supabase.auth.getSession()
+    const { error } = await supabase.auth.getSession()
       .catch(err => {
         handleAuthError(err);
         return { data: null, error: err };
@@ -109,12 +109,12 @@ export const refreshSession = async () => {
     
     if (error) {
       handleAuthError(error);
-      return { success: false, error };
+      return { success: false as const, error };
     }
-    
-    return { success: true, data };
+
+    return { success: true as const, data };
   } catch (error: any) {
     handleAuthError(error);
-    return { success: false, error };
+    return { success: false as const, error };
   }
 };

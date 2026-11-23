@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
-import { fetchBusinessMetrics, fetchDailySeries, fetchProfitByProduct, fetchProfitByVendor, fetchProfitByCustomer } from './metricsService';
-import type { BusinessMetrics, DailyMetric, ProductProfit, VendorProfit, CustomerProfit } from './metricsService';
+import { fetchBusinessMetrics, fetchDailySeries, fetchProfitByProduct, fetchProfitByVendor, fetchProfitByCustomer, fetchProfitByLocation } from './metricsService';
+import type { BusinessMetrics, DailyMetric, ProductProfit, VendorProfit, CustomerProfit, LocationProfit } from './metricsService';
 import { rangeKey, type DateRange } from '../../utils/dateRange';
 
 // There's no react-query/swr (or any caching library) in this codebase — see
@@ -29,6 +29,8 @@ interface MetricsContextValue {
   loadProfitByVendor: (range: DateRange, limit?: number) => Promise<VendorProfit[]>;
   getProfitByCustomer: (range: DateRange, limit?: number) => CacheEntry<CustomerProfit[] | null>;
   loadProfitByCustomer: (range: DateRange, limit?: number) => Promise<CustomerProfit[]>;
+  getProfitByLocation: (range: DateRange, limit?: number) => CacheEntry<LocationProfit[] | null>;
+  loadProfitByLocation: (range: DateRange, limit?: number) => Promise<LocationProfit[]>;
   /** Clears every cached result — call after any sale/expense/vendor mutation. */
   invalidate: () => void;
 }
@@ -92,6 +94,7 @@ export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const byProduct = useCachedResource<ProductProfit[]>();
   const byVendor = useCachedResource<VendorProfit[]>();
   const byCustomer = useCachedResource<CustomerProfit[]>();
+  const byLocation = useCachedResource<LocationProfit[]>();
 
   const invalidate = useCallback(() => {
     metrics.clear();
@@ -99,7 +102,8 @@ export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ child
     byProduct.clear();
     byVendor.clear();
     byCustomer.clear();
-  }, [metrics, daily, byProduct, byVendor, byCustomer]);
+    byLocation.clear();
+  }, [metrics, daily, byProduct, byVendor, byCustomer, byLocation]);
 
   const value: MetricsContextValue = {
     getMetrics: range => metrics.get(rangeKey(range)),
@@ -112,6 +116,8 @@ export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ child
     loadProfitByVendor: (range, limit) => byVendor.load(`${rangeKey(range)}:${limit ?? ''}`, () => fetchProfitByVendor(range, limit)),
     getProfitByCustomer: (range, limit) => byCustomer.get(`${rangeKey(range)}:${limit ?? ''}`),
     loadProfitByCustomer: (range, limit) => byCustomer.load(`${rangeKey(range)}:${limit ?? ''}`, () => fetchProfitByCustomer(range, limit)),
+    getProfitByLocation: (range, limit) => byLocation.get(`${rangeKey(range)}:${limit ?? ''}`),
+    loadProfitByLocation: (range, limit) => byLocation.load(`${rangeKey(range)}:${limit ?? ''}`, () => fetchProfitByLocation(range, limit)),
     invalidate,
   };
 

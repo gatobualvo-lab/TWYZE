@@ -99,7 +99,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
           .order('date', { ascending: false });
 
         if (error) throw error;
-        setDocuments(data || []);
+        setDocuments((data || []) as Document[]);
       } catch (error) {
         console.error('Error fetching documents:', error);
         toast.error('Failed to load documents');

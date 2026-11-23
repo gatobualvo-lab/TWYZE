@@ -24,7 +24,7 @@ const typeToTable = {
   supplier: 'user_sellers',
   delivery_guy: 'user_delivery_guys',
   staff: 'user_staff'
-};
+} as const;
 
 const typeToLabel = {
   product: 'Product',
@@ -48,7 +48,7 @@ const EnhancedDropdown: React.FC<EnhancedDropdownProps> = ({
   const [newItemName, setNewItemName] = useState('');
   const [editingItem, setEditingItem] = useState<ListItem | null>(null);
   const [editValue, setEditValue] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');

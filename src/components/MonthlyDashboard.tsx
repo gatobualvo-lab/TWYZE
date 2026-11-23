@@ -1,6 +1,6 @@
 import { formatCurrency as formatAccountCurrency } from '../utils/format';
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Calendar, DollarSign, BarChart3, PieChart, Target, Download } from 'lucide-react';
+import { TrendingUp, Calendar, BarChart3, PieChart, Download } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import LoadingScreen from './LoadingScreen';
 import toast from 'react-hot-toast';
@@ -97,23 +97,23 @@ const MonthlyDashboard: React.FC = () => {
       // Process data by month
       months.forEach(monthData => {
         // Sales data
-        const monthSales = salesData?.filter(sale => sale.date.startsWith(monthData.month)) || [];
-        monthData.salesRevenue = monthSales.reduce((sum, sale) => sum + sale.selling_price, 0);
-        monthData.salesProfit = monthSales.reduce((sum, sale) => sum + sale.profit, 0);
+        const monthSales = salesData?.filter(sale => (sale.date || '').startsWith(monthData.month)) || [];
+        monthData.salesRevenue = monthSales.reduce((sum, sale) => sum + (sale.selling_price || 0), 0);
+        monthData.salesProfit = monthSales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
         monthData.salesCount = monthSales.length;
 
         // Supplier data
-        const monthSuppliers = supplierData?.filter(supplier => supplier.date.startsWith(monthData.month)) || [];
-        monthData.supplierRevenue = monthSuppliers.reduce((sum, supplier) => sum + supplier.selling_price, 0);
-        monthData.supplierProfit = monthSuppliers.reduce((sum, supplier) => sum + supplier.profit, 0);
+        const monthSuppliers = supplierData?.filter(supplier => (supplier.date || '').startsWith(monthData.month)) || [];
+        monthData.supplierRevenue = monthSuppliers.reduce((sum, supplier) => sum + (supplier.selling_price || 0), 0);
+        monthData.supplierProfit = monthSuppliers.reduce((sum, supplier) => sum + (supplier.profit || 0), 0);
 
         // Ad expenses
-        const monthAdExpenses = adExpensesData?.filter(expense => expense.date.startsWith(monthData.month)) || [];
-        monthData.adExpenses = monthAdExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+        const monthAdExpenses = adExpensesData?.filter(expense => (expense.date || '').startsWith(monthData.month)) || [];
+        monthData.adExpenses = monthAdExpenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
 
         // General expenses
-        const monthGeneralExpenses = generalExpensesData?.filter(expense => expense.date.startsWith(monthData.month)) || [];
-        monthData.generalExpenses = monthGeneralExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+        const monthGeneralExpenses = generalExpensesData?.filter(expense => (expense.date || '').startsWith(monthData.month)) || [];
+        monthData.generalExpenses = monthGeneralExpenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
 
         // Calculate net profit
         monthData.netProfit = monthData.salesProfit + monthData.supplierProfit - monthData.adExpenses - monthData.generalExpenses;

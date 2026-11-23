@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../utils/supabase';
 import { useTheme } from '../../contexts/ThemeContext';
 import toast from 'react-hot-toast';
-import { Printer, Share2, Download, X, CreditCard as Edit2, CheckCircle, Clock, FileText } from 'lucide-react';
+import { Printer, Share2, Download, X, CreditCard as Edit2, CheckCircle, FileText } from 'lucide-react';
 import { buildDocumentPdf } from '../../services/pdf/documentPdf';
 import { downloadBlob, pdfFilename, sharePdf } from '../../services/pdf/pdfShare';
 import { formatInCurrency } from '../../utils/currency';
@@ -146,7 +146,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
         toast.error('Document not found');
         return;
       }
-      setDocument(docData);
+      setDocument(docData as Document);
 
       // Fetch document items
       const { data: itemsData, error: itemsError } = await supabase
@@ -156,7 +156,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
         .order('sort_order', { ascending: true });
 
       if (itemsError) throw itemsError;
-      setItems(itemsData || []);
+      setItems((itemsData || []) as DocumentItem[]);
 
       // Fetch business settings (auto-create if missing)
       let { data: settingsData } = await supabase
@@ -181,7 +181,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           ...settingsData,
           ...(has('document-appearance') ? {} : { document_style: {}, default_template: 'professional' }),
           ...(has('document-signature') ? {} : { signature_url: null, stamp_url: null }),
-        });
+        } as BusinessSettings);
       }
     } catch (error) {
       console.error('Error fetching document data:', error);

@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Percent, Package, Users, Truck } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Percent, Package, Users, Truck, MapPin } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler } from 'chart.js';
 import { useMetricsContext } from '../../services/metrics/MetricsProvider';
-import type { ProductProfit, VendorProfit, CustomerProfit } from '../../services/metrics/metricsService';
+import type { ProductProfit, VendorProfit, CustomerProfit, LocationProfit } from '../../services/metrics/metricsService';
 import { getPeriodRange, formatPeriodLabel, type PeriodKey } from '../../utils/dateRange';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { PageHeader, EmptyState, StatCard } from '../ui';
@@ -12,12 +12,13 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 const PERIODS: PeriodKey[] = ['week', 'month', 'quarter', 'year', 'all'];
 
-type Dimension = 'product' | 'vendor' | 'customer';
+type Dimension = 'product' | 'vendor' | 'customer' | 'location';
 
 const DIMENSION_TABS: { key: Dimension; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: 'product', label: 'By Product', icon: Package },
   { key: 'vendor', label: 'By Vendor', icon: Truck },
   { key: 'customer', label: 'By Customer', icon: Users },
+  { key: 'location', label: 'By Market', icon: MapPin },
 ];
 
 const TONE_CLASSES: Record<'blue' | 'green' | 'red' | 'purple', { bg: string; color: string }> = {
@@ -129,6 +130,40 @@ function CustomerTable({ rows }: { rows: CustomerProfit[] }) {
   );
 }
 
+function LocationTable({ rows }: { rows: LocationProfit[] }) {
+  if (rows.length === 0) return <TableEmptyMessage message="No delivery locations recorded in this period yet." />;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 text-left text-gray-500">
+            <th className="py-2 pr-3 font-medium">Market / Location</th>
+            <th className="py-2 px-3 font-medium text-right">Orders</th>
+            <th className="py-2 px-3 font-medium text-right">Revenue</th>
+            <th className="py-2 px-3 font-medium text-right">Profit</th>
+            <th className="py-2 pl-3 font-medium text-right">Last Order</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.location} className="border-b border-gray-100 last:border-b-0">
+              <td className="py-2.5 pr-3 text-gray-900 font-medium">{r.location}</td>
+              <td className="py-2.5 px-3 text-right text-gray-600 tabular-nums">{r.transactionCount}</td>
+              <td className="py-2.5 px-3 text-right text-gray-600 tabular-nums">{formatCurrency(r.revenue)}</td>
+              <td className={`py-2.5 px-3 text-right font-medium tabular-nums ${r.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatCurrency(r.profit)}
+              </td>
+              <td className="py-2.5 pl-3 text-right text-gray-500 tabular-nums">
+                {r.lastOrderDate ? formatDate(r.lastOrderDate) : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 const ProfitAnalytics: React.FC = () => {
   const ctx = useMetricsContext();
   const [period, setPeriod] = useState<PeriodKey>('month');
@@ -142,6 +177,7 @@ const ProfitAnalytics: React.FC = () => {
     ctx.loadProfitByProduct(range).catch(() => {});
     ctx.loadProfitByVendor(range).catch(() => {});
     ctx.loadProfitByCustomer(range).catch(() => {});
+    ctx.loadProfitByLocation(range).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range.start, range.end]);
 
@@ -150,6 +186,7 @@ const ProfitAnalytics: React.FC = () => {
   const productEntry = ctx.getProfitByProduct(range);
   const vendorEntry = ctx.getProfitByVendor(range);
   const customerEntry = ctx.getProfitByCustomer(range);
+  const locationEntry = ctx.getProfitByLocation(range);
 
   const metrics = metricsEntry.data;
   const isInitialLoad = metricsEntry.loading && !metrics;
@@ -298,6 +335,7 @@ const ProfitAnalytics: React.FC = () => {
             {dimension === 'product' && <ProductTable rows={productEntry.data ?? []} />}
             {dimension === 'vendor' && <VendorTable rows={vendorEntry.data ?? []} />}
             {dimension === 'customer' && <CustomerTable rows={customerEntry.data ?? []} />}
+            {dimension === 'location' && <LocationTable rows={locationEntry.data ?? []} />}
           </div>
         </>
       )}

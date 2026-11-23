@@ -81,7 +81,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
   const [editValue, setEditValue] = useState('');
   const [editColors, setEditColors] = useState<string[]>([]);
   const [editColorInput, setEditColorInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');

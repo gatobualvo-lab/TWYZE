@@ -1981,6 +1981,16 @@ export type Database = {
           transaction_count: number
         }[]
       }
+      get_profit_by_location: {
+        Args: { p_end: string; p_limit?: number; p_start: string }
+        Returns: {
+          last_order_date: string
+          location: string
+          profit: number
+          revenue: number
+          transaction_count: number
+        }[]
+      }
       get_profit_by_product: {
         Args: { p_end: string; p_limit?: number; p_start: string }
         Returns: {
