@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, PartyPopper, Users, FileText, Receipt, Check, X, Trash2, Archive, CheckCircle2, Ticket,
-  ListChecks, Clock, Landmark, Megaphone,
+  ListChecks, Clock, Landmark, Megaphone, Wallet, Plus, TrendingUp,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { EVENT_TYPE_LABELS, updateProjectStatus, deleteProject } from '../../services/projects/projectService';
@@ -14,16 +14,21 @@ import EventGuests from './EventGuests';
 import EventChecklist from './EventChecklist';
 import EventVendors from './EventVendors';
 import EventSponsors from './EventSponsors';
+import EventExpenses from './EventExpenses';
+import EventPnL from './EventPnL';
+import DocumentForm from '../documents/DocumentForm';
 
-type Tab = 'overview' | 'tickets' | 'guests' | 'checklist' | 'runofshow' | 'vendors' | 'sponsors' | 'documents';
+type Tab = 'overview' | 'pnl' | 'tickets' | 'guests' | 'checklist' | 'runofshow' | 'vendors' | 'expenses' | 'sponsors' | 'documents';
 
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'overview', label: 'Overview', icon: PartyPopper },
+  { id: 'pnl', label: 'P&L', icon: TrendingUp },
   { id: 'tickets', label: 'Tickets', icon: Ticket },
   { id: 'guests', label: 'Guests', icon: Users },
   { id: 'checklist', label: 'Checklist', icon: ListChecks },
   { id: 'runofshow', label: 'Run of Show', icon: Clock },
   { id: 'vendors', label: 'Vendors', icon: Landmark },
+  { id: 'expenses', label: 'Expenses', icon: Wallet },
   { id: 'sponsors', label: 'Sponsors', icon: Megaphone },
   { id: 'documents', label: 'Documents', icon: FileText },
 ];
@@ -38,6 +43,7 @@ const EventDetail: React.FC<EventDetailProps> = ({ event, onBack, onChanged }) =
   const [tab, setTab] = useState<Tab>('overview');
   const [pendingDelete, setPendingDelete] = useState(false);
   const [contents, setContents] = useState<ProjectContents | null>(null);
+  const [creatingDocType, setCreatingDocType] = useState<'invoice' | 'quotation' | null>(null);
 
   const refreshContents = () => {
     fetchProjectContents(event.id).then(setContents).catch(() => toast.error('Could not load this event'));
@@ -174,40 +180,61 @@ const EventDetail: React.FC<EventDetailProps> = ({ event, onBack, onChanged }) =
         </div>
       )}
 
+      {tab === 'pnl' && <EventPnL event={event} contents={contents} />}
       {tab === 'tickets' && <EventTickets projectId={event.id} />}
       {tab === 'guests' && <EventGuests projectId={event.id} />}
       {(tab === 'checklist' || tab === 'runofshow') && (
         <EventChecklist projectId={event.id} eventDate={event.eventDate} mode={tab === 'checklist' ? 'checklist' : 'runOfShow'} />
       )}
       {tab === 'vendors' && <EventVendors projectId={event.id} />}
+      {tab === 'expenses' && <EventExpenses projectId={event.id} />}
       {tab === 'sponsors' && <EventSponsors projectId={event.id} />}
 
       {tab === 'documents' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
-            Documents ({contents?.documents.length ?? 0})
-          </p>
-          {!contents ? (
-            <p className="text-sm text-gray-400">Loading…</p>
-          ) : contents.documents.length === 0 ? (
-            <p className="text-sm text-gray-400">No invoices or quotations yet. Pick this event when you create one (e.g. a sponsor invoice).</p>
-          ) : (
-            <ul className="divide-y divide-gray-100">
-              {contents.documents.map(d => (
-                <li key={d.id} className="py-2 flex items-center justify-between gap-3 text-sm">
-                  <span className="flex items-center gap-2 min-w-0">
-                    <Receipt className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                    <span className="truncate"><span className="font-medium">{d.number}</span> <span className="text-gray-400 capitalize">{d.type}{d.customer ? ` · ${d.customer}` : ''}</span></span>
-                  </span>
-                  <span className="text-right flex-shrink-0">
-                    <span className="block font-medium tabular-nums">{formatCurrency(d.total)}</span>
-                    <span className="block text-xs text-gray-400">{formatDate(d.date)}{d.status ? ` · ${d.status}` : ''}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        creatingDocType ? (
+          <DocumentForm
+            documentType={creatingDocType}
+            lockProjectId={event.id}
+            onSave={() => { setCreatingDocType(null); refreshContents(); }}
+            onCancel={() => setCreatingDocType(null)}
+          />
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Documents ({contents?.documents.length ?? 0})
+              </p>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setCreatingDocType('quotation')} className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-800">
+                  <Plus className="w-4 h-4" /> New quotation
+                </button>
+                <button onClick={() => setCreatingDocType('invoice')} className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-800">
+                  <Plus className="w-4 h-4" /> New invoice
+                </button>
+              </div>
+            </div>
+            {!contents ? (
+              <p className="text-sm text-gray-400">Loading…</p>
+            ) : contents.documents.length === 0 ? (
+              <p className="text-sm text-gray-400">No invoices or quotations yet. Create one above (e.g. a sponsor invoice).</p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {contents.documents.map(d => (
+                  <li key={d.id} className="py-2 flex items-center justify-between gap-3 text-sm">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <Receipt className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                      <span className="truncate"><span className="font-medium">{d.number}</span> <span className="text-gray-400 capitalize">{d.type}{d.customer ? ` · ${d.customer}` : ''}</span></span>
+                    </span>
+                    <span className="text-right flex-shrink-0">
+                      <span className="block font-medium tabular-nums">{formatCurrency(d.total)}</span>
+                      <span className="block text-xs text-gray-400">{formatDate(d.date)}{d.status ? ` · ${d.status}` : ''}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )
       )}
     </div>
   );

@@ -148,13 +148,15 @@ const InventoryManagement: React.FC = () => {
         .select('*')
         .eq('user_id', user.id)
         .eq('is_deleted', false)
+        .is('project_id', null)
         .order('product_name');
 
       if (error) {
         throw error;
       }
 
-      // Services live on their own page (Inventory > Services).
+      // Services live on their own page (Inventory > Services); ticket tiers
+      // live on their event's own Tickets tab (Events > the event).
       setItems((data || []).filter(row => row.item_type !== 'service'));
     } catch (error: any) {
       console.error('Error fetching inventory:', error);

@@ -63,6 +63,8 @@ interface DocumentFormProps {
   documentType: 'quotation' | 'invoice' | 'receipt';
   existingDocument?: DocumentData;
   existingDocumentId?: string;
+  /** Pre-fills and locks the project (hides the picker) — e.g. creating an invoice from inside an event. */
+  lockProjectId?: string;
   onSave: () => void;
   onCancel: () => void;
 }
@@ -76,6 +78,7 @@ export default function DocumentForm({
   documentType,
   existingDocument,
   existingDocumentId,
+  lockProjectId,
   onSave,
   onCancel,
 }: DocumentFormProps) {
@@ -107,7 +110,7 @@ export default function DocumentForm({
   const [paymentMethod, setPaymentMethod] = useState(existingDocument?.payment_method || '');
   const [notes, setNotes] = useState(existingDocument?.notes || '');
   const [terms, setTerms] = useState(existingDocument?.terms || '');
-  const [projectId, setProjectId] = useState(existingDocument?.project_id || '');
+  const [projectId, setProjectId] = useState(existingDocument?.project_id || lockProjectId || '');
   const [projects, setProjects] = useState<Project[]>([]);
   const [currency, setCurrency] = useState((existingDocument?.currency || base).toUpperCase());
   const [exchangeRate, setExchangeRate] = useState<string>(String(existingDocument?.exchange_rate || 1));
@@ -549,7 +552,7 @@ export default function DocumentForm({
                   placeholder="Customer address"
                 />
               </div>
-              {projects.length > 0 && (
+              {!lockProjectId && projects.length > 0 && (
                 <div>
                   <label className={`block text-sm font-medium ${labelClass} mb-2`}>
                     Project
